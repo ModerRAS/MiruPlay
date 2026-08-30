@@ -162,7 +162,7 @@ class StreamingDspProcessor(
         private val biquadStates = plan.biquadsByChannel.map { chain ->
             Array(chain.size) { BiquadState() }
         }
-        private val firHistory = plan.firTapsByChannel.map { taps -> FloatArray(taps.size) }
+        private val firHistory = plan.firTapsByChannel.map { taps -> DoubleArray(taps.size) } // ponytail: double precision per user request
         private var firCursor = 0
 
         fun processFrame(input: FloatArray, offset: Int): FloatArray {
@@ -175,10 +175,10 @@ class StreamingDspProcessor(
                 val taps = plan.firTapsByChannel[channel]
                 if (taps.isNotEmpty()) {
                     val history = firHistory[channel]
-                    history[firCursor] = value.toFloat()
+                    history[firCursor] = value
                     var filtered = 0.0
                     for (tap in taps.indices) {
-                        filtered += taps[tap] * history[(firCursor - tap + history.size) % history.size]
+                        filtered += taps[tap].toDouble() * history[(firCursor - tap + history.size) % history.size]
                     }
                     value = filtered
                 }

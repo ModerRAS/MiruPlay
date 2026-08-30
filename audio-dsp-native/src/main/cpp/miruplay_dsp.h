@@ -6,18 +6,18 @@ struct FirContext {
     int channels = 0;
     int tapsLen = 0;
     int cursor = 0; // 0..tapsLen-1 shared
-    // per-channel aligned buffers
-    float* tapsAligned = nullptr;      // [channels * tapsLen] reversed for linear dot
-    float* history = nullptr;          // [channels * tapsLen * 2] mirror
-    float* channelGain = nullptr;      // [channels]
-    float preamp = 1.0f;
+    // per-channel aligned buffers - double precision (user requested 64-bit)
+    double* tapsAligned = nullptr;      // [channels * tapsLen] reversed for linear dot
+    double* history = nullptr;          // [channels * tapsLen * 2] mirror
+    double* channelGain = nullptr;      // [channels]
+    double preamp = 1.0;
     // biquad state if needed later (kept for arena completeness)
     bool hasBiquads = false;
 };
 
 // Lifecycle: one alloc at create, zero alloc in process
 FirContext* fir_context_create(int channels, int tapsLen, const float* const* tapsByChannel,
-                               float preamp, const float* channelGain);
+                               double preamp, const double* channelGain);
 void fir_context_destroy(FirContext* ctx);
 void fir_context_reset(FirContext* ctx); // zero history, cursor=0
 

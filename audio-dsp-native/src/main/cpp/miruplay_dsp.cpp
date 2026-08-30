@@ -42,7 +42,7 @@ static void* aligned_alloc16(size_t size) {
 }
 
 FirContext* fir_context_create(int channels, int tapsLen, const float* const* tapsByChannel,
-                               float preamp, const float* channelGain) {
+                               double preamp, const double* channelGain) {
     if (channels <= 0 || channels > 8) return nullptr;
     if (tapsLen <= 0 || tapsLen > 8192) return nullptr;
     FirContext* ctx = new (std::nothrow) FirContext();
@@ -52,13 +52,13 @@ FirContext* fir_context_create(int channels, int tapsLen, const float* const* ta
     ctx->cursor = 0;
     ctx->preamp = preamp;
 
-    size_t tapsBytes = (size_t)channels * tapsLen * sizeof(float);
-    size_t historyBytes = (size_t)channels * tapsLen * 2 * sizeof(float);
-    size_t gainBytes = (size_t)channels * sizeof(float);
+    size_t tapsBytes = (size_t)channels * tapsLen * sizeof(double);
+    size_t historyBytes = (size_t)channels * tapsLen * 2 * sizeof(double);
+    size_t gainBytes = (size_t)channels * sizeof(double);
 
-    ctx->tapsAligned = (float*)aligned_alloc16(tapsBytes);
-    ctx->history = (float*)aligned_alloc16(historyBytes);
-    ctx->channelGain = (float*)aligned_alloc16(gainBytes);
+    ctx->tapsAligned = (double*)aligned_alloc16(tapsBytes);
+    ctx->history = (double*)aligned_alloc16(historyBytes);
+    ctx->channelGain = (double*)aligned_alloc16(gainBytes);
 
     if (!ctx->tapsAligned || !ctx->history || !ctx->channelGain) {
         fir_context_destroy(ctx);
@@ -66,22 +66,22 @@ FirContext* fir_context_create(int channels, int tapsLen, const float* const* ta
     }
     memset(ctx->history, 0, historyBytes);
 
-    // copy taps reversed for linear dot: tapsRev[t] = taps[T-1 - t]
+    // copy taps reversed for linear dot: tapsRev[t] = taps[T-1 - t] (promote float->double)
     for (int ch = 0; ch < channels; ++ch) {
         const float* src = tapsByChannel[ch];
-        float* dst = ctx->tapsAligned + ch * tapsLen;
+        double* dst = ctx->tapsAligned + ch * tapsLen;
         if (src) {
             for (int i = 0; i < tapsLen; ++i) {
-                dst[i] = src[tapsLen - 1 - i];
+                dst[i] = (double)src[tapsLen - 1 - i];
             }
         } else {
-            memset(dst, 0, tapsLen * sizeof(float));
+            memset(dst, 0, tapsLen * sizeof(double));
         }
     }
     if (channelGain) {
         memcpy(ctx->channelGain, channelGain, gainBytes);
     } else {
-        for (int i = 0; i < channels; ++i) ctx->channelGain[i] = 1.0f;
+        for (int i = 0; i < channels; ++i) ctx->channelGain[i] = 1.0;
     }
     return ctx;
 }
@@ -98,7 +98,7 @@ void fir_context_reset(FirContext* ctx) {
     if (!ctx) return;
     ctx->cursor = 0;
     if (ctx->history) {
-        size_t historyBytes = (size_t)ctx->channels * ctx->tapsLen * 2 * sizeof(float);
+        size_t historyBytes = (size_t)ctx->channels * ctx->tapsLen * 2 * sizeof(double);
         memset(ctx->history, 0, historyBytes);
     }
 }
@@ -194,11 +194,11 @@ Java_com_miruplay_tv_audio_NativeDspBridge_nativeCreate(JNIEnv* env, jclass /*cl
         env->DeleteLocalRef(obj);
     }
 
-    float gainTmp[8] = {1,1,1,1,1,1,1,1};
+    double gainTmp[8] = {1,1,1,1,1,1,1,1};
     if (channelGainArray) {
         jsize glen = env->GetArrayLength(channelGainArray);
         jfloat* gElems = env->GetFloatArrayElements(channelGainArray, nullptr);
-        for (int i = 0; i < channels && i < glen; ++i) gainTmp[i] = gElems[i];
+        for (int i = 0; i < channels && i < glen; ++i) gainTmp[i] = (double)gElems[i];
         env->ReleaseFloatArrayElements(channelGainArray, gElems, JNI_ABORT);
     }
 
@@ -284,16 +284,16 @@ Java_com_miruplay_tv_audio_NativeDspBridge_nativeUpdateTaps(JNIEnv* env, jclass 
         if (!obj) continue;
         jfloatArray arr = (jfloatArray)obj;
         jfloat* elems = env->GetFloatArrayElements(arr, nullptr);
-        float* dst = ctx->tapsAligned + ch * tapsLen;
-        for (int i = 0; i < tapsLen; ++i) dst[i] = elems[tapsLen - 1 - i];
+        double* dst = ctx->tapsAligned + ch * tapsLen;
+        for (int i = 0; i < tapsLen; ++i) dst[i] = (double)elems[tapsLen - 1 - i];
         env->ReleaseFloatArrayElements(arr, elems, JNI_ABORT);
         env->DeleteLocalRef(obj);
     }
-    ctx->preamp = preamp;
+    ctx->preamp = (double)preamp;
     if (channelGainArray) {
         jfloat* gElems = env->GetFloatArrayElements(channelGainArray, nullptr);
         jsize glen = env->GetArrayLength(channelGainArray);
-        for (int i = 0; i < channels && i < glen; ++i) ctx->channelGain[i] = gElems[i];
+        for (int i = 0; i < channels && i < glen; ++i) ctx->channelGain[i] = (double)gElems[i];
         env->ReleaseFloatArrayElements(channelGainArray, gElems, JNI_ABORT);
     }
     // keep history/cursor (crossfade handles via Kotlin layer)
