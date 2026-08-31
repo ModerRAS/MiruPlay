@@ -126,6 +126,7 @@ class StreamingDspProcessorTest {
                 "gain",
                 "Gain",
                 preampDb = 6f,
+                autoHeadroom = false,
                 rules = listOf(AudioDspChannelRule(outputGainDb = 6f)),
                 limiter = AudioDspLimiter(enabled = true, ceilingDb = -6f),
             ),
@@ -163,6 +164,7 @@ class StreamingDspProcessorTest {
                 "Linear PEQ",
                 phaseMode = AudioDspPhaseMode.LINEAR,
                 firQuality = com.miruplay.tv.model.AudioDspFirQuality.LOW,
+                autoHeadroom = false,
                 rules = listOf(
                     AudioDspChannelRule(
                         bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),

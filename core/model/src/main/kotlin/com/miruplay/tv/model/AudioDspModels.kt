@@ -136,6 +136,7 @@ data class AudioDspPreset(
     val outputMode: AudioDspOutputMode = AudioDspOutputMode.AUTO_PRESERVE,
     val rules: List<AudioDspChannelRule> = emptyList(),
     val limiter: AudioDspLimiter = AudioDspLimiter(),
+    val autoHeadroom: Boolean = true,
 ) {
     fun normalized(): AudioDspPreset = copy(
         id = id.trim().ifEmpty { AudioDspConfig.DEFAULT_PRESET_ID },

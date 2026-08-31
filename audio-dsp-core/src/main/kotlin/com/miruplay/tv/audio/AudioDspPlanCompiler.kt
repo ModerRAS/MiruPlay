@@ -47,6 +47,13 @@ object AudioDspPlanCompiler {
             val gainDb = rules.sumOf { it.outputGainDb.toDouble() }
             10.0.pow(gainDb / 20.0).toFloat()
         }.toFloatArray()
+        // auto headroom: if enabled, reduce preamp so peak after EQ never exceeds 0dB (clamped to -24..12)
+        val effectivePreampDb = if (normalized.autoHeadroom) {
+            val maxFilterGainDb = computeMaxGainDb(chains, normalized, sampleRateHz)
+            val maxChannelGainDb = (channelGainLinear.maxOrNull()?.let { 20 * kotlin.math.log10(it.toDouble().coerceAtLeast(1e-12)) } ?: 0.0)
+            val peakDb = normalized.preampDb + maxFilterGainDb + maxChannelGainDb
+            if (peakDb > 0) (normalized.preampDb - peakDb.toFloat()).coerceIn(-24f, 12f) else normalized.preampDb
+        } else normalized.preampDb
         val fir = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) {
             val frequencyGrid = FloatArray(RESPONSE_BINS) { index ->
                 index.toFloat() / (RESPONSE_BINS - 1) * sampleRateHz / 2f
@@ -74,10 +81,27 @@ object AudioDspPlanCompiler {
             },
             firTapsByChannel = fir,
             groupDelayFrames = if (normalized.phaseMode == AudioDspPhaseMode.LINEAR) (normalized.firQuality.taps - 1) / 2 else 0,
-            preampLinear = 10.0.pow(normalized.preampDb.toDouble() / 20.0).toFloat(),
+            preampLinear = 10.0.pow(effectivePreampDb.toDouble() / 20.0).toFloat(),
             channelGainLinear = channelGainLinear,
             limiter = normalized.limiter,
         )
+    }
+
+    private fun computeMaxGainDb(chains: List<List<BiquadCoefficients>>, preset: AudioDspPreset, sampleRateHz: Int): Double {
+        if (chains.all { it.isEmpty() }) return 0.0
+        var maxDb = Double.NEGATIVE_INFINITY
+        // sample log-spaced frequencies 20..20k, 64 points
+        val points = 64
+        for (i in 0 until points) {
+            val freq = 20.0 * Math.pow(20000.0 / 20.0, i.toDouble() / (points - 1))
+            for (chain in chains) {
+                var gain = 1.0
+                chain.forEach { gain *= it.magnitudeAt(freq.coerceAtLeast(1.0), sampleRateHz.toDouble()) }
+                val db = 20.0 * kotlin.math.log10(gain.coerceAtLeast(1e-12))
+                if (db > maxDb) maxDb = db
+            }
+        }
+        return maxDb.coerceAtLeast(0.0)
     }
 
     private fun AudioDspChannelTarget.matches(channel: Channel, layout: ChannelLayout): Boolean = when (this) {

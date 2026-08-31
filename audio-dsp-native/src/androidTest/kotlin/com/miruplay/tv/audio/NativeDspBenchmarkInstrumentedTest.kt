@@ -110,11 +110,15 @@ class NativeDspBenchmarkInstrumentedTest {
         // Impulse should give FIR taps as output, centered
         val taps = LinearPhaseFirDesigner.designKotlinFft(FloatArray(256){0f}, 1024)
         Log.i("MiruDspBench", "taps size=${taps.size} peak=${taps.indices.maxBy{ kotlin.math.abs(taps[it]) }} taps[511]=${taps[511]} taps[512]=${taps[512]}")
-        // Sine 1kHz with +6dB peaking should amplify ~ +6dB at 1kHz
-        val preset = AudioDspPreset(id="v", name="v", phaseMode=AudioDspPhaseMode.LINEAR, firQuality=AudioDspFirQuality.LOW, rules=listOf(AudioDspChannelRule(bands=listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1000f, 6f, 1f)))))
+        // Sine 1kHz with +6dB peaking: raw 6dB, with autoHeadroom (default true) net ~0dB to prevent clipping
+        val preset = AudioDspPreset(id="v", name="v", phaseMode=AudioDspPhaseMode.LINEAR, firQuality=AudioDspFirQuality.LOW, autoHeadroom = false, rules=listOf(AudioDspChannelRule(bands=listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1000f, 6f, 1f)))))
+        val presetAuto = preset.copy(autoHeadroom = true)
         val plan = AudioDspPlanCompiler.compile(preset, ChannelLayout.from(1,null), 48000)
         val curve = FrequencyResponse.sample(plan, floatArrayOf(1000f))
-        Log.i("MiruDspBench", "1kHz magnitude=${curve.magnitudeDb[0]}dB expect ~6dB")
+        Log.i("MiruDspBench", "1kHz magnitude (raw, autoHeadroom=false)=${curve.magnitudeDb[0]}dB expect ~6dB")
+        val planAuto = AudioDspPlanCompiler.compile(presetAuto, ChannelLayout.from(1,null), 48000)
+        val curveAuto = FrequencyResponse.sample(planAuto, floatArrayOf(1000f))
+        Log.i("MiruDspBench", "1kHz magnitude (autoHeadroom=true)=${curveAuto.magnitudeDb[0]}dB expect ~0dB (auto -6dB headroom)")
         // Streaming identity
         val p = StreamingDspProcessor(plan)
         val impulse = FloatArray(2048){ if (it==0) 1f else 0f }
