@@ -50,38 +50,48 @@ FirContext* fir_context_create(int channels, int tapsLen, const float* const* ta
     ctx->channels = channels;
     ctx->tapsLen = tapsLen;
     ctx->cursor = 0;
+    ctx->useDouble = (tapsLen < 4096);
     ctx->preamp = preamp;
+    ctx->preampF = (float)preamp;
 
+    if (ctx->useDouble) {
     size_t tapsBytes = (size_t)channels * tapsLen * sizeof(double);
     size_t historyBytes = (size_t)channels * tapsLen * 2 * sizeof(double);
     size_t gainBytes = (size_t)channels * sizeof(double);
-
     ctx->tapsAligned = (double*)aligned_alloc16(tapsBytes);
     ctx->history = (double*)aligned_alloc16(historyBytes);
     ctx->channelGain = (double*)aligned_alloc16(gainBytes);
-
-    if (!ctx->tapsAligned || !ctx->history || !ctx->channelGain) {
-        fir_context_destroy(ctx);
-        return nullptr;
-    }
+    if (!ctx->tapsAligned || !ctx->history || !ctx->channelGain) { fir_context_destroy(ctx); return nullptr; }
     memset(ctx->history, 0, historyBytes);
+    } else {
+    size_t tapsBytes = (size_t)channels * tapsLen * sizeof(float);
+    size_t historyBytes = (size_t)channels * tapsLen * 2 * sizeof(float);
+    size_t gainBytes = (size_t)channels * sizeof(float);
+    ctx->tapsAlignedF = (float*)aligned_alloc16(tapsBytes);
+    ctx->historyF = (float*)aligned_alloc16(historyBytes);
+    ctx->channelGainF = (float*)aligned_alloc16(gainBytes);
+    if (!ctx->tapsAlignedF || !ctx->historyF || !ctx->channelGainF) { fir_context_destroy(ctx); return nullptr; }
+    memset(ctx->historyF, 0, historyBytes);
+    }
 
-    // copy taps reversed for linear dot: tapsRev[t] = taps[T-1 - t] (promote float->double)
+    if (ctx->useDouble) {
     for (int ch = 0; ch < channels; ++ch) {
         const float* src = tapsByChannel[ch];
         double* dst = ctx->tapsAligned + ch * tapsLen;
-        if (src) {
-            for (int i = 0; i < tapsLen; ++i) {
-                dst[i] = (double)src[tapsLen - 1 - i];
-            }
-        } else {
-            memset(dst, 0, tapsLen * sizeof(double));
-        }
+        if (src) for (int i=0;i<tapsLen;++i) dst[i]=(double)src[tapsLen-1-i];
+        else memset(dst,0,tapsLen*sizeof(double));
     }
-    if (channelGain) {
-        memcpy(ctx->channelGain, channelGain, gainBytes);
+    if (channelGain) memcpy(ctx->channelGain, channelGain, (size_t)channels*sizeof(double));
+    else for (int i=0;i<channels;++i) ctx->channelGain[i]=1.0;
     } else {
-        for (int i = 0; i < channels; ++i) ctx->channelGain[i] = 1.0;
+    for (int ch = 0; ch < channels; ++ch) {
+        const float* src = tapsByChannel[ch];
+        float* dst = ctx->tapsAlignedF + ch * tapsLen;
+        if (src) for (int i=0;i<tapsLen;++i) dst[i]=src[tapsLen-1-i];
+        else memset(dst,0,tapsLen*sizeof(float));
+    }
+    if (channelGain) for (int i=0;i<channels;++i) ctx->channelGainF[i]=(float)channelGain[i];
+    else for (int i=0;i<channels;++i) ctx->channelGainF[i]=1.0f;
     }
     return ctx;
 }
@@ -91,15 +101,19 @@ void fir_context_destroy(FirContext* ctx) {
     if (ctx->tapsAligned) free(ctx->tapsAligned);
     if (ctx->history) free(ctx->history);
     if (ctx->channelGain) free(ctx->channelGain);
+    if (ctx->tapsAlignedF) free(ctx->tapsAlignedF);
+    if (ctx->historyF) free(ctx->historyF);
+    if (ctx->channelGainF) free(ctx->channelGainF);
     delete ctx;
 }
 
 void fir_context_reset(FirContext* ctx) {
     if (!ctx) return;
     ctx->cursor = 0;
-    if (ctx->history) {
-        size_t historyBytes = (size_t)ctx->channels * ctx->tapsLen * 2 * sizeof(double);
-        memset(ctx->history, 0, historyBytes);
+    if (ctx->useDouble) {
+        if (ctx->history) { size_t b=(size_t)ctx->channels*ctx->tapsLen*2*sizeof(double); memset(ctx->history,0,b); }
+    } else {
+        if (ctx->historyF) { size_t b=(size_t)ctx->channels*ctx->tapsLen*2*sizeof(float); memset(ctx->historyF,0,b); }
     }
 }
 
@@ -279,6 +293,7 @@ Java_com_miruplay_tv_audio_NativeDspBridge_nativeUpdateTaps(JNIEnv* env, jclass 
     int channels = ctx->channels;
     int tapsLen = ctx->tapsLen;
     // update taps in place (reversed)
+    if (ctx->useDouble) {
     for (int ch = 0; ch < channels; ++ch) {
         jobject obj = env->GetObjectArrayElement(tapsByChannel, ch);
         if (!obj) continue;
@@ -295,6 +310,25 @@ Java_com_miruplay_tv_audio_NativeDspBridge_nativeUpdateTaps(JNIEnv* env, jclass 
         jsize glen = env->GetArrayLength(channelGainArray);
         for (int i = 0; i < channels && i < glen; ++i) ctx->channelGain[i] = (double)gElems[i];
         env->ReleaseFloatArrayElements(channelGainArray, gElems, JNI_ABORT);
+    }
+    } else {
+    for (int ch = 0; ch < channels; ++ch) {
+        jobject obj = env->GetObjectArrayElement(tapsByChannel, ch);
+        if (!obj) continue;
+        jfloatArray arr = (jfloatArray)obj;
+        jfloat* elems = env->GetFloatArrayElements(arr, nullptr);
+        float* dst = ctx->tapsAlignedF + ch * tapsLen;
+        for (int i = 0; i < tapsLen; ++i) dst[i] = elems[tapsLen - 1 - i];
+        env->ReleaseFloatArrayElements(arr, elems, JNI_ABORT);
+        env->DeleteLocalRef(obj);
+    }
+    ctx->preampF = preamp;
+    if (channelGainArray) {
+        jfloat* gElems = env->GetFloatArrayElements(channelGainArray, nullptr);
+        jsize glen = env->GetArrayLength(channelGainArray);
+        for (int i = 0; i < channels && i < glen; ++i) ctx->channelGainF[i] = gElems[i];
+        env->ReleaseFloatArrayElements(channelGainArray, gElems, JNI_ABORT);
+    }
     }
     // keep history/cursor (crossfade handles via Kotlin layer)
     return handle;

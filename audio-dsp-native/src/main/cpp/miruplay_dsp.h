@@ -6,12 +6,15 @@ struct FirContext {
     int channels = 0;
     int tapsLen = 0;
     int cursor = 0; // 0..tapsLen-1 shared
-    // per-channel aligned buffers - double precision (user requested 64-bit)
-    double* tapsAligned = nullptr;      // [channels * tapsLen] reversed for linear dot
-    double* history = nullptr;          // [channels * tapsLen * 2] mirror
-    double* channelGain = nullptr;      // [channels]
+    bool useDouble = true;
+    double* tapsAligned = nullptr;
+    double* history = nullptr;
+    double* channelGain = nullptr;
+    float* tapsAlignedF = nullptr;
+    float* historyF = nullptr;
+    float* channelGainF = nullptr;
     double preamp = 1.0;
-    // biquad state if needed later (kept for arena completeness)
+    float preampF = 1.0f;
     bool hasBiquads = false;
 };
 
