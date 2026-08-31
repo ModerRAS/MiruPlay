@@ -58,6 +58,7 @@ class LinearPhaseFirDesignerTest {
             id = "linear-peq",
             name = "Linear PEQ",
             phaseMode = AudioDspPhaseMode.LINEAR,
+            autoHeadroom = false,
             rules = listOf(
                 com.miruplay.tv.model.AudioDspChannelRule(
                     bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),
@@ -79,6 +80,7 @@ class LinearPhaseFirDesignerTest {
             name = "Linear PEQ",
             phaseMode = AudioDspPhaseMode.LINEAR,
             firQuality = com.miruplay.tv.model.AudioDspFirQuality.LOW,
+            autoHeadroom = false,
             rules = listOf(
                 com.miruplay.tv.model.AudioDspChannelRule(
                     bands = listOf(AudioDspBand(AudioDspFilterType.PEAKING, 1_000f, 6f, 1f)),

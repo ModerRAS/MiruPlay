@@ -111,10 +111,12 @@ class DspAudioProcessor(
     }
 
     override fun onFlush() {
+        processor?.release()
         processor = compiledPlan?.let(::StreamingDspProcessor)
     }
 
     override fun onReset() {
+        processor?.release()
         processor = null
         compiledPlan = null
         channels = 0
