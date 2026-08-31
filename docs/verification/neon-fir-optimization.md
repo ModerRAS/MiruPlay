@@ -1,6 +1,6 @@
 # NEON FIR 优化验证（HK1 双 ABI）
 
-**分支** `feature/neon-fir-optimization` → `master` **PR #71**，提交 `932098c8..404ffe9f`（4 commits）
+**分支** `feature/neon-fir-optimization` → `master` **PR #71**，提交 `932098c8..5008d463`（6 commits，含自适应 + 自动 headroom）
 
 ## 1. 变更总览（15 文件，master..HEAD）
 
@@ -17,6 +17,7 @@
 * `96kHz`：`sampleRateHz` 原样进 `compile` 按 `96k` 重算 `taps`，频覆到 `48kHz`，无限制。
 * `24bit`：`输入 Float(32f 尾数 24bit) 1:1` 覆盖 `24bit PCM`，`输出 PCM_FLOAT` 到 `AudioTrack` 最短路径。
 * **精度自适应（用户要求后调整）**：`LOW 1024 / MED 2048` 走 `double(64f, 2路)`，`HIGH 4096` 走 `float(32f, 4路)` 保实时。`最小相位` 始终 `Biquad Double(64f)`，`线性相位` `FIR` 按上表切换。
+* **自动 headroom（用户要求后新增）**：`AudioDspPreset.autoHeadroom=true`（默认）时 `compile` 扫 `64点 log 20..20k` 求 `maxFilterGain+maxChannelGain+preamp`，`peak>0` 则 `preamp -= peak`（`clamp -24..12`），抬升 `+6dB` 自动降 `6dB` 防削波；`false` 时保持原 `preamp`（`LinearPhaseFirDesignerTest` 等 6dB 用例显式 `false` 保 6dB 预期）
 
 ## 3. 内存合约
 
@@ -78,6 +79,8 @@ adb -s 192.168.63.237:5555 shell ls -l /data/app/*/com.miruplay.tv*/lib/*/libmir
 `932098c8 feat(audio): neon fir for 32/64-bit with pre-allocated arena` - 初始 `32f` 全链  
 `f134f19c test(audio): instrumented benchmark on HK1`  
 `cf90063e feat(audio): fir double precision` - 全 `64f`（`HIGH` 非实时）  
-`404ffe9f feat(audio): adaptive fir precision` - `HIGH 32f / LOW,MED 64f`
+`404ffe9f feat(audio): adaptive fir precision` - `HIGH 32f / LOW,MED 64f`  
+`5008d463 feat(audio): auto headroom -抬升自动降增益防削波`  
+`01c85576 docs(verification): complete neon fir changelog ...`
 
 > 方案文档未纳入 PR（`docs/superpowers/plans/2026-08-29-neon-fir-optimization.md` 本地保留）。
