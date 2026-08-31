@@ -6,8 +6,8 @@ on:
   pull_request:
     branches: [ main, master, develop ]
   # 每天凌晨2点检查变更并发布nightly版本
-  schedule:
-    - cron: '0 2 * * *'
+  #schedule:
+  #  - cron: '0 2 * * *'
   workflow_dispatch:
 
 
