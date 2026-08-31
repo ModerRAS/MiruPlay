@@ -92,6 +92,7 @@ class DspAudioProcessorTest {
                     AudioDspPreset(
                         id = "boost",
                         name = "Boost",
+                        autoHeadroom = false,
                         rules = listOf(
                             AudioDspChannelRule(
                                 outputGainDb = 6f,
