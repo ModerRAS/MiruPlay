@@ -594,12 +594,14 @@ fun mediaSourceContentModeLabel(mode: MediaContentMode): String =
     when (mode) {
         MediaContentMode.ANIME -> "动漫"
         MediaContentMode.DRAMA -> "电视剧"
+        MediaContentMode.MUSIC -> "音乐"
     }
 
 fun mediaSourceContentModeHint(mode: MediaContentMode): String =
     when (mode) {
         MediaContentMode.ANIME -> "这个源会出现在动漫首页。"
         MediaContentMode.DRAMA -> "这个源会留给电视剧首页使用。"
+        MediaContentMode.MUSIC -> "这个源会出现在音乐首页。"
     }
 
 fun settingsAutoScanToggleLabel(enabled: Boolean): String =

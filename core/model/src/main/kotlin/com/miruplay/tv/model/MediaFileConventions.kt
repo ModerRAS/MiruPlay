@@ -12,6 +12,21 @@ object MediaFileConventions {
         "m4v",
     )
 
+    val defaultAudioExtensions: Set<String> = setOf(
+        "mp3",
+        "flac",
+        "m4a",
+        "aac",
+        "ogg",
+        "opus",
+        "wav",
+        "aiff",
+        "ape",
+        "wma",
+        "wv",
+        "tta",
+    )
+
     private val hiddenNames: Set<String> = setOf(
         ".DS_Store",
         "Thumbs.db",
@@ -29,6 +44,13 @@ object MediaFileConventions {
         return extensions.any { it.equals(extension, ignoreCase = true) }
     }
 
+    fun isAudioName(name: String, extensions: Set<String> = defaultAudioExtensions): Boolean {
+        val extension = extensionOf(name)
+        return extensions.any { it.equals(extension, ignoreCase = true) }
+    }
+
+    fun isCueName(name: String): Boolean = extensionOf(name).equals("cue", ignoreCase = true)
+
     fun hasExtension(name: String, extension: String): Boolean =
         extensionOf(name).equals(extension.trimStart('.'), ignoreCase = true)
 
@@ -42,6 +64,17 @@ object MediaFileConventions {
             "wmv" -> "video/x-ms-wmv"
             "flv" -> "video/x-flv"
             "m4v" -> "video/x-m4v"
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            "m4a", "aac" -> "audio/mp4"
+            "ogg", "opus" -> "audio/ogg"
+            "wav" -> "audio/wav"
+            "aiff" -> "audio/aiff"
+            "ape" -> "audio/x-ape"
+            "wma" -> "audio/x-ms-wma"
+            "wv" -> "audio/x-wavpack"
+            "tta" -> "audio/x-tta"
+            "cue" -> "application/x-cue"
             "ass", "ssa" -> "text/x-ass"
             "srt" -> "application/x-subrip"
             "vtt" -> "text/vtt"

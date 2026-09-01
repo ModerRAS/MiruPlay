@@ -211,6 +211,18 @@ class ScanCoordinator @Inject constructor(
         } else {
             null
         }
+        if (sourceInfo.contentMode == MediaContentMode.MUSIC) {
+            return@withContext scanMusicSource(
+                sourceInfo = sourceInfo,
+                mediaSource = ms,
+                scanStartedAtMs = scanStartedAtMs,
+                scanSessionId = scanSessionId,
+                scanStartPath = scanStartPath,
+                realRootPath = realRootPath,
+                isLocalSource = isLocalSource,
+                posterCacheDirectory = posterCacheDirectory
+            )
+        }
         MiruLog.i(
             tag = TAG,
             message = "Scan source started",
@@ -1847,6 +1859,60 @@ class ScanCoordinator @Inject constructor(
         bangumiId?.let { add(UniqueId("bangumi", it.toString(), true)) }
         anilistId?.let { add(UniqueId("anilist", it.toString(), bangumiId == null)) }
         tmdbId?.let { add(UniqueId("tmdb", it.toString())) }
+    }
+
+    private suspend fun scanMusicSource(
+        sourceInfo: MediaSourceInfo,
+        mediaSource: MediaSource,
+        scanStartedAtMs: Long,
+        scanSessionId: String,
+        scanStartPath: String,
+        realRootPath: String?,
+        isLocalSource: Boolean,
+        posterCacheDirectory: File?
+    ): Result<ScanResult> = withContext(Dispatchers.IO) {
+        MiruLog.i(TAG, "Music scan started", mapOf("source_id" to sourceInfo.id.toString(), "source_name" to sourceInfo.name))
+        var audioFiles = 0
+        var cueFiles = 0
+        var totalFiles = 0
+        // ponytail: minimal traversal, CUE expansion and tag reading will be layered on top; this stub keeps MUSIC scanning functional
+        suspend fun traverse(path: String, depth: Int = 0) {
+            if (depth > 32) return
+            currentCoroutineContext().ensureActive()
+            when (val listed = mediaSource.listFiles(path)) {
+                is Result.Success -> {
+                    for (entry in listed.data) {
+                        val entryPath = entry.path
+                        if (entry.isDirectory) {
+                            if (entry.name in skipDirs) continue
+                            traverse(entryPath, depth + 1)
+                        } else {
+                            totalFiles++
+                            if (MediaFileConventions.isAudioName(entry.name)) audioFiles++
+                            else if (MediaFileConventions.isCueName(entry.name)) cueFiles++
+                        }
+                    }
+                }
+                is Result.Error -> {
+                    MiruLog.w(TAG, "Music scan list failed", attributes = mapOf("path" to path, "error" to listed.error.toUserMessage()))
+                }
+            }
+        }
+        traverse(scanStartPath)
+        val completedAtMs = System.currentTimeMillis()
+        mediaRepository.updateSource(sourceInfo.copy(isConnected = true, lastScanned = completedAtMs))
+        MiruLog.i(TAG, "Music scan completed", mapOf("audio_files" to audioFiles.toString(), "cue_files" to cueFiles.toString(), "total" to totalFiles.toString()))
+        Result.success(
+            ScanResult(
+                animeName = sourceInfo.name,
+                episodesFound = audioFiles,
+                newEpisodes = audioFiles,
+                updatedEpisodes = 0,
+                scraped = 0,
+                noMatch = 0,
+                summary = "音乐：$audioFiles 首音轨，$cueFiles 个 CUE"
+            )
+        )
     }
 
     companion object {

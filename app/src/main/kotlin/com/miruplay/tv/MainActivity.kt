@@ -56,6 +56,9 @@ import com.miruplay.tv.ui.detail.AnimeDetailScreen
 import com.miruplay.tv.ui.detail.DramaDetailScreen
 import com.miruplay.tv.ui.library.LibraryScreen
 import com.miruplay.tv.ui.mode.AppModeSelectionScreen
+import com.miruplay.tv.ui.music.MusicAlbumDetailPlaceholder
+import com.miruplay.tv.ui.music.MusicLibraryPlaceholder
+import com.miruplay.tv.ui.music.MusicPlayerPlaceholder
 import com.miruplay.tv.ui.mode.DramaLibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
 import com.miruplay.tv.ui.settings.AddSourceScreen
@@ -1215,6 +1218,33 @@ private fun MiruPlayNavigation(
                     }
                 }
             )
+        }
+
+        composable(NavRoutes.MUSIC_HOME) {
+            MusicLibraryPlaceholder(
+                onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onNavigateToDetail = { albumId -> navController.navigate(NavRoutes.musicDetail(albumId)) }
+            )
+        }
+
+        composable(
+            route = NavRoutes.MUSIC_DETAIL,
+            arguments = listOf(navArgument("albumId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val albumId = backStackEntry.arguments?.getString("albumId")?.takeIf { it.isNotBlank() } ?: return@composable
+            MusicAlbumDetailPlaceholder(
+                albumId = albumId,
+                onNavigateBack = { navController.popBackStack() },
+                onPlayTrack = { trackId -> navController.navigate(NavRoutes.musicPlayer(trackId)) }
+            )
+        }
+
+        composable(
+            route = NavRoutes.MUSIC_PLAYER,
+            arguments = listOf(navArgument("trackId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val trackId = backStackEntry.arguments?.getString("trackId")?.takeIf { it.isNotBlank() } ?: return@composable
+            MusicPlayerPlaceholder(trackId = trackId, onNavigateBack = { navController.popBackStack() })
         }
 
         composable(NavRoutes.SETTINGS) {

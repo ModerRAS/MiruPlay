@@ -5,6 +5,7 @@ import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.MusicSrcBypassMode
 
 interface PlaybackPreferencesRepository {
     suspend fun getEndAction(): PlaybackEndAction
@@ -20,4 +21,6 @@ interface PlaybackPreferencesRepository {
     suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences)
     suspend fun getAudioDspConfig(): AudioDspConfig = AudioDspConfig.neutral()
     suspend fun setAudioDspConfig(config: AudioDspConfig) = Unit
+    suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = MusicSrcBypassMode.SOFTWARE
+    suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) = Unit
 }

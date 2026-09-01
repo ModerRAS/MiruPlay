@@ -9,7 +9,7 @@ import com.miruplay.tv.data.entity.*
 import androidx.sqlite.db.SupportSQLiteDatabase
 
 @Database(
-    version = 9,
+    version = 10,
     exportSchema = true,
     entities = [
         AnimeEntity::class,
@@ -21,7 +21,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CloudDriveConfigEntity::class,
         RssSubscriptionEntity::class,
         RssProcessedItemEntity::class,
-        RssDownloadTaskEntity::class
+        RssDownloadTaskEntity::class,
+        MusicAlbumEntity::class,
+        MusicTrackEntity::class
     ]
 )
 @TypeConverters(GenreListConverter::class)
@@ -32,9 +34,56 @@ abstract class MiruPlayDatabase : RoomDatabase() {
     abstract fun progressDao(): ProgressDao
     abstract fun indexDao(): IndexDao
     abstract fun dramaSeriesCacheDao(): DramaSeriesCacheDao
+    abstract fun musicAlbumDao(): MusicAlbumDao
+    abstract fun musicTrackDao(): MusicTrackDao
     abstract fun cloudDriveAutomationDao(): CloudDriveAutomationDao
 
     companion object {
+        val MIGRATION_9_10 = object : Migration(9, 10) {
+            override fun migrate(database: SupportSQLiteDatabase) {
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS music_album (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        artist TEXT,
+                        cover_url TEXT,
+                        track_count INTEGER NOT NULL DEFAULT 0,
+                        source_id INTEGER NOT NULL,
+                        last_updated INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS music_track (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        album_id TEXT NOT NULL,
+                        source_id INTEGER NOT NULL,
+                        file_path TEXT NOT NULL,
+                        file_name TEXT NOT NULL,
+                        title TEXT NOT NULL,
+                        artist TEXT,
+                        album_artist TEXT,
+                        album_title TEXT,
+                        track_number INTEGER,
+                        disc_number INTEGER,
+                        duration INTEGER NOT NULL DEFAULT 0,
+                        cue_path TEXT,
+                        cue_track_index INTEGER,
+                        cue_start_ms INTEGER NOT NULL DEFAULT 0,
+                        cue_end_ms INTEGER,
+                        is_cue_virtual INTEGER NOT NULL DEFAULT 0,
+                        cover_path TEXT,
+                        last_modified INTEGER NOT NULL DEFAULT 0
+                    )
+                    """.trimIndent()
+                )
+                database.execSQL("CREATE INDEX IF NOT EXISTS index_music_track_album_id ON music_track(album_id)")
+                database.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_music_track_source_id_file_path_cue_track_index ON music_track(source_id, file_path, cue_track_index)")
+            }
+        }
+
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(database: SupportSQLiteDatabase) {
                 database.execSQL("ALTER TABLE index_entry ADD COLUMN extra_kind INTEGER")

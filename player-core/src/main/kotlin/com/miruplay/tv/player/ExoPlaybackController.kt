@@ -175,6 +175,7 @@ class ExoPlaybackController @Inject constructor(
             .getFormatAwareToneMappingPreferences()
             .normalized()
         audioDspRuntimeConfig.update(playbackPreferencesRepository.getAudioDspConfig())
+        audioDspRuntimeConfig.updateMusicMode(playbackPreferencesRepository.getMusicSrcBypassMode())
         preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)

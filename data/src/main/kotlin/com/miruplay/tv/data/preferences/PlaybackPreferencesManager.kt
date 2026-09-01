@@ -8,6 +8,7 @@ import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -85,6 +86,12 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_AUDIO_DSP_CONFIG, json.encodeToString(value.normalized())).apply()
         }
 
+    var musicSrcBypassMode: MusicSrcBypassMode
+        get() = MusicSrcBypassMode.fromStorageValue(prefs.getString(KEY_MUSIC_SRC_BYPASS_MODE, null))
+        set(value) {
+            prefs.edit().putString(KEY_MUSIC_SRC_BYPASS_MODE, value.storageValue).apply()
+        }
+
     override suspend fun getEndAction(): PlaybackEndAction =
         endAction
 
@@ -126,6 +133,12 @@ class PlaybackPreferencesManager @Inject constructor(
         audioDspConfig = config
     }
 
+    override suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = musicSrcBypassMode
+
+    override suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) {
+        musicSrcBypassMode = mode
+    }
+
     companion object {
         private const val KEY_END_ACTION = "end_action"
         private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
@@ -133,6 +146,7 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
         private const val KEY_AUDIO_DSP_CONFIG = "audio_dsp_config"
+        private const val KEY_MUSIC_SRC_BYPASS_MODE = "music_src_bypass_mode"
     }
 }
 

@@ -13,6 +13,9 @@ object NavRoutes {
     const val MODE_SELECTION = "mode-selection"
     const val DRAMA_HOME = "drama-home"
     const val DRAMA_DETAIL = "drama/{seriesId}"
+    const val MUSIC_HOME = "music-home"
+    const val MUSIC_DETAIL = "music/{albumId}"
+    const val MUSIC_PLAYER = "music-player/{trackId}"
     const val SETTINGS = MiruPlayRouteSurface.SETTINGS_ROUTE
     const val ANIME_DETAIL = "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/{animeId}"
     const val PLAYER = "${MiruPlayRouteSurface.PLAYER_ROUTE_PREFIX}/{uri}"
@@ -23,6 +26,12 @@ object NavRoutes {
 
     fun dramaDetail(seriesId: String) =
         "drama/${MediaPathConventions.encodePathSegment(seriesId)}"
+
+    fun musicDetail(albumId: String) =
+        "music/${MediaPathConventions.encodePathSegment(albumId)}"
+
+    fun musicPlayer(trackId: String) =
+        "music-player/${MediaPathConventions.encodePathSegment(trackId)}"
 
     fun player(
         uri: String,
@@ -37,6 +46,7 @@ object NavRoutes {
         when (mode) {
             AppMode.ANIME -> LIBRARY
             AppMode.DRAMA -> DRAMA_HOME
+            AppMode.MUSIC -> MUSIC_HOME
         }
 
     fun launchDestinationFor(selectionState: AppModeSelectionState): String {

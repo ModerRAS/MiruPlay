@@ -4,7 +4,8 @@ import com.miruplay.tv.model.MediaContentMode
 
 enum class AppMode(val storageValue: String) {
     ANIME("anime"),
-    DRAMA("drama");
+    DRAMA("drama"),
+    MUSIC("music");
 
     companion object {
         fun fromStorageValue(value: String?): AppMode? =
@@ -16,6 +17,7 @@ fun AppMode.toMediaContentMode(): MediaContentMode =
     when (this) {
         AppMode.ANIME -> MediaContentMode.ANIME
         AppMode.DRAMA -> MediaContentMode.DRAMA
+        AppMode.MUSIC -> MediaContentMode.MUSIC
     }
 
 data class AppModeSelectionState(

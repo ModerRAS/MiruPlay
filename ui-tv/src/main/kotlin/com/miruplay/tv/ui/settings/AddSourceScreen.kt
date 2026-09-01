@@ -41,8 +41,11 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhotoFilter
@@ -102,6 +105,7 @@ import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
@@ -386,6 +390,7 @@ fun AddSourceScreen(
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
+    val musicSrcBypassMode by viewModel.musicSrcBypassMode.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
@@ -694,6 +699,8 @@ fun AddSourceScreen(
                     audioDspConfig = audioDspConfig,
                     onAudioDspEnabledChange = viewModel::setAudioDspEnabled,
                     onAudioDspPresetSelected = viewModel::setAudioDspPreset,
+                    musicSrcBypassMode = musicSrcBypassMode,
+                    onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -1164,6 +1171,8 @@ private fun SettingsContent(
     audioDspConfig: AudioDspConfig,
     onAudioDspEnabledChange: (Boolean) -> Unit,
     onAudioDspPresetSelected: (String) -> Unit,
+    musicSrcBypassMode: MusicSrcBypassMode,
+    onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -1432,6 +1441,8 @@ private fun SettingsContent(
                 audioDspConfig = audioDspConfig,
                 onAudioDspEnabledChange = onAudioDspEnabledChange,
                 onAudioDspPresetSelected = onAudioDspPresetSelected,
+                musicSrcBypassMode = musicSrcBypassMode,
+                onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
             )
         }
 
@@ -3178,6 +3189,8 @@ private fun PlaybackPanel(
     audioDspConfig: AudioDspConfig,
     onAudioDspEnabledChange: (Boolean) -> Unit,
     onAudioDspPresetSelected: (String) -> Unit,
+    musicSrcBypassMode: MusicSrcBypassMode,
+    onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3231,6 +3244,11 @@ private fun PlaybackPanel(
             config = audioDspConfig,
             onEnabledChange = onAudioDspEnabledChange,
             onPresetSelected = onAudioDspPresetSelected,
+        )
+
+        MusicSrcBypassTvControls(
+            mode = musicSrcBypassMode,
+            onModeSelected = onMusicSrcBypassModeSelected,
         )
 
         Spacer(Modifier.height(24.dp))
@@ -3474,6 +3492,66 @@ private fun AudioDspTvControls(
             "音频保持原始输出，不应用 PEQ 或 FIR"
         },
         color = if (config.enabled) ProgressGreen else TextSecondary,
+    )
+}
+
+@Composable
+private fun MusicSrcBypassTvControls(
+    mode: MusicSrcBypassMode,
+    onModeSelected: (MusicSrcBypassMode) -> Unit,
+) {
+    Spacer(Modifier.height(24.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Filled.Audiotrack,
+            contentDescription = null,
+            tint = TextPrimary,
+            modifier = Modifier.size(26.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(text = "音乐 SRC 绕过", style = TvTypography.subtitle, color = TextPrimary)
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = "选择音乐播放时如何处理系统采样率转换：系统默认走混音器，软件高质重采样到本机速率，直通尝试硬直通。DSP 与高质软 SRC 可共存。",
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(14.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScanOptionChip(
+            text = "系统默认",
+            icon = Icons.Filled.Settings,
+            selected = mode == MusicSrcBypassMode.SYSTEM,
+            enabled = true,
+            onClick = { onModeSelected(MusicSrcBypassMode.SYSTEM) },
+            modifier = Modifier.width(130.dp),
+        )
+        ScanOptionChip(
+            text = "高质软 SRC",
+            icon = Icons.Filled.GraphicEq,
+            selected = mode == MusicSrcBypassMode.SOFTWARE,
+            enabled = true,
+            onClick = { onModeSelected(MusicSrcBypassMode.SOFTWARE) },
+            modifier = Modifier.width(150.dp),
+        )
+        ScanOptionChip(
+            text = "直通",
+            icon = Icons.Filled.Audiotrack,
+            selected = mode == MusicSrcBypassMode.DIRECT,
+            enabled = true,
+            onClick = { onModeSelected(MusicSrcBypassMode.DIRECT) },
+            modifier = Modifier.width(110.dp),
+        )
+    }
+    StatusMessage(
+        icon = Icons.Filled.CheckCircle,
+        text = when (mode) {
+            MusicSrcBypassMode.SYSTEM -> "系统混音器 SRC（兼容最好，可能经 Speex 重采样）"
+            MusicSrcBypassMode.SOFTWARE -> "高质软 SRC 到本机速率（DSP 共存，绕过系统低质 SRC）"
+            MusicSrcBypassMode.DIRECT -> "直通/Offload（无 DSP 时 bit-perfect，有 DSP 时回落软 SRC）"
+        },
+        color = if (mode == MusicSrcBypassMode.SOFTWARE) ProgressGreen else TextSecondary,
     )
 }
 
