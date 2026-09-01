@@ -10,6 +10,7 @@ import com.miruplay.tv.data.repository.CloudDriveAutomationRepositoryImpl
 import com.miruplay.tv.data.repository.IndexRepositoryImpl
 import com.miruplay.tv.data.repository.MediaRepositoryImpl
 import com.miruplay.tv.data.repository.MetadataRepositoryImpl
+import com.miruplay.tv.data.repository.MusicRepositoryImpl
 import com.miruplay.tv.data.repository.ProgressRepositoryImpl
 import com.miruplay.tv.data.secure.MediaSourceSecretStore
 import com.miruplay.tv.data.secure.SecurePreferencesManager
@@ -20,6 +21,7 @@ import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.CloudDriveCredentialStore
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
+import com.miruplay.tv.repository.MusicRepository
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MetadataRepository
 import com.miruplay.tv.repository.PlaybackProgressRepository
@@ -79,6 +81,10 @@ abstract class RepositoryModule {
     abstract fun bindScanPreferencesRepository(
         impl: ScanPreferencesManager
     ): ScanPreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindMusicRepository(impl: MusicRepositoryImpl): MusicRepository
 
     @Binds
     @Singleton

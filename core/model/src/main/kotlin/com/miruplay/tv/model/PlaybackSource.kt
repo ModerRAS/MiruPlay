@@ -12,6 +12,8 @@ data class PlaybackSource(
     val episodeId: String? = null,
     val progressId: String? = episodeId,
     val bangumiEpisodeId: Int? = null,
+    val cueStartMs: Long = 0L,
+    val cueEndMs: Long? = null,
 )
 
 fun playbackSourceFromInputs(

@@ -262,6 +262,7 @@
                   <el-select v-model="sourceForm.contentMode">
                     <el-option label="动漫" value="ANIME" />
                     <el-option label="电视剧" value="DRAMA" />
+                    <el-option label="音乐" value="MUSIC" />
                   </el-select>
                 </el-form-item>
                 <el-form-item v-if="sourceForm.type === 'WEBDAV' && sourceForm.contentMode === 'ANIME'" label="识别来源">
@@ -3942,6 +3943,7 @@ function displayPath(path) {
 }
 
 function sourceContentModeLabel(contentMode) {
+  if (contentMode === 'MUSIC') return '音乐'
   return contentMode === 'DRAMA' ? '电视剧' : '动漫'
 }
 
