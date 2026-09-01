@@ -1,6 +1,9 @@
+@file:Suppress("UnsafeOptInUsageError")
+
 package com.miruplay.tv.player
 
 import androidx.media3.common.C
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.audio.SonicAudioProcessor
@@ -11,6 +14,7 @@ import java.nio.ByteBuffer
  * When input sample rate != nativeRate, resamples to nativeRate so AudioFlinger sees native and skips its low-quality Speex SRC.
  * When equal, passes through.
  */
+@OptIn(UnstableApi::class)
 class MusicSrcBypassProcessor(
     private val nativeSampleRateHz: Int
 ) : BaseAudioProcessor() {
@@ -38,7 +42,7 @@ class MusicSrcBypassProcessor(
         return configured
     }
 
-    override fun isActive(): Boolean = sonic.isActive
+    override fun isActive(): Boolean = super.isActive || sonic.isActive
 
     override fun queueInput(inputBuffer: ByteBuffer) {
         if (isActiveBypass) {

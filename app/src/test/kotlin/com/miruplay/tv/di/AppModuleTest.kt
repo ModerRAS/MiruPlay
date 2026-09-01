@@ -17,6 +17,7 @@ class AppModuleTest {
                 MiruPlayDatabase.MIGRATION_6_7,
                 MiruPlayDatabase.MIGRATION_7_8,
                 MiruPlayDatabase.MIGRATION_8_9,
+                MiruPlayDatabase.MIGRATION_9_10,
             ),
             miruPlayDatabaseMigrations().toList(),
         )
