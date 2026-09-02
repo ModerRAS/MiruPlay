@@ -6,7 +6,7 @@ import kotlinx.serialization.Serializable
 enum class MediaSourceType { LOCAL, WEBDAV, SMB }
 
 @Serializable
-enum class MediaContentMode { ANIME, DRAMA }
+enum class MediaContentMode { ANIME, DRAMA, MUSIC }
 
 @Serializable
 enum class MediaRecognitionMode { DIRECTORY, MLIP }

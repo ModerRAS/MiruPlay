@@ -53,7 +53,7 @@ fun AppModeSelectionScreen(
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "第一次打开时，先选 MiruPlay 默认先进动漫首页还是电视剧首页。",
+                text = "第一次打开时，先选 MiruPlay 默认首页：动漫、电视剧或音乐。",
                 style = TvTypography.body,
                 color = TextSecondary,
                 textAlign = TextAlign.Center,
@@ -68,14 +68,20 @@ fun AppModeSelectionScreen(
                     text = "动漫",
                     onClick = { onSelectMode(AppMode.ANIME) },
                     modifier = Modifier
-                        .width(220.dp)
+                        .width(180.dp)
                         .then(primaryFocus.modifier())
                 )
-                Spacer(Modifier.width(20.dp))
+                Spacer(Modifier.width(16.dp))
                 TvButton(
                     text = "电视剧",
                     onClick = { onSelectMode(AppMode.DRAMA) },
-                    modifier = Modifier.width(220.dp)
+                    modifier = Modifier.width(180.dp)
+                )
+                Spacer(Modifier.width(16.dp))
+                TvButton(
+                    text = "音乐",
+                    onClick = { onSelectMode(AppMode.MUSIC) },
+                    modifier = Modifier.width(180.dp)
                 )
             }
         }

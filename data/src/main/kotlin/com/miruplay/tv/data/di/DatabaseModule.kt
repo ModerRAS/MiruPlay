@@ -6,6 +6,8 @@ import com.miruplay.tv.data.dao.DramaSeriesCacheDao
 import com.miruplay.tv.data.dao.EpisodeDao
 import com.miruplay.tv.data.dao.IndexDao
 import com.miruplay.tv.data.dao.MediaSourceDao
+import com.miruplay.tv.data.dao.MusicAlbumDao
+import com.miruplay.tv.data.dao.MusicTrackDao
 import com.miruplay.tv.data.dao.ProgressDao
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import dagger.Module
@@ -42,6 +44,14 @@ object DatabaseModule {
     @Singleton
     fun provideDramaSeriesCacheDao(database: MiruPlayDatabase): DramaSeriesCacheDao =
         database.dramaSeriesCacheDao()
+
+    @Provides
+    @Singleton
+    fun provideMusicAlbumDao(database: MiruPlayDatabase): MusicAlbumDao = database.musicAlbumDao()
+
+    @Provides
+    @Singleton
+    fun provideMusicTrackDao(database: MiruPlayDatabase): MusicTrackDao = database.musicTrackDao()
 
     @Provides
     @Singleton

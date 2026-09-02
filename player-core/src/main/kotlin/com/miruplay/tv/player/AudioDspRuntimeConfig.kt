@@ -1,6 +1,7 @@
 package com.miruplay.tv.player
 
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.MusicSrcBypassMode
 
 class AudioDspRuntimeConfig {
     data class Snapshot(
@@ -11,11 +12,17 @@ class AudioDspRuntimeConfig {
     @Volatile
     private var state = Snapshot(AudioDspConfig.neutral(), 0L)
 
+    @Volatile
+    private var musicBypassModeState: MusicSrcBypassMode = MusicSrcBypassMode.SOFTWARE
+
     val config: AudioDspConfig
         get() = state.config
 
     val revision: Long
         get() = state.revision
+
+    val musicBypassMode: MusicSrcBypassMode
+        get() = musicBypassModeState
 
     fun snapshot(): Snapshot = state
 
@@ -31,5 +38,9 @@ class AudioDspRuntimeConfig {
                 }
             }
         }
+    }
+
+    fun updateMusicMode(mode: MusicSrcBypassMode) {
+        musicBypassModeState = mode
     }
 }

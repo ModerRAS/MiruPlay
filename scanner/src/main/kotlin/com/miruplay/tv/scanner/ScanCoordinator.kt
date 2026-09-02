@@ -21,8 +21,11 @@ import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.CueSheetParser
 import com.miruplay.tv.model.MediaFileConventions
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.MusicAlbum
+import com.miruplay.tv.model.MusicTrack
 import com.miruplay.tv.model.NfoMetadata
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.model.ScraperSource
@@ -39,6 +42,7 @@ import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaScrapeStatus
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MetadataRepository
+import com.miruplay.tv.repository.MusicRepository
 import com.miruplay.tv.scraper.EpisodeMetadata
 import com.miruplay.tv.scraper.MetadataImageBackfillScraper
 import com.miruplay.tv.scraper.MetadataScraper
@@ -70,6 +74,7 @@ class ScanCoordinator @Inject constructor(
     private val indexRepository: MediaIndexRepository,
     private val metadataRepository: MetadataRepository,
     private val filenameMetadataParser: FilenameMetadataParser,
+    private val musicRepository: MusicRepository? = null,
     private val mlipLibraryIndexImporter: MlipLibraryIndexImporter = MlipLibraryIndexImporter(indexRepository, metadataRepository),
     private val metadataScrapers: Set<@JvmSuppressWildcards MetadataScraper> = emptySet(),
     private val cloudDriveRepository: CloudDriveAutomationRepository? = null,
@@ -210,6 +215,18 @@ class ScanCoordinator @Inject constructor(
             null
         } else {
             null
+        }
+        if (sourceInfo.contentMode == MediaContentMode.MUSIC) {
+            return@withContext scanMusicSource(
+                sourceInfo = sourceInfo,
+                mediaSource = ms,
+                scanStartedAtMs = scanStartedAtMs,
+                scanSessionId = scanSessionId,
+                scanStartPath = scanStartPath,
+                realRootPath = realRootPath,
+                isLocalSource = isLocalSource,
+                posterCacheDirectory = posterCacheDirectory
+            )
         }
         MiruLog.i(
             tag = TAG,
@@ -1847,6 +1864,169 @@ class ScanCoordinator @Inject constructor(
         bangumiId?.let { add(UniqueId("bangumi", it.toString(), true)) }
         anilistId?.let { add(UniqueId("anilist", it.toString(), bangumiId == null)) }
         tmdbId?.let { add(UniqueId("tmdb", it.toString())) }
+    }
+
+    private suspend fun scanMusicSource(
+        sourceInfo: MediaSourceInfo,
+        mediaSource: MediaSource,
+        scanStartedAtMs: Long,
+        scanSessionId: String,
+        scanStartPath: String,
+        realRootPath: String?,
+        isLocalSource: Boolean,
+        posterCacheDirectory: File?
+    ): Result<ScanResult> = withContext(Dispatchers.IO) {
+        MiruLog.i(TAG, "Music scan started", mapOf("source_id" to sourceInfo.id.toString(), "source_name" to sourceInfo.name, "scan_session_id" to scanSessionId))
+        val audioEntries = mutableListOf<com.miruplay.tv.model.FileEntry>()
+        val cueEntries = mutableListOf<com.miruplay.tv.model.FileEntry>()
+        var totalFiles = 0
+        suspend fun traverse(path: String, depth: Int = 0) {
+            if (depth > 32) return
+            currentCoroutineContext().ensureActive()
+            when (val listed = mediaSource.listFiles(path)) {
+                is Result.Success -> {
+                    for (entry in listed.data) {
+                        if (entry.isDirectory) {
+                            if (entry.name in skipDirs) continue
+                            traverse(entry.path, depth + 1)
+                        } else {
+                            totalFiles++
+                            when {
+                                MediaFileConventions.isAudioName(entry.name) -> audioEntries.add(entry)
+                                MediaFileConventions.isCueName(entry.name) -> cueEntries.add(entry)
+                            }
+                        }
+                    }
+                }
+                is Result.Error -> {
+                    MiruLog.w(TAG, "Music scan list failed", attributes = mapOf("path" to path, "error" to listed.error.toUserMessage()))
+                }
+            }
+        }
+        traverse(scanStartPath)
+        // Parse CUE sheets
+        val cueByDir = mutableMapOf<String, MutableList<com.miruplay.tv.model.CueSheet>>()
+        for (cueEntry in cueEntries) {
+            val dir = cueEntry.path.substringBeforeLast('/', "")
+            val result = when (val opened = mediaSource.openStream(cueEntry.path)) {
+                is Result.Success -> try { CueSheetParser.parse(opened.data) } catch (_: Exception) { null } finally { try { opened.data.close() } catch (_: Exception) {} }
+                is Result.Error -> null
+            }
+            if (result != null) {
+                cueByDir.getOrPut(dir) { mutableListOf() }.add(result)
+            } else {
+                MiruLog.w(TAG, "CUE parse failed", attributes = mapOf("cue_path" to cueEntry.path))
+            }
+        }
+        // Build music tracks with tags + CUE expansion
+        val classifier = AudioDirectoryClassifier()
+        val tagReader = AudioTagReader(posterCacheDirectory)
+        val allTracks = mutableListOf<MusicTrack>()
+        val albumTrackCount = mutableMapOf<String, Int>()
+        for (audioEntry in audioEntries) {
+            val fileName = audioEntry.name
+            val dir = audioEntry.path.substringBeforeLast('/', "")
+            val classification = classifier.classifyAudio(audioEntry.path, fileName, null)
+            val tags = try { tagReader.readTags(mediaSource, audioEntry) } catch (_: Exception) { AudioTags() }
+            val albumName = tags.album?.takeIf { it.isNotBlank() } ?: classification.albumName
+            val artist = tags.artist ?: tags.albumArtist ?: classification.artistName
+            val baseTitle = tags.title?.takeIf { it.isNotBlank() } ?: fileName.substringBeforeLast('.')
+            val trackNumber = tags.trackNumber ?: classification.trackNumber
+            val discNumber = tags.discNumber ?: classification.discNumber
+            val duration = tags.durationMs ?: 0L
+            val albumId = "${sourceInfo.id}:$albumName"
+            // Check for matching CUE in same dir
+            val cueSheets = cueByDir[dir].orEmpty()
+            val matchedCue = cueSheets.firstOrNull { cue ->
+                cue.file?.let { it.equals(fileName, ignoreCase = true) } ?: (cueSheets.size == 1)
+            }
+            if (matchedCue != null && matchedCue.tracks.isNotEmpty()) {
+                // Expand whole-track into virtual tracks
+                for (cueTrack in matchedCue.tracks) {
+                    val cueTitle = cueTrack.title?.takeIf { it.isNotBlank() } ?: "Track ${cueTrack.index}"
+                    val cueArtist = cueTrack.performer ?: artist
+                    val cueDuration = cueTrack.endMs?.let { it - cueTrack.startMs } ?: (duration - cueTrack.startMs).takeIf { it > 0 } ?: 0L
+                    val trackId = "${sourceInfo.id}:${audioEntry.path}#cue-${cueTrack.index}"
+                    allTracks.add(
+                        MusicTrack(
+                            id = trackId,
+                            albumId = albumId,
+                            sourceId = sourceInfo.id,
+                            filePath = audioEntry.path,
+                            fileName = fileName,
+                            title = cueTitle,
+                            artist = cueArtist,
+                            albumArtist = tags.albumArtist,
+                            albumTitle = albumName,
+                            trackNumber = cueTrack.index,
+                            discNumber = discNumber,
+                            duration = cueDuration,
+                            cuePath = cueEntries.firstOrNull { it.path.substringBeforeLast('/') == dir }?.path,
+                            cueTrackIndex = cueTrack.index,
+                            cueStartMs = cueTrack.startMs,
+                            cueEndMs = cueTrack.endMs,
+                            isCueVirtual = true,
+                            coverPath = tags.coverPath
+                        )
+                    )
+                    albumTrackCount[albumId] = (albumTrackCount[albumId] ?: 0) + 1
+                }
+            } else {
+                val trackId = "${sourceInfo.id}:${audioEntry.path}"
+                allTracks.add(
+                    MusicTrack(
+                        id = trackId,
+                        albumId = albumId,
+                        sourceId = sourceInfo.id,
+                        filePath = audioEntry.path,
+                        fileName = fileName,
+                        title = baseTitle,
+                        artist = artist,
+                        albumArtist = tags.albumArtist,
+                        albumTitle = albumName,
+                        trackNumber = trackNumber,
+                        discNumber = discNumber,
+                        duration = duration,
+                        isCueVirtual = false,
+                        coverPath = tags.coverPath
+                    )
+                )
+                albumTrackCount[albumId] = (albumTrackCount[albumId] ?: 0) + 1
+            }
+        }
+        // Build albums
+        val albums = albumTrackCount.map { (albumId, count) ->
+            val sample = allTracks.firstOrNull { it.albumId == albumId }
+            MusicAlbum(
+                id = albumId,
+                title = sample?.albumTitle ?: albumId.substringAfter(':'),
+                artist = sample?.artist ?: sample?.albumArtist,
+                trackCount = count,
+                sourceId = sourceInfo.id,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+        // Persist via MusicRepository if available
+        if (musicRepository != null) {
+            when (val r = musicRepository.replaceForSource(sourceInfo.id, albums, allTracks)) {
+                is Result.Success -> MiruLog.i(TAG, "Music DB replaced", mapOf("albums" to albums.size.toString(), "tracks" to allTracks.size.toString()))
+                is Result.Error -> MiruLog.w(TAG, "Music DB replace failed", attributes = mapOf("error" to r.error.toUserMessage()))
+            }
+        }
+        val completedAtMs = System.currentTimeMillis()
+        mediaRepository.updateSource(sourceInfo.copy(isConnected = true, lastScanned = completedAtMs))
+        MiruLog.i(TAG, "Music scan completed", mapOf("audio_files" to audioEntries.size.toString(), "cue_files" to cueEntries.size.toString(), "tracks" to allTracks.size.toString(), "albums" to albums.size.toString(), "total" to totalFiles.toString()))
+        Result.success(
+            ScanResult(
+                animeName = sourceInfo.name,
+                episodesFound = allTracks.size,
+                newEpisodes = allTracks.size,
+                updatedEpisodes = 0,
+                scraped = 0,
+                noMatch = 0,
+                summary = "音乐：${allTracks.size} 首音轨（${albums.size} 张专辑），${cueEntries.size} 个 CUE"
+            )
+        )
     }
 
     companion object {

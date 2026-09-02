@@ -175,6 +175,7 @@ class ExoPlaybackController @Inject constructor(
             .getFormatAwareToneMappingPreferences()
             .normalized()
         audioDspRuntimeConfig.update(playbackPreferencesRepository.getAudioDspConfig())
+        audioDspRuntimeConfig.updateMusicMode(playbackPreferencesRepository.getMusicSrcBypassMode())
         preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)
@@ -278,7 +279,7 @@ class ExoPlaybackController @Inject constructor(
                         .build()
                 }
 
-                val mediaItem = MediaItem.Builder()
+                val mediaItemBuilder = MediaItem.Builder()
                     .setUri(source.uri)
                     .setMediaMetadata(
                         MediaMetadata.Builder()
@@ -287,7 +288,15 @@ class ExoPlaybackController @Inject constructor(
                             .build(),
                     )
                     .setSubtitleConfigurations(subtitleConfigs)
-                    .build()
+                val cueEnd = source.cueEndMs
+                if (cueEnd != null) {
+                    val clipping = MediaItem.ClippingConfiguration.Builder()
+                        .setStartPositionMs(source.cueStartMs)
+                        .setEndPositionMs(cueEnd)
+                        .build()
+                    mediaItemBuilder.setClippingConfiguration(clipping)
+                }
+                val mediaItem = mediaItemBuilder.build()
 
                 if (source.externalAudioTracks.isEmpty()) {
                     player.setMediaItem(mediaItem)

@@ -8,7 +8,9 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
+import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.PosterWallArrangement
@@ -96,6 +98,8 @@ class SettingsViewModelTokenTest {
         every { playbackPreferences.preferredSubtitleLanguage } returns SubtitleLanguagePreference.AUTO
         every { playbackPreferences.subtitleBackgroundTransparent } returns false
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
+        every { playbackPreferences.audioDspConfig } returns AudioDspConfig.neutral()
+        every { playbackPreferences.musicSrcBypassMode } returns MusicSrcBypassMode.SOFTWARE
 
         every { webControlPreferences.webControlEnabled } returns false
         every { webControlPreferences.accessToken } returns "test-token"

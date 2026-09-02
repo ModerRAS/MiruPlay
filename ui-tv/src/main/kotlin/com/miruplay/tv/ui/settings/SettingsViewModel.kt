@@ -17,6 +17,7 @@ import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -189,6 +190,9 @@ class SettingsViewModel @Inject constructor(
             .getOrDefault(AudioDspConfig.neutral())
     )
     val audioDspConfig: StateFlow<AudioDspConfig> = _audioDspConfig.asStateFlow()
+
+    private val _musicSrcBypassMode = MutableStateFlow(playbackPreferences.musicSrcBypassMode)
+    val musicSrcBypassMode: StateFlow<MusicSrcBypassMode> = _musicSrcBypassMode.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
@@ -936,6 +940,12 @@ class SettingsViewModel @Inject constructor(
         playbackPreferences.audioDspConfig = updated
         audioDspRuntimeConfig.update(updated)
         _audioDspConfig.value = updated
+    }
+
+    fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) {
+        playbackPreferences.musicSrcBypassMode = mode
+        audioDspRuntimeConfig.updateMusicMode(mode)
+        _musicSrcBypassMode.value = mode
     }
 
     fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {
