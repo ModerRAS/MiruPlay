@@ -1,8 +1,10 @@
 package com.miruplay.tv.ui.settings
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.audiomeasure.AudioMeasureController
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
@@ -16,8 +18,13 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspBand
+import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
+import com.miruplay.tv.measure.AutoEqFitter
+import com.miruplay.tv.measure.MeasuredPresetFactory
+import com.miruplay.tv.measure.RoomMeasurer
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
@@ -90,6 +97,7 @@ import com.miruplay.tv.model.settingsProxySavedStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import com.miruplay.tv.player.AudioDspRuntimeConfig
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
@@ -99,10 +107,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.Inet4Address
 import java.net.NetworkInterface
 import javax.inject.Inject
@@ -126,6 +136,8 @@ class SettingsViewModel @Inject constructor(
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
     private val bangumiSyncEngine: BangumiSyncEngine,
+    @ApplicationContext private val appContext: Context,
+    private val audioMeasureController: AudioMeasureController,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -190,6 +202,117 @@ class SettingsViewModel @Inject constructor(
             .getOrDefault(AudioDspConfig.neutral())
     )
     val audioDspConfig: StateFlow<AudioDspConfig> = _audioDspConfig.asStateFlow()
+
+    data class AudioMeasureResultUi(
+        val valid: Boolean,
+        val invalidReason: String?,
+        val estimatedPpm: Double,
+        val bands: List<AudioDspBand>,
+        val matchLoHz: Double,
+        val matchHiHz: Double,
+        val peakAfterDb: Double,
+        val nullResidualDb: Double,
+    )
+
+    data class AudioMeasureUiState(
+        val capabilities: AudioMeasureController.Capabilities? = null,
+        val measuring: Boolean = false,
+        val progress: String? = null,
+        val error: String? = null,
+        val result: AudioMeasureResultUi? = null,
+    )
+
+    private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
+    val audioMeasure: StateFlow<AudioMeasureUiState> = _audioMeasure.asStateFlow()
+
+    fun probeAudioMeasure() {
+        viewModelScope.launch {
+            _audioMeasure.update { it.copy(capabilities = audioMeasureController.probe()) }
+        }
+    }
+
+    fun startSweepMeasurement() {
+        if (_audioMeasure.value.measuring) return
+        viewModelScope.launch {
+            _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
+            try {
+                val outcome = audioMeasureController.measureRoom { progress ->
+                    _audioMeasure.update { it.copy(progress = progress) }
+                }
+                _audioMeasure.update {
+                    it.copy(
+                        measuring = false,
+                        progress = null,
+                        capabilities = outcome.capabilities,
+                        result = outcome.toResultUi(),
+                    )
+                }
+            } catch (e: Exception) {
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "测量失败") }
+            }
+        }
+    }
+
+    fun importWavMeasurement(uri: Uri) {
+        if (_audioMeasure.value.measuring) return
+        viewModelScope.launch {
+            _audioMeasure.update { it.copy(measuring = true, progress = "读取 WAV…", error = null, result = null) }
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalStateException("无法读取所选文件")
+                }
+                val outcome = audioMeasureController.importWav(bytes) { progress ->
+                    _audioMeasure.update { it.copy(progress = progress) }
+                }
+                _audioMeasure.update {
+                    it.copy(measuring = false, progress = null, result = outcome.toResultUi())
+                }
+            } catch (e: Exception) {
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "WAV 导入失败") }
+            }
+        }
+    }
+
+    fun dismissAudioMeasureError() {
+        _audioMeasure.update { it.copy(error = null) }
+    }
+
+    fun clearAudioMeasureResult() {
+        _audioMeasure.update { it.copy(result = null) }
+    }
+
+    fun applyMeasuredResult(target: AudioDspChannelTarget) {
+        val result = _audioMeasure.value.result ?: return
+        if (!result.valid) return
+        val updated = MeasuredPresetFactory.applyToConfig(
+            _audioDspConfig.value,
+            MeasuredPresetFactory.MeasuredBands(result.bands, valid = true),
+            timestampMs = System.currentTimeMillis(),
+            target = target,
+        ).normalized()
+        playbackPreferences.audioDspConfig = updated
+        audioDspRuntimeConfig.update(updated)
+        _audioDspConfig.value = updated
+        _audioMeasure.update { it.copy(result = null) }
+    }
+
+    private fun AudioMeasureController.MeasureOutcome.toResultUi(): AudioMeasureResultUi {
+        val m = measurement
+        val (peakAfter, nullResidual) = AutoEqFitter.finalMetrics(
+            m.smoothedDb, m.targetDb, m.fit.bands, m.freqs, m.fs, m.fit.matchLoHz, m.fit.matchHiHz,
+        )
+        return AudioMeasureResultUi(
+            valid = m.valid,
+            invalidReason = m.invalidReason,
+            estimatedPpm = m.drift.estimatedPpm,
+            bands = m.fit.bands,
+            matchLoHz = m.fit.matchLoHz,
+            matchHiHz = m.fit.matchHiHz,
+            peakAfterDb = peakAfter,
+            nullResidualDb = nullResidual,
+        )
+    }
 
     private val _musicSrcBypassMode = MutableStateFlow(playbackPreferences.musicSrcBypassMode)
     val musicSrcBypassMode: StateFlow<MusicSrcBypassMode> = _musicSrcBypassMode.asStateFlow()

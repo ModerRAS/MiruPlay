@@ -41,8 +41,11 @@ object WavFile {
     }
 
     /** Returns samples in [-1, 1] and the sample rate. Throws on malformed/unsupported input. */
-    fun read16bitMono(path: String): Pair<DoubleArray, Int> {
-        DataInputStream(BufferedInputStream(FileInputStream(path))).use { input ->
+    fun read16bitMono(path: String): Pair<DoubleArray, Int> =
+        DataInputStream(BufferedInputStream(FileInputStream(path))).use { read16bitMono(it) }
+
+    fun read16bitMono(input: java.io.InputStream): Pair<DoubleArray, Int> {
+        DataInputStream(BufferedInputStream(input)).use { input ->
             val riff = input.readInt()
             require(riff == 0x52494646) { "not a RIFF file" }
             input.readInt() // riff size
@@ -101,4 +104,8 @@ object WavFile {
             return samples!! to sampleRate
         }
     }
+
+    /** Parse a full WAV file held in memory (Web upload / SAF import). */
+    fun read16bitMono(bytes: ByteArray): Pair<DoubleArray, Int> =
+        read16bitMono(java.io.ByteArrayInputStream(bytes))
 }

@@ -173,6 +173,19 @@ class RoomMeasurementTest {
     }
 
     @Test
+    fun `shared clock wav import skips the drift gate and stays valid`() {
+        val take = makeTake(4.0, 0.0, 61, roomIr)
+        val m = RoomMeasurer.measure(
+            recordings = listOf(take.recording),
+            sweeps = listOf(take.sweep),
+            fs = FS,
+            assumeSharedClock = true,
+        )
+        assertTrue(m.valid)
+        assertTrue(m.fit.bands.isNotEmpty())
+    }
+
+    @Test
     fun `wav round trip preserves samples and sample rate`() {
         val samples = DoubleArray(1000) { kotlin.math.sin(it * 0.01) * 0.5 }
         val file = File.createTempFile("miruplay-measure", ".wav")

@@ -1375,6 +1375,61 @@
                 <el-button :loading="loading.audioDsp" @click="loadAudioDsp">重新加载</el-button>
               </div>
             </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <span>扫频测量（房间校正）</span>
+                  <el-tag :type="audioDspMeasure.result?.valid ? 'success' : 'info'">
+                    {{ audioDspMeasure.result?.valid ? '测量有效' : '未测量' }}
+                  </el-tag>
+                </div>
+              </template>
+              <el-alert
+                type="info"
+                :closable="false"
+                show-icon
+                title="播放对数扫频并用麦克风采集房间响应，自动拟合只切不提的 PEQ。设备测量需要可用的麦克风输入；也可以导入在共享时钟环境（环回）录制的 WAV。"
+              />
+              <div class="form-actions audio-dsp-actions" style="margin-top: 12px">
+                <el-button type="primary" :loading="audioDspMeasure.running" @click="runAudioDspMeasure">在设备上测量（约 15 秒）</el-button>
+                <el-button :loading="loading.audioDspMeasureWav" @click="audioDspMeasureFileInput?.click()">导入 WAV</el-button>
+                <input ref="audioDspMeasureFileInput" class="hidden-file-input" type="file" accept=".wav,audio/wav,audio/x-wav" @change="importAudioDspMeasureWav" />
+              </div>
+              <div v-if="audioDspMeasure.error" style="margin: 8px 0">
+                <el-alert type="error" :title="audioDspMeasure.error" :closable="false" show-icon />
+              </div>
+              <div v-if="audioDspMeasure.result" style="margin-top: 8px">
+                <el-alert
+                  :type="audioDspMeasure.result.valid ? 'success' : 'error'"
+                  :title="audioDspMeasure.result.valid
+                    ? `测量有效：估计漂移 ${audioDspMeasure.result.estimatedPpm?.toFixed?.(1) ?? '0.0'} ppm，${audioDspMeasure.result.bands?.length ?? 0} 个滤波器，匹配 ${audioDspMeasure.result.matchLoHz?.toFixed?.(0)}–${audioDspMeasure.result.matchHiHz?.toFixed?.(0)} Hz`
+                    : `测量无效：${audioDspMeasure.result.invalidReason || '未知原因'}（未应用任何 EQ）`"
+                  :closable="false"
+                  show-icon
+                />
+                <el-table v-if="audioDspMeasure.result.valid && audioDspMeasure.result.bands?.length" :data="audioDspMeasure.result.bands" size="small" style="margin-top: 10px">
+                  <el-table-column label="频率 (Hz)" width="120">
+                    <template #default="{ row }">{{ row.frequencyHz.toFixed(1) }}</template>
+                  </el-table-column>
+                  <el-table-column label="增益 (dB)" width="120">
+                    <template #default="{ row }">{{ row.gainDb >= 0 ? '+' : '' }}{{ row.gainDb.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column label="Q" width="100">
+                    <template #default="{ row }">{{ row.q.toFixed(2) }}</template>
+                  </el-table-column>
+                  <el-table-column label="t60 (ms)" width="110">
+                    <template #default="{ row }">{{ (2.1986 * row.q / row.frequencyHz * 1000).toFixed(1) }}</template>
+                  </el-table-column>
+                </el-table>
+                <div v-if="audioDspMeasure.result.valid" class="form-actions" style="margin-top: 12px">
+                  <el-select v-model="audioDspMeasureTarget" style="width: 180px" aria-label="measured EQ target channel">
+                    <el-option v-for="option in audioDspTargetOptions" :key="`measure-target-${option.value}`" :label="option.label" :value="option.value" />
+                  </el-select>
+                  <el-button type="primary" :loading="loading.audioDspMeasureApply" @click="applyAudioDspMeasure">应用为预设</el-button>
+                </div>
+              </div>
+            </el-card>
           </section>
 
           <section v-show="activeView === 'webui'" class="view-stack">
@@ -1827,6 +1882,8 @@ const loading = reactive({
   translationSave: false,
   audioDsp: false,
   audioDspSave: false,
+  audioDspMeasureWav: false,
+  audioDspMeasureApply: false,
   audioDspPreview: false,
   audioDspRewImport: false,
   webControlAccess: false,
@@ -1969,6 +2026,13 @@ const audioDsp = reactive({
 const audioDspFileInput = ref(null)
 const audioDspRewFileInput = ref(null)
 const audioDspRewTarget = ref('ALL')
+const audioDspMeasureFileInput = ref(null)
+const audioDspMeasureTarget = ref('ALL')
+const audioDspMeasure = reactive({
+  running: false,
+  error: '',
+  result: null
+})
 const webControlAccess = reactive({
   enabled: false,
   accessToken: '',
@@ -3547,6 +3611,65 @@ async function saveAudioDsp() {
     ElMessage.error(error.message || '音频 DSP 配置保存失败')
   } finally {
     loading.audioDspSave = false
+  }
+}
+
+async function runAudioDspMeasure() {
+  if (audioDspMeasure.running) return
+  audioDspMeasure.running = true
+  audioDspMeasure.error = ''
+  audioDspMeasure.result = null
+  try {
+    audioDspMeasure.result = await api('/api/audio-dsp/measure/run', { method: 'POST', body: '{}' })
+    if (audioDspMeasure.result?.valid) ElMessage.success('扫频测量完成')
+    else ElMessage.warning(audioDspMeasure.result?.invalidReason || '测量被拒绝')
+  } catch (error) {
+    audioDspMeasure.error = error.message || '扫频测量失败'
+  } finally {
+    audioDspMeasure.running = false
+  }
+}
+
+async function importAudioDspMeasureWav(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  loading.audioDspMeasureWav = true
+  audioDspMeasure.error = ''
+  audioDspMeasure.result = null
+  try {
+    const wavBase64 = bytesToBase64(new Uint8Array(await file.arrayBuffer()))
+    audioDspMeasure.result = await api('/api/audio-dsp/measure/import-wav', {
+      method: 'POST',
+      body: JSON.stringify({ wavBase64 })
+    })
+    if (audioDspMeasure.result?.valid) ElMessage.success('WAV 分析完成')
+    else ElMessage.warning(audioDspMeasure.result?.invalidReason || '测量被拒绝')
+  } catch (error) {
+    audioDspMeasure.error = error.message || 'WAV 导入失败'
+  } finally {
+    loading.audioDspMeasureWav = false
+  }
+}
+
+async function applyAudioDspMeasure() {
+  if (!audioDspMeasure.result?.valid) return
+  loading.audioDspMeasureApply = true
+  try {
+    applyAudioDsp(await api('/api/audio-dsp/measure/apply', {
+      method: 'POST',
+      body: JSON.stringify({
+        bands: cloneAudioDsp(audioDspMeasure.result.bands),
+        target: audioDspMeasureTarget.value,
+        presetName: null
+      })
+    }))
+    audioDspMeasure.result = null
+    ElMessage.success('测量结果已应用为新预设')
+  } catch (error) {
+    ElMessage.error(error.message || '应用测量结果失败')
+  } finally {
+    loading.audioDspMeasureApply = false
   }
 }
 

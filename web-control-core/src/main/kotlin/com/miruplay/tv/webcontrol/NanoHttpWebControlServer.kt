@@ -268,6 +268,20 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, AudioDspRewImportRequest.serializer())
                 jsonResponse(AudioDspRewImportDto.serializer(), webControlService.importAudioDspRew(request))
             }
+            session.method == Method.GET && route == "/api/audio-dsp/measure/capabilities" -> {
+                jsonResponse(AudioDspMeasureCapabilitiesDto.serializer(), webControlService.getAudioDspMeasureCapabilities())
+            }
+            session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
+                jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.runAudioDspMeasure())
+            }
+            session.method == Method.POST && route == "/api/audio-dsp/measure/import-wav" -> {
+                val request = parseBody(session, AudioDspMeasureImportRequest.serializer())
+                jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.importAudioDspMeasureWav(request))
+            }
+            session.method == Method.POST && route == "/api/audio-dsp/measure/apply" -> {
+                val request = parseBody(session, AudioDspMeasureApplyRequest.serializer())
+                jsonResponse(AudioDspDto.serializer(), webControlService.applyAudioDspMeasure(request))
+            }
             session.method == Method.GET && route == "/api/web-control/access" -> {
                 jsonResponse(WebControlAccessDto.serializer(), webControlService.getWebControlAccess())
             }

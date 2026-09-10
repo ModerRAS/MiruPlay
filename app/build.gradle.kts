@@ -113,6 +113,7 @@ dependencies {
     implementation(project(":ui-design"))
     implementation(project(":background-task"))
     implementation(project(":ui-tv"))
+    implementation(project(":audio-measure-android"))
     implementation(project(":repository-api"))
     implementation(project(":media-source"))
     implementation(project(":data"))

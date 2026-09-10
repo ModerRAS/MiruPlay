@@ -39,6 +39,7 @@ object RoomMeasurer {
     )
 
     data class Measurement(
+        val fs: Int,
         val ir: DoubleArray,
         val responseDb: DoubleArray,
         val smoothedDb: DoubleArray,
@@ -74,6 +75,13 @@ object RoomMeasurer {
         minTailSimilarity: Double = 0.0,
         /** Optional absolute sharpness gate; 0 disables it until calibrated on device. */
         minSharpness: Double = 0.0,
+        /**
+         * For offline WAV imports captured over a loopback / single clock domain
+         * (e.g. laptop playback + line-in on the same sound card): skips drift
+         * estimation entirely and marks the measurement drift-verified. Never use
+         * for mic-acoustic capture across independent clocks.
+         */
+        assumeSharedClock: Boolean = false,
     ): Measurement {
         require(recordings.size == sweeps.size) { "one recording per sweep required" }
         require(recordings.isNotEmpty()) { "at least one sweep required" }
@@ -81,6 +89,9 @@ object RoomMeasurer {
         val irLen = (irLengthS * fs).toInt()
         val freqs = ResponseAnalysis.logFreqGrid(gridLoHz, gridHiHz, gridPerOctave)
 
+        if (assumeSharedClock) {
+            return measureSharedClock(recordings, sweeps, fs, irLen, freqs, fitConfig)
+        }
         // Per-sweep drift estimates (same physical drift must be seen by all).
         val estimates = recordings.indices.map { i ->
             DriftEstimator.estimate(recordings[i], sweeps[i].sweep, irLen)
@@ -145,6 +156,7 @@ object RoomMeasurer {
         }
 
         return Measurement(
+            fs = fs,
             ir = ir,
             responseDb = responseDb,
             smoothedDb = smoothed,
@@ -164,5 +176,37 @@ object RoomMeasurer {
             sum += this[i]; n++
         }
         return sum / n
+    }
+
+    /** Loopback/shared-clock path: no drift estimation, no compensation. */
+    private fun measureSharedClock(
+        recordings: List<DoubleArray>,
+        sweeps: List<LogSweep>,
+        fs: Int,
+        irLen: Int,
+        freqs: DoubleArray,
+        fitConfig: PeqFitConfig,
+    ): Measurement {
+        val ir = Deconvolver.deconvolve(recordings[0], sweeps[0].sweep).copyOf(irLen)
+        val drift = DriftCheck(
+            estimatedPpm = 0.0,
+            compensatedSharpness = MeasurementOps.irSharpness(ir),
+            consistent = true,
+            ppmSpread = 0.0,
+            tailSimilarity = Double.NaN,
+            estimates = emptyList(),
+        )
+        val responseDb = ResponseAnalysis.irToResponseDb(ir, freqs, fs)
+        val center = responseDb.meanWhere(BooleanArray(freqs.size) { freqs[it] in 200.0..2_000.0 })
+        for (i in freqs.indices) responseDb[i] -= center
+        val smoothed = ResponseAnalysis.smoothGaussianLogf(freqs, responseDb, ResponseAnalysis.smoothingWidthVariable(freqs))
+        val level = ResponseAnalysis.autoTargetLevel(smoothed, freqs)
+        val target = ResponseAnalysis.buildTarget(
+            freqs, level,
+            lfCutoffHz = 15.0, lfSlopeDbOct = 24.0,
+            hfFallStartHz = 10_000.0, hfFallDbOct = 1.5,
+        )
+        val fit = AutoEqFitter.fitPeq(smoothed, target, freqs, fitConfig, fs)
+        return Measurement(fs, ir, responseDb, smoothed, freqs, target, fit, drift, valid = true, invalidReason = null)
     }
 }
