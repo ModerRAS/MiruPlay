@@ -42,6 +42,7 @@ dependencies {
     implementation(project(":scraper"))
     implementation(project(":sync-engine"))
     implementation(project(":translation"))
+    implementation(project(":audio-measure-android"))
     
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)

@@ -3,6 +3,8 @@ package com.miruplay.tv.ui.settings
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -104,6 +108,7 @@ import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
+import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.model.MediaContentMode
@@ -390,6 +395,7 @@ fun AddSourceScreen(
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
+    val audioMeasure by viewModel.audioMeasure.collectAsStateWithLifecycle()
     val musicSrcBypassMode by viewModel.musicSrcBypassMode.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
@@ -699,6 +705,12 @@ fun AddSourceScreen(
                     audioDspConfig = audioDspConfig,
                     onAudioDspEnabledChange = viewModel::setAudioDspEnabled,
                     onAudioDspPresetSelected = viewModel::setAudioDspPreset,
+                    audioMeasure = audioMeasure,
+                    onProbeAudioMeasure = viewModel::probeAudioMeasure,
+                    onStartSweepMeasurement = viewModel::startSweepMeasurement,
+                    onImportWavMeasurement = viewModel::importWavMeasurement,
+                    onApplyMeasuredResult = viewModel::applyMeasuredResult,
+                    onClearAudioMeasureResult = viewModel::clearAudioMeasureResult,
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
                     savedToken = savedToken,
@@ -1171,6 +1183,12 @@ private fun SettingsContent(
     audioDspConfig: AudioDspConfig,
     onAudioDspEnabledChange: (Boolean) -> Unit,
     onAudioDspPresetSelected: (String) -> Unit,
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onImportWavMeasurement: (Uri) -> Unit,
+    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
+    onClearAudioMeasureResult: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
     savedToken: String,
@@ -1441,6 +1459,12 @@ private fun SettingsContent(
                 audioDspConfig = audioDspConfig,
                 onAudioDspEnabledChange = onAudioDspEnabledChange,
                 onAudioDspPresetSelected = onAudioDspPresetSelected,
+                audioMeasure = audioMeasure,
+                onProbeAudioMeasure = onProbeAudioMeasure,
+                onStartSweepMeasurement = onStartSweepMeasurement,
+                onImportWavMeasurement = onImportWavMeasurement,
+                onApplyMeasuredResult = onApplyMeasuredResult,
+                onClearAudioMeasureResult = onClearAudioMeasureResult,
                 musicSrcBypassMode = musicSrcBypassMode,
                 onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
             )
@@ -3189,6 +3213,12 @@ private fun PlaybackPanel(
     audioDspConfig: AudioDspConfig,
     onAudioDspEnabledChange: (Boolean) -> Unit,
     onAudioDspPresetSelected: (String) -> Unit,
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onImportWavMeasurement: (Uri) -> Unit,
+    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
+    onClearAudioMeasureResult: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
 ) {
@@ -3244,6 +3274,12 @@ private fun PlaybackPanel(
             config = audioDspConfig,
             onEnabledChange = onAudioDspEnabledChange,
             onPresetSelected = onAudioDspPresetSelected,
+            audioMeasure = audioMeasure,
+            onProbeAudioMeasure = onProbeAudioMeasure,
+            onStartSweepMeasurement = onStartSweepMeasurement,
+            onImportWavMeasurement = onImportWavMeasurement,
+            onApplyMeasuredResult = onApplyMeasuredResult,
+            onClearAudioMeasureResult = onClearAudioMeasureResult,
         )
 
         MusicSrcBypassTvControls(
@@ -3438,6 +3474,12 @@ private fun AudioDspTvControls(
     config: AudioDspConfig,
     onEnabledChange: (Boolean) -> Unit,
     onPresetSelected: (String) -> Unit,
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onImportWavMeasurement: (Uri) -> Unit,
+    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
+    onClearAudioMeasureResult: () -> Unit,
 ) {
     Spacer(Modifier.height(24.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3493,6 +3535,112 @@ private fun AudioDspTvControls(
         },
         color = if (config.enabled) ProgressGreen else TextSecondary,
     )
+    Spacer(Modifier.height(18.dp))
+    Text(
+        text = "扫频测量（播放对数扫频并用麦克风采集房间响应）",
+        style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScanOptionChip(
+            text = if (audioMeasure.measuring) audioMeasure.progress ?: "测量中…" else "播放扫频并测量",
+            icon = Icons.Filled.GraphicEq,
+            selected = false,
+            enabled = !audioMeasure.measuring,
+            onClick = {
+                onProbeAudioMeasure()
+                onStartSweepMeasurement()
+            },
+            modifier = Modifier.width(220.dp),
+        )
+        val wavPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let(onImportWavMeasurement)
+        }
+        ScanOptionChip(
+            text = "导入 WAV 测量",
+            icon = Icons.Filled.FileDownload,
+            selected = false,
+            enabled = !audioMeasure.measuring,
+            onClick = {
+                wavPicker.launch(arrayOf("audio/wav", "audio/x-wav", "application/octet-stream"))
+            },
+            modifier = Modifier.width(180.dp),
+        )
+    }
+    audioMeasure.error?.let { error ->
+        Spacer(Modifier.height(8.dp))
+        StatusMessage(
+            icon = Icons.Filled.Error,
+            text = error,
+            color = Color(0xFFE57373),
+        )
+    }
+    audioMeasure.capabilities?.let { caps ->
+        if (!caps.available) {
+            Spacer(Modifier.height(8.dp))
+            StatusMessage(
+                icon = Icons.Filled.Info,
+                text = "麦克风不可用：" + (caps.reason ?: "未知原因"),
+                color = TextSecondary,
+            )
+        } else if (caps.inputDeviceName != null) {
+            Spacer(Modifier.height(8.dp))
+            StatusMessage(
+                icon = Icons.Filled.Info,
+                text = "输入设备：" + caps.inputDeviceName,
+                color = TextSecondary,
+            )
+        }
+    }
+    audioMeasure.result?.let { result ->
+        Spacer(Modifier.height(10.dp))
+        if (result.valid) {
+            StatusMessage(
+                icon = Icons.Filled.CheckCircle,
+                text = "测量有效：估计漂移 " + "%.1f".format(result.estimatedPpm) + " ppm，" +
+                    result.bands.size + " 个滤波器，匹配范围 " + result.matchLoHz.toInt() + "–" + result.matchHiHz.toInt() +
+                    " Hz，峰高 " + "%.2f".format(result.peakAfterDb) + " dB",
+                color = ProgressGreen,
+            )
+            Spacer(Modifier.height(8.dp))
+            result.bands.sortedBy { it.frequencyHz }.forEach { band ->
+                Text(
+                    text = String.format(
+                        "%.1f Hz   %+.2f dB   Q %.2f",
+                        band.frequencyHz, band.gainDb, band.q,
+                    ),
+                    style = TvTypography.caption,
+                    color = TextPrimary,
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                ScanOptionChip(
+                    text = "应用为预设（全部声道）",
+                    icon = Icons.Filled.CheckCircle,
+                    selected = false,
+                    enabled = true,
+                    onClick = { onApplyMeasuredResult(AudioDspChannelTarget.ALL) },
+                    modifier = Modifier.width(240.dp),
+                )
+                ScanOptionChip(
+                    text = "放弃结果",
+                    icon = Icons.Filled.Close,
+                    selected = false,
+                    enabled = true,
+                    onClick = onClearAudioMeasureResult,
+                    modifier = Modifier.width(140.dp),
+                )
+            }
+        } else {
+            StatusMessage(
+                icon = Icons.Filled.Error,
+                text = "测量无效：" + (result.invalidReason ?: "未知原因") + "（未应用任何 EQ）",
+                color = Color(0xFFE57373),
+            )
+        }
+    }
 }
 
 @Composable

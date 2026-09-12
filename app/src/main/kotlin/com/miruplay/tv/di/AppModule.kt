@@ -3,6 +3,7 @@ package com.miruplay.tv.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
+import com.miruplay.tv.audiomeasure.AudioMeasureController
 import com.miruplay.tv.data.db.MiruPlayDatabase
 import dagger.Module
 import dagger.Provides
@@ -43,6 +44,12 @@ object AppModule {
             .addMigrations(*miruPlayDatabaseMigrations())
             .build()
     }
+
+    @Provides
+    @Singleton
+    fun provideAudioMeasureController(@ApplicationContext context: Context): AudioMeasureController {
+        return AudioMeasureController(context)
+    }
 }
 
 internal fun miruPlayDatabaseMigrations(): Array<Migration> =
@@ -57,3 +64,4 @@ internal fun miruPlayDatabaseMigrations(): Array<Migration> =
         MiruPlayDatabase.MIGRATION_8_9,
         MiruPlayDatabase.MIGRATION_9_10,
     )
+

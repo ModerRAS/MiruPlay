@@ -7,6 +7,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioDspBand
 import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspPreset
 import com.miruplay.tv.model.MediaContentMode
@@ -409,6 +410,39 @@ data class AudioDspRewImportDto(
     val preset: AudioDspPreset,
     val importedBandCount: Int,
     val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class AudioDspMeasureCapabilitiesDto(
+    val available: Boolean = false,
+    val reason: String? = null,
+    val inputDeviceName: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureResultDto(
+    val valid: Boolean = false,
+    val invalidReason: String? = null,
+    val estimatedPpm: Double = 0.0,
+    val bands: List<AudioDspBand> = emptyList(),
+    val matchLoHz: Double = 0.0,
+    val matchHiHz: Double = 0.0,
+    val peakAfterDb: Double = 0.0,
+    val nullResidualDb: Double = 0.0,
+)
+
+@Serializable
+data class AudioDspMeasureImportRequest(
+    /** 16-bit PCM mono WAV, captured over a shared clock (loopback). */
+    val wavBase64: String,
+    val presetName: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureApplyRequest(
+    val bands: List<AudioDspBand>,
+    val target: AudioDspChannelTarget = AudioDspChannelTarget.ALL,
+    val presetName: String? = null,
 )
 
 @Serializable

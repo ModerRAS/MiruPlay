@@ -106,6 +106,7 @@ class WebControlService @Inject constructor(
     mediaSourceFactory: MediaSourceFactory,
     private val playbackController: PlaybackController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
+    private val audioMeasureController: com.miruplay.tv.audiomeasure.AudioMeasureController,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
@@ -884,6 +885,60 @@ class WebControlService @Inject constructor(
         AudioDspRewImportDto(result.preset, result.importedBandCount, result.warnings)
     }
 
+    override suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto = runOnIo {
+        val caps = audioMeasureController.probe()
+        AudioDspMeasureCapabilitiesDto(caps.available, caps.reason, caps.inputDeviceName)
+    }
+
+    override suspend fun runAudioDspMeasure(): AudioDspMeasureResultDto = runOnIo {
+        val outcome = audioMeasureController.measureRoom()
+        outcome.toMeasureResultDto()
+    }
+
+    override suspend fun importAudioDspMeasureWav(request: AudioDspMeasureImportRequest): AudioDspMeasureResultDto = runOnIo {
+        require(request.wavBase64.length <= MAX_MEASURE_WAV_BASE64_CHARS) {
+            "WAV payload is too large (maximum $MAX_MEASURE_WAV_BASE64_CHARS encoded characters)"
+        }
+        val bytes = runCatching { java.util.Base64.getDecoder().decode(request.wavBase64) }
+            .getOrElse { throw IllegalArgumentException("WAV base64 payload is invalid") }
+        audioMeasureController.importWav(bytes).toMeasureResultDto()
+    }
+
+    override suspend fun applyAudioDspMeasure(request: AudioDspMeasureApplyRequest): AudioDspDto = runOnIo {
+        require(request.bands.isNotEmpty()) { "measured band list is empty" }
+        val preset = com.miruplay.tv.measure.MeasuredPresetFactory.buildPreset(
+            com.miruplay.tv.measure.MeasuredPresetFactory.MeasuredBands(request.bands, valid = true),
+            timestampMs = System.currentTimeMillis(),
+            target = request.target,
+            presetName = request.presetName,
+        )
+        val config = playbackPreferencesRepository.getAudioDspConfig().normalized()
+        val updated = config.copy(
+            presets = config.presets.filterNot { it.id == preset.id } + preset,
+            selectedPresetId = preset.id,
+        ).normalized()
+        playbackPreferencesRepository.setAudioDspConfig(updated)
+        audioDspRuntimeConfig.update(updated)
+        getAudioDsp()
+    }
+
+    private fun com.miruplay.tv.audiomeasure.AudioMeasureController.MeasureOutcome.toMeasureResultDto(): AudioDspMeasureResultDto {
+        val m = measurement
+        val (peakAfter, nullResidual) = com.miruplay.tv.measure.AutoEqFitter.finalMetrics(
+            m.smoothedDb, m.targetDb, m.fit.bands, m.freqs, m.fs, m.fit.matchLoHz, m.fit.matchHiHz,
+        )
+        return AudioDspMeasureResultDto(
+            valid = m.valid,
+            invalidReason = m.invalidReason,
+            estimatedPpm = m.drift.estimatedPpm,
+            bands = m.fit.bands,
+            matchLoHz = m.fit.matchLoHz,
+            matchHiHz = m.fit.matchHiHz,
+            peakAfterDb = peakAfter,
+            nullResidualDb = nullResidual,
+        )
+    }
+
     override suspend fun getWebControlAccess(): WebControlAccessDto = runOnIo {
         webControlAccessSnapshot()
     }
@@ -1105,6 +1160,8 @@ class WebControlService @Inject constructor(
 
 private const val MAX_REW_IMPORT_CHARS = 1_000_000
 private const val MAX_REW_IMPORT_BASE64_CHARS = 2_000_000
+// 48 kHz / 16-bit / mono / ~8.2 s dual sweep + tails ≈ 0.8 MB raw ≈ 1.1 MB base64; allow headroom.
+private const val MAX_MEASURE_WAV_BASE64_CHARS = 4_000_000
 
 private data class BangumiArchiveDownloadState(
     val isDownloading: Boolean = false,
