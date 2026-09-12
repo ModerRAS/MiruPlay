@@ -1553,6 +1553,15 @@
                 style="margin-top: 1rem"
               />
 
+              <div style="margin-top: 1rem">
+                <span style="margin-right: .5rem; color: var(--el-text-color-secondary)">更新渠道</span>
+                <el-radio-group :model-value="appUpdate.channel" :disabled="loading.appUpdate" @change="setAppUpdateChannel">
+                  <el-radio-button value="alpha">alpha</el-radio-button>
+                  <el-radio-button value="beta">beta</el-radio-button>
+                  <el-radio-button value="stable">stable</el-radio-button>
+                </el-radio-group>
+              </div>
+
               <div class="form-actions" style="margin-top: 1rem">
                 <el-button type="primary" :loading="loading.appUpdate" @click="checkAppUpdate">检查更新</el-button>
                 <el-button :disabled="!appUpdate.updateAvailable" :loading="loading.appUpdateDownload" @click="downloadAppUpdate">下载并安装</el-button>
@@ -2095,6 +2104,7 @@ const webControlAccessForm = reactive({
 const appUpdate = reactive({
   currentVersionName: '',
   currentVersionCode: 0,
+  channel: 'alpha',
   latest: null,
   updateAvailable: false,
   lastCheckedAt: 0,
@@ -3992,6 +4002,7 @@ async function rotateWebControlToken() {
 function applyAppUpdate(data) {
   appUpdate.currentVersionName = data.currentVersionName || ''
   appUpdate.currentVersionCode = Number(data.currentVersionCode || 0)
+  appUpdate.channel = data.channel || 'alpha'
   appUpdate.latest = data.latest || null
   appUpdate.updateAvailable = Boolean(data.updateAvailable)
   appUpdate.lastCheckedAt = Number(data.lastCheckedAt || 0)
@@ -4015,6 +4026,22 @@ async function checkAppUpdate() {
     ElMessage.success(appUpdate.updateAvailable ? '发现新版本' : '已是最新版本')
   } catch (e) {
     ElMessage.error(e.message || '检查更新失败')
+  } finally {
+    loading.appUpdate = false
+  }
+}
+
+async function setAppUpdateChannel(channel) {
+  loading.appUpdate = true
+  try {
+    applyAppUpdate(await api('/api/app-update/channel', {
+      method: 'POST',
+      body: JSON.stringify({ channel })
+    }))
+    ElMessage.success(appUpdate.updateAvailable ? '发现新版本' : '已是最新版本')
+  } catch (e) {
+    ElMessage.error(e.message || '切换更新渠道失败')
+    await loadAppUpdate()
   } finally {
     loading.appUpdate = false
   }

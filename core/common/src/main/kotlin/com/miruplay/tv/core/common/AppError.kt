@@ -108,6 +108,10 @@ sealed class AppError {
             override fun toUserMessage(): String = "最新版本没有可安装的 APK。"
         }
 
+        data class ChannelNoRelease(val channel: String) : AppUpdateError() {
+            override fun toUserMessage(): String = "$channel 渠道暂无已发布的版本。"
+        }
+
         data class DownloadFailed(val cause: String) : AppUpdateError() {
             override fun toUserMessage(): String = "下载更新失败：$cause"
         }

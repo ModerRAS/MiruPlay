@@ -511,11 +511,17 @@ data class AppUpdateInfoDto(
 data class AppUpdateDto(
     val currentVersionName: String,
     val currentVersionCode: Long,
+    val channel: String = "alpha",
     val latest: AppUpdateInfoDto? = null,
     val updateAvailable: Boolean = false,
     val lastCheckedAt: Long = 0L,
     val lastError: String? = null,
     val canRequestPackageInstalls: Boolean = false,
+)
+
+@Serializable
+data class AppUpdateChannelRequest(
+    val channel: String,
 )
 
 @Serializable

@@ -122,6 +122,8 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("应用更新 not supported")
     suspend fun openInstallPermissionSettings(): AppUpdateDto =
         throw UnsupportedOperationException("应用更新 not supported")
+    suspend fun setAppUpdateChannel(request: AppUpdateChannelRequest): AppUpdateDto =
+        throw UnsupportedOperationException("应用更新 not supported")
     suspend fun appControl(request: AppControlRequest): AppControlDto =
         throw UnsupportedOperationException("应用控制 not supported")
     suspend fun searchLibrary(query: String): LibraryDto

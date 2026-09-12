@@ -282,6 +282,12 @@ fun settingsAppUpdateInstallActionLabel(): String =
 fun settingsAppUpdatePermissionActionLabel(): String =
     "安装授权"
 
+fun settingsAppUpdateChannelLabel(): String =
+    "更新渠道"
+
+fun settingsAppUpdateChannelSwitchedStatus(channel: String): String =
+    "已切换到 $channel 渠道。"
+
 fun settingsAppUpdateIdleStatus(): String =
     "尚未检查更新。"
 

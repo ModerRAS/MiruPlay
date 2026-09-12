@@ -17,6 +17,7 @@ data class AppUpdateInfo(
 data class AppUpdateCheck(
     val currentVersionName: String,
     val currentVersionCode: Long,
+    val channel: UpdateChannel,
     val latest: AppUpdateInfo,
     val updateAvailable: Boolean,
 )
@@ -32,6 +33,24 @@ data class AppUpdateDownloadProgress(
 enum class AppUpdateInstallLaunch {
     INSTALLER_OPENED,
     INSTALL_PERMISSION_REQUIRED,
+}
+
+enum class UpdateChannel {
+    ALPHA,
+    BETA,
+    STABLE;
+
+    val id: String get() = name.lowercase()
+
+    companion object {
+        fun fromId(value: String?): UpdateChannel? =
+            entries.firstOrNull { it.id == value?.trim()?.lowercase() }
+    }
+}
+
+/** 持久化的更新渠道选择；data 模块提供实现，App/WebUI 共享同一存储 */
+interface AppUpdateChannelStore {
+    var updateChannel: UpdateChannel
 }
 
 interface AppUpdateRepository {

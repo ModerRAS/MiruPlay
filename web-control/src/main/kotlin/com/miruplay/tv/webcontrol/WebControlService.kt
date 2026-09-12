@@ -40,8 +40,10 @@ import com.miruplay.tv.player.LatencyStats
 import com.miruplay.tv.player.LibassSubtitleMonitorSnapshot
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppModePreferencesRepository
+import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.MicCalibrationSettings
 import com.miruplay.tv.repository.LogUploadRepository
@@ -115,6 +117,7 @@ class WebControlService @Inject constructor(
     private val scanStatus: LibraryScanStatus,
     private val webControlAccessManager: WebControlAccessManager,
     private val appUpdateRepository: AppUpdateRepository,
+    private val appUpdateChannelStore: AppUpdateChannelStore,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val translationPreferencesRepository: TranslationPreferencesRepository,
 ) : SharedWebControlEndpointService(
@@ -1069,6 +1072,15 @@ class WebControlService @Inject constructor(
         lastUpdateCheck ?: baseAppUpdateDto()
     }
 
+    override suspend fun setAppUpdateChannel(request: AppUpdateChannelRequest): AppUpdateDto = runOnIo {
+        val channel = UpdateChannel.fromId(request.channel)
+            ?: throw IllegalArgumentException("未知更新渠道：${request.channel}")
+        appUpdateChannelStore.updateChannel = channel
+        // 渠道变了，旧缓存不再有效，立即用新渠道重新检查
+        lastUpdateCheck = null
+        checkAppUpdate()
+    }
+
     override suspend fun checkAppUpdate(): AppUpdateDto = runOnIo {
         val base = baseAppUpdateDto()
         when (val result = appUpdateRepository.checkLatestUpdate()) {
@@ -1077,6 +1089,7 @@ class WebControlService @Inject constructor(
                 AppUpdateDto(
                     currentVersionName = check.currentVersionName,
                     currentVersionCode = check.currentVersionCode,
+                    channel = check.channel.id,
                     latest = check.latest.toDto(),
                     updateAvailable = check.updateAvailable,
                     lastCheckedAt = System.currentTimeMillis(),
@@ -1150,6 +1163,7 @@ class WebControlService @Inject constructor(
         AppUpdateDto(
             currentVersionName = currentVersionName(),
             currentVersionCode = currentVersionCode(),
+            channel = appUpdateChannelStore.updateChannel.id,
             canRequestPackageInstalls = appUpdateRepository.canRequestPackageInstalls(),
         )
 

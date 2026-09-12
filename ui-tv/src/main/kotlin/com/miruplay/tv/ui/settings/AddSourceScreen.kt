@@ -97,6 +97,7 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
+import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.canRunNow
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
@@ -220,6 +221,7 @@ import com.miruplay.tv.model.settingsAppModeOptionLabel
 import com.miruplay.tv.model.settingsAppModeStatus
 import com.miruplay.tv.model.settingsAppModeTitleLabel
 import com.miruplay.tv.model.settingsAppUpdateCheckActionLabel
+import com.miruplay.tv.model.settingsAppUpdateChannelLabel
 import com.miruplay.tv.model.settingsAppUpdateInstallActionLabel
 import com.miruplay.tv.model.settingsAppUpdateMenuSummary
 import com.miruplay.tv.model.settingsAppUpdatePanelDescription
@@ -898,6 +900,7 @@ fun AddSourceScreen(
                     onCheckAppUpdate = viewModel::checkAppUpdate,
                     onDownloadAndInstallAppUpdate = viewModel::downloadAndInstallAppUpdate,
                     onOpenAppUpdateInstallPermission = viewModel::openAppUpdateInstallPermissionSettings,
+                    onSetAppUpdateChannel = viewModel::setAppUpdateChannel,
                     bangumiArchiveState = bangumiArchiveState,
                     onRefreshBangumiArchive = viewModel::refreshBangumiArchive,
                     onDownloadBangumiArchive = viewModel::downloadBangumiArchive,
@@ -1281,6 +1284,7 @@ private fun SettingsContent(
     onCheckAppUpdate: () -> Unit,
     onDownloadAndInstallAppUpdate: () -> Unit,
     onOpenAppUpdateInstallPermission: () -> Unit,
+    onSetAppUpdateChannel: (UpdateChannel) -> Unit,
     bangumiArchiveState: BangumiArchiveUiState,
     onRefreshBangumiArchive: () -> Unit,
     onDownloadBangumiArchive: () -> Unit,
@@ -1499,6 +1503,7 @@ private fun SettingsContent(
             AppUpdatePanel(
                 state = appUpdateState,
                 onCheck = onCheckAppUpdate,
+                onSelectChannel = onSetAppUpdateChannel,
                 onDownloadAndInstall = onDownloadAndInstallAppUpdate,
                 onOpenInstallPermission = onOpenAppUpdateInstallPermission
             )
@@ -3808,6 +3813,7 @@ private fun ScanOptionChip(
 private fun AppUpdatePanel(
     state: AppUpdateUiState,
     onCheck: () -> Unit,
+    onSelectChannel: (UpdateChannel) -> Unit,
     onDownloadAndInstall: () -> Unit,
     onOpenInstallPermission: () -> Unit,
 ) {
@@ -3829,6 +3835,24 @@ private fun AppUpdatePanel(
             style = TvTypography.body,
             color = TextSecondary
         )
+
+        Spacer(Modifier.height(14.dp))
+        Text(text = settingsAppUpdateChannelLabel(), style = TvTypography.body, color = TextSecondary)
+        Spacer(Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            UpdateChannel.entries.forEach { channel ->
+                TvButton(
+                    text = channel.id,
+                    enabled = !state.isBusy,
+                    secondary = state.channel != channel,
+                    onClick = { onSelectChannel(channel) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
 
         Spacer(Modifier.height(14.dp))
         Column(

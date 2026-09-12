@@ -5,10 +5,17 @@ on:
     branches: [ main, master, develop, 'codex/**' ]
   pull_request:
     branches: [ main, master, develop ]
-  # 每天凌晨2点检查变更并发布nightly版本
-  #schedule:
-  #  - cron: '0 2 * * *'
   workflow_dispatch:
+    inputs:
+      channel:
+        description: '发布渠道（alpha 无意义，仅 beta/stable 用于 promote 已有 release）'
+        type: choice
+        options: [alpha, beta, stable]
+        default: alpha
+      promote_tag:
+        description: 'promote 目标版本 tag（如 v2.11.727，仅 beta/stable 需要）'
+        required: false
+        type: string
 
 
 env:
@@ -20,6 +27,7 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.channel == 'alpha'
 
     steps:
       - name: Checkout code
@@ -79,11 +87,18 @@ jobs:
     needs: [build, lint]
     permissions:
       contents: write
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+    if: >-
+      ((github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+       (github.event_name != 'workflow_dispatch' || inputs.channel == 'alpha'))
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       version_code: ${{ steps.version.outputs.version_code }}
       tag_name: ${{ steps.version.outputs.tag_name }}
+      channel: ${{ steps.version.outputs.channel }}
 
     steps:
       - name: Checkout code
@@ -122,7 +137,7 @@ jobs:
       - name: Build version
         id: version
         run: |
-          # 从 build.gradle.kts 读取 major.minor（如 0.1.0 → 0.1），patch 用 run_number
+          # 版本号 = major.minor.run_number（如 2.11.727），渠道只在 manifest 里标注
           FULL_VERSION=$(grep 'val baseAppVersionName' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
           MAJOR_MINOR=$(echo "$FULL_VERSION" | sed 's/\.[^.]*$//')
           VERSION_NAME="${MAJOR_MINOR}.${{ github.run_number }}"
@@ -130,6 +145,7 @@ jobs:
           echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
           echo "version_code=$VERSION_CODE" >> $GITHUB_OUTPUT
           echo "tag_name=v$VERSION_NAME" >> $GITHUB_OUTPUT
+          echo "channel=alpha" >> $GITHUB_OUTPUT
 
       - name: Prepare release keystore
         run: |
@@ -167,11 +183,14 @@ jobs:
           APK_NAME=$(basename "$APK_PATH")
           APK_SIZE=$(stat -c%s "$APK_PATH")
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
+          CHANNEL="${{ steps.version.outputs.channel }}"
           RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/$TAG_NAME"
           DOWNLOAD_URL="${{ github.server_url }}/${{ github.repository }}/releases/download/$TAG_NAME/$APK_NAME"
 
+          # 顶层 = 完整旧 schema（旧 app 只读顶层），并携带本次渠道条目
           jq -n \
             --arg tag_name "$TAG_NAME" \
+            --arg channel "$CHANNEL" \
             --arg release_name "$TAG_NAME" \
             --arg published_at "$(date -u +'%Y-%m-%dT%H:%M:%SZ')" \
             --arg release_url "$RELEASE_URL" \
@@ -187,13 +206,34 @@ jobs:
               prerelease: false,
               published_at: $published_at,
               html_url: $release_url,
+              channel: $channel,
               version_code: $version_code,
               assets: [{
                 name: $asset_name,
                 size: $asset_size,
                 browser_download_url: $download_url
-              }]
+              }],
+              channels: {
+                ($channel): {
+                  tag_name: $tag_name,
+                  version_code: $version_code,
+                  asset_name: $asset_name,
+                  asset_size: $asset_size,
+                  download_url: $download_url,
+                  published_at: $published_at,
+                  html_url: $release_url
+                }
+              }
             }' > latest.json
+
+          # 滚动合并：下载上一个 Latest release 的 manifest，保留其他渠道条目
+          REPO_URL="${{ github.server_url }}/${{ github.repository }}"
+          PREV=$(mktemp)
+          if ! curl -fsSL "$REPO_URL/releases/latest/download/latest.json" -o "$PREV"; then
+            echo '{}' > "$PREV"
+          fi
+          jq --slurpfile prev "$PREV" '.channels = (($prev[0].channels // {}) + .channels)' \
+            latest.json > latest.merged.json && mv latest.merged.json latest.json
           jq empty latest.json
 
       - name: Upload release APK
@@ -210,9 +250,8 @@ jobs:
           VERSION_NAME="${{ steps.version.outputs.version_name }}"
           TAG_NAME="${{ steps.version.outputs.tag_name }}"
 
-          # 取 tag 前缀（去掉最后一段数字），找上一个 release
-          TAG_PREFIX=$(echo "$TAG_NAME" | sed 's/\.[0-9]*$//')
-          PREV_TAG=$(git tag --list "${TAG_PREFIX}.*" --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
+          # 取上一个已发布的 tag（不限 major.minor 前缀，版本号单调，跨 minor bump 也不漏）
+          PREV_TAG=$(git tag --list 'v*' --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
 
           if [ -n "$PREV_TAG" ]; then
             CHANGES=$(git log "$PREV_TAG"..HEAD --pretty=format:'- `%h` %s')
@@ -248,8 +287,86 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  # beta/stable promote：不构建，只把已发布的 alpha release 重新标注到对应渠道。
+  # 直接编辑当前 Latest release 的 latest.json 资产（同名覆盖）。
+  promote-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      (inputs.channel == 'beta' || inputs.channel == 'stable') &&
+      inputs.promote_tag != ''
+    # 与 build-release 共用同一组，保证 manifest 写入串行
+    concurrency:
+      group: release-publish
+      cancel-in-progress: false
+
+    steps:
+      - name: Promote release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          CHANNEL: ${{ inputs.channel }}
+          PROMOTE_TAG: ${{ inputs.promote_tag }}
+        run: |
+          set -euo pipefail
+          REPO_URL="${{ github.server_url }}/$REPO"
+
+          # promote 目标 release 必须存在且带 release APK 资产
+          test -n "$PROMOTE_TAG"
+          RELEASE_JSON=$(gh api "repos/$REPO/releases/tags/$PROMOTE_TAG")
+          ASSET_JSON=$(echo "$RELEASE_JSON" | jq -c '[.assets[] | select(.name | endswith("-release.apk"))] | .[0]')
+          test -n "$ASSET_JSON" && test "$ASSET_JSON" != "null"
+          ASSET_NAME=$(echo "$ASSET_JSON" | jq -r '.name')
+          ASSET_SIZE=$(echo "$ASSET_JSON" | jq -r '.size')
+          DOWNLOAD_URL=$(echo "$ASSET_JSON" | jq -r '.browser_download_url')
+          PUBLISHED_AT=$(echo "$RELEASE_JSON" | jq -r '.published_at')
+          VERSION_CODE=$(echo "$PROMOTE_TAG" | sed 's/.*\.//')
+          echo "$VERSION_CODE" | grep -Eq '^[0-9]+$'
+          RELEASE_URL="$REPO_URL/releases/tag/$PROMOTE_TAG"
+
+          # 找到当前承载 manifest 的 Latest release
+          HOST_TAG=$(gh api "repos/$REPO/releases/latest" --jq '.tag_name')
+          test -n "$HOST_TAG"
+          echo "Promoting $PROMOTE_TAG as $CHANNEL (host release: $HOST_TAG)"
+
+          # 下载当前滚动 manifest，只覆盖本渠道条目
+          PREV=$(mktemp)
+          if ! curl -fsSL "$REPO_URL/releases/latest/download/latest.json" -o "$PREV"; then
+            echo '{}' > "$PREV"
+          fi
+          jq \
+            --arg channel "$CHANNEL" \
+            --arg tag_name "$PROMOTE_TAG" \
+            --arg published_at "$PUBLISHED_AT" \
+            --arg release_url "$RELEASE_URL" \
+            --arg asset_name "$ASSET_NAME" \
+            --arg download_url "$DOWNLOAD_URL" \
+            --argjson version_code "$VERSION_CODE" \
+            --argjson asset_size "$ASSET_SIZE" \
+            '.channels = (($prev[0].channels // {}) + {
+              ($channel): {
+                tag_name: $tag_name,
+                version_code: $version_code,
+                asset_name: $asset_name,
+                asset_size: $asset_size,
+                download_url: $download_url,
+                published_at: $published_at,
+                html_url: $release_url
+              }
+            })' \
+            --slurpfile prev "$PREV" "$PREV" > latest.json
+          jq empty latest.json
+
+          # 同名覆盖上传到 host release
+          gh release upload "$HOST_TAG" latest.json --clobber --repo "$REPO"
+          echo "latest.json updated: channels.$CHANNEL -> $PROMOTE_TAG"
+
   lint:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.channel == 'alpha'
 
     steps:
       - name: Checkout code
@@ -283,203 +400,3 @@ jobs:
           name: lint-reports
           path: app/build/reports/lint-results-*.html
           retention-days: 7
-
-  nightly-meta:
-    runs-on: ubuntu-latest
-    outputs:
-      has_changes: ${{ steps.check_changes.outputs.has_changes }}
-      version_name: ${{ steps.version.outputs.version_name }}
-      version_code: ${{ steps.version.outputs.version_code }}
-    if: >
-      (github.event_name == 'push' || github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') &&
-      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check for code changes
-        id: check_changes
-        run: |
-          # Publish only when HEAD moved since the latest nightly tag.
-          # This keeps at most one nightly release per day without empty refreshes.
-          LATEST_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | head -1)
-          if [ -n "$LATEST_TAG" ]; then
-            LATEST_NIGHTLY_SHA=$(git rev-list -n 1 "$LATEST_TAG")
-          else
-            LATEST_NIGHTLY_SHA=""
-          fi
-
-          echo "Event: ${{ github.event_name }}"
-          echo "HEAD: $GITHUB_SHA"
-          echo "Latest nightly tag: ${LATEST_TAG:-none}"
-          echo "Latest nightly SHA: ${LATEST_NIGHTLY_SHA:-none}"
-
-          if [ "$LATEST_NIGHTLY_SHA" != "$GITHUB_SHA" ]; then
-            echo "has_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "has_changes=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Set nightly version
-        id: version
-        run: |
-          # 生成日期格式版本号: YYYYMMDD
-          VERSION_NAME=$(date +'%Y.%m.%d')
-          echo "version_name=$VERSION_NAME" >> $GITHUB_OUTPUT
-          echo "version_code=$(date +'%Y%m%d')" >> $GITHUB_OUTPUT
-          echo "Nightly version: $VERSION_NAME"
-
-  nightly:
-    runs-on: ubuntu-latest
-    needs: [build, lint, nightly-meta]
-    concurrency:
-      group: nightly-android-${{ github.ref }}
-      cancel-in-progress: true
-    if: needs.nightly-meta.outputs.has_changes == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Java ${{ env.JAVA_VERSION }}
-        uses: actions/setup-java@v4
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: 'temurin'
-          cache: 'gradle'
-
-      - name: Setup Bun ${{ env.BUN_VERSION }}
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: ${{ env.BUN_VERSION }}
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
-
-      - name: Prepare release keystore
-        run: |
-          test -n "$KEYSTORE_BASE64"
-          test -n "$KEY_ALIAS"
-          test -n "$KEY_PASSWORD"
-          test -n "$STORE_PASSWORD"
-          printf '%s' "$KEYSTORE_BASE64" \
-            | sed '/^-----BEGIN /d;/^-----END /d' \
-            | tr -d '[:space:]' \
-            | base64 --decode > "$RUNNER_TEMP/miruplay-release.jks"
-          keytool -list -keystore "$RUNNER_TEMP/miruplay-release.jks" -storepass "$STORE_PASSWORD" -alias "$KEY_ALIAS" >/dev/null
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-
-      - name: Build nightly APK
-        run: |
-          ./gradlew assembleRelease \
-            -PVERSION_NAME=${{ needs.nightly-meta.outputs.version_name }} \
-            -PVERSION_CODE=${{ needs.nightly-meta.outputs.version_code }} \
-            --no-daemon --stacktrace
-        env:
-          RELEASE_STORE_FILE: ${{ runner.temp }}/miruplay-release.jks
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
-
-      - name: Upload nightly APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: miruplay-nightly-${{ needs.nightly-meta.outputs.version_name }}
-          path: app/build/outputs/apk/release/*-release.apk
-          retention-days: 30
-
-  nightly-publish:
-    runs-on: ubuntu-latest
-    needs:
-      - nightly-meta
-      - nightly
-    permissions:
-      contents: write
-    concurrency:
-      group: nightly-publish-${{ github.ref }}
-      cancel-in-progress: true
-    if: needs.nightly-meta.outputs.has_changes == 'true'
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download nightly APK
-        uses: actions/download-artifact@v4
-        with:
-          name: miruplay-nightly-${{ needs.nightly-meta.outputs.version_name }}
-          path: release-assets/android
-
-      - name: Generate release notes
-        run: |
-          BUILD_DATE="$(date +'%Y-%m-%d')"
-          TAG_NAME="nightly-${{ needs.nightly-meta.outputs.version_name }}"
-
-          # Get commits since the previous nightly day. When today's release is
-          # refreshed after another master push, keep the notes complete for the day.
-          PREV_TAG=$(git tag --list 'nightly-*' --sort=-version:refname | grep -v "^${TAG_NAME}$" | head -1)
-          if [ -n "$PREV_TAG" ]; then
-            CHANGES=$(git log "$PREV_TAG"..HEAD --pretty=format:'- `%h` %s')
-          else
-            SINCE_DATE=$(date -d '24 hours ago' '+%Y-%m-%dT%H:%M:%S')
-            CHANGES=$(git log --since="$SINCE_DATE" --pretty=format:'- `%h` %s')
-          fi
-
-          # Build release notes file
-          cat > release-notes.md << EOF
-          ## Nightly Build
-
-          **Build Date:** ${BUILD_DATE}
-
-          ### Changes
-          ${CHANGES:-No new commits since last nightly.}
-
-          ### Downloads
-          Download the Android APK from the artifact below.
-          EOF
-
-          echo "Release notes written to release-notes.md"
-          cat release-notes.md
-
-      - name: Update nightly tag
-        run: |
-          TAG_NAME="nightly-${{ needs.nightly-meta.outputs.version_name }}"
-          git tag -f "$TAG_NAME" "$GITHUB_SHA"
-          git push --force origin "refs/tags/$TAG_NAME"
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: nightly-${{ needs.nightly-meta.outputs.version_name }}
-          target_commitish: ${{ github.sha }}
-          name: Nightly ${{ needs.nightly-meta.outputs.version_name }}
-          body_path: release-notes.md
-          files: release-assets/android/**/*.apk
-          overwrite_files: true
-          fail_on_unmatched_files: true
-          prerelease: true
-          draft: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

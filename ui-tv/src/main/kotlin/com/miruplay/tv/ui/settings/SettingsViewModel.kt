@@ -64,6 +64,8 @@ import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.AppUpdateChannelStore
+import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadActionCoordinator
@@ -130,6 +132,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val logUploadRepository: LogUploadRepository,
     private val appUpdateRepository: AppUpdateRepository,
+    private val appUpdateChannelStore: AppUpdateChannelStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
@@ -426,6 +429,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
+
+    private val _appUpdateChannel = MutableStateFlow(appUpdateChannelStore.updateChannel)
+    val appUpdateChannel: StateFlow<UpdateChannel> = _appUpdateChannel.asStateFlow()
 
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
     val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
@@ -1229,6 +1235,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAppUpdateChannel(channel: UpdateChannel) {
+        if (channel == _appUpdateChannel.value) return
+        appUpdateChannelStore.updateChannel = channel
+        _appUpdateChannel.value = channel
+        checkAppUpdate()
+    }
+
     fun checkAppUpdate() {
         if (_appUpdateState.value.isBusy) return
         viewModelScope.launch {
@@ -1473,6 +1486,7 @@ class SettingsViewModel @Inject constructor(
             } else {
                 settingsAppUpdateLatestStatus(currentVersionName)
             },
+            channel = channel,
         )
     }
 
@@ -1563,6 +1577,7 @@ data class AppUpdateUiState(
     val isBusy: Boolean = false,
     val progressPercent: Int? = null,
     val statusMessage: String = settingsAppUpdateIdleStatus(),
+    val channel: UpdateChannel = UpdateChannel.ALPHA,
 )
 
 data class BangumiSyncAllUiState(
