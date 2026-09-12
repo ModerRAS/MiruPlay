@@ -48,13 +48,18 @@ For each subsystem your change could plausibly touch, confirm its happy path sti
 - ✦ Room schema change ⇒ migration added and tested; do not bump version without migration
 - ✦ Repository contracts unchanged unless intentionally, with all `*Impl` and callers updated
 
-## 4. PR description requirements
+## 4. Line-ending hygiene
+
+- [ ] Keep each file's existing CRLF/LF style; never flip endings across a whole file
+- [ ] After editing, `git diff --stat` must show only the lines you intended — a whole-file diff means endings were rewritten; normalize before committing (see the Line Endings rule in `AGENTS.md`)
+
+## 5. PR description requirements
 
 - [ ] State what changed and **what was verified** (tests run, device smoke, manual flows)
 - [ ] State which cross-check items from section 3 were exercised
 - [ ] If the change is intentionally narrow (e.g. CI-only, docs-only), say so explicitly
 
-## How to extend this checklist
+## 5. How to extend this checklist
 
 Every feature PR should append to this file, in the same PR:
 
