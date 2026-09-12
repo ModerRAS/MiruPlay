@@ -1403,6 +1403,15 @@
                 <el-button size="small" @click="audioDspCalibrationFileInput?.click()">导入 .cal</el-button>
                 <input ref="audioDspCalibrationFileInput" class="hidden-file-input" type="file" accept=".cal,.txt,text/plain" @change="importAudioDspCalibration" />
               </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                <span class="chart-label">或按序列号下载：</span>
+                <el-input v-model="audioDspMeasure.serial" placeholder="UMIK-1 序列号，如 700-1234" style="width: 220px" :disabled="audioDspMeasure.downloading" />
+                <el-radio-group v-model="audioDspMeasure.incidence" :disabled="audioDspMeasure.downloading" size="small">
+                  <el-radio-button label="0deg">0°（出厂校准）</el-radio-button>
+                  <el-radio-button label="90deg">90°（自动生成）</el-radio-button>
+                </el-radio-group>
+                <el-button size="small" type="primary" :loading="audioDspMeasure.downloading" @click="downloadAudioDspCalibration">从 miniDSP 下载</el-button>
+              </div>
               <div v-if="audioDspMeasure.calibrationWarning" style="margin-top: 6px">
                 <el-alert type="warning" :title="audioDspMeasure.calibrationWarning" :closable="false" show-icon />
               </div>
@@ -2045,7 +2054,9 @@ const audioDspMeasure = reactive({
   error: '',
   result: null,
   calibrationName: null,
-  calibrationWarning: ''
+  calibrationWarning: '',
+  serial: '',
+  downloading: false
 })
 const webControlAccess = reactive({
   enabled: false,
@@ -3636,6 +3647,25 @@ async function loadAudioDspMeasureCapabilities() {
     audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
   } catch {
     // capabilities 不影响主流程
+  }
+}
+
+async function downloadAudioDspCalibration() {
+  const serial = (audioDspMeasure.serial || '').trim()
+  if (!serial) return
+  audioDspMeasure.downloading = true
+  try {
+    const caps = await api('/api/audio-dsp/measure/calibration/download', {
+      method: 'POST',
+      body: JSON.stringify({ serial, incidence: audioDspMeasure.incidence })
+    })
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
+    ElMessage.success(caps.calibrationWarning ? '校准已下载（有覆盖范围警告）' : '校准已下载并启用')
+  } catch (error) {
+    ElMessage.error(error.message || '校准下载失败')
+  } finally {
+    audioDspMeasure.downloading = false
   }
 }
 

@@ -931,6 +931,16 @@ class WebControlService @Inject constructor(
         getAudioDspMeasureCapabilities()
     }
 
+    override suspend fun downloadAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationDownloadRequest): AudioDspMeasureCapabilitiesDto = runOnIo {
+        val incidence = when (request.incidence.trim().lowercase()) {
+            "90deg", "90", "90°" -> com.miruplay.tv.measure.MicCalibration.Incidence.NINETY_DEG
+            else -> com.miruplay.tv.measure.MicCalibration.Incidence.ZERO_DEG
+        }
+        val settings = audioMeasureController.downloadUmikCalibration(request.serial, incidence)
+        playbackPreferencesRepository.setAudioMeasureCalibration(settings)
+        getAudioDspMeasureCapabilities()
+    }
+
     private suspend fun audioDspMeasureCalibration(): MicCalibrationSettings? =
         runCatching { playbackPreferencesRepository.getAudioMeasureCalibration() }.getOrNull()
 

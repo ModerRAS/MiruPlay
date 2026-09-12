@@ -289,6 +289,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.DELETE && route == "/api/audio-dsp/measure/calibration" -> {
                 jsonResponse(AudioDspMeasureCapabilitiesDto.serializer(), webControlService.clearAudioDspMeasureCalibration())
             }
+            session.method == Method.POST && route == "/api/audio-dsp/measure/calibration/download" -> {
+                val request = parseBody(session, AudioDspMeasureCalibrationDownloadRequest.serializer())
+                jsonResponse(AudioDspMeasureCapabilitiesDto.serializer(), webControlService.downloadAudioDspMeasureCalibration(request))
+            }
             session.method == Method.GET && route == "/api/web-control/access" -> {
                 jsonResponse(WebControlAccessDto.serializer(), webControlService.getWebControlAccess())
             }

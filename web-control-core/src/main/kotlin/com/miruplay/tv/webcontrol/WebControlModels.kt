@@ -429,6 +429,14 @@ data class AudioDspMeasureCalibrationRequest(
 )
 
 @Serializable
+data class AudioDspMeasureCalibrationDownloadRequest(
+    /** UMIK-1 7-digit serial, with or without the dash (700-1234 / 7001234). */
+    val serial: String,
+    /** "0deg" (unique factory cal) or "90deg" (auto-generated). */
+    val incidence: String = "0deg",
+)
+
+@Serializable
 data class AudioDspMeasureResultDto(
     val valid: Boolean = false,
     val invalidReason: String? = null,

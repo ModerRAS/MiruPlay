@@ -223,6 +223,7 @@ class SettingsViewModel @Inject constructor(
         val result: AudioMeasureResultUi? = null,
         val calibrationName: String? = null,
         val calibrationWarning: String? = null,
+        val downloadingCalibration: Boolean = false,
     )
 
     private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
@@ -258,6 +259,27 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 _audioMeasure.update { it.copy(error = e.message ?: "校准文件导入失败") }
+            }
+        }
+    }
+
+    fun downloadCalibration(serial: String, incidence: String) {
+        if (_audioMeasure.value.downloadingCalibration) return
+        viewModelScope.launch {
+            _audioMeasure.update { it.copy(downloadingCalibration = true, error = null) }
+            try {
+                val settings = audioMeasureController.downloadUmikCalibration(
+                    serial,
+                    if (incidence == "90deg") com.miruplay.tv.measure.MicCalibration.Incidence.NINETY_DEG
+                    else com.miruplay.tv.measure.MicCalibration.Incidence.ZERO_DEG,
+                )
+                playbackPreferences.setAudioMeasureCalibration(settings)
+                val warning = runCatching { MicCalibration.parse(settings.data).calibration.coverageWarning() }.getOrNull()
+                _audioMeasure.update {
+                    it.copy(downloadingCalibration = false, calibrationName = settings.name, calibrationWarning = warning)
+                }
+            } catch (e: Exception) {
+                _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message ?: "下载校准失败") }
             }
         }
     }

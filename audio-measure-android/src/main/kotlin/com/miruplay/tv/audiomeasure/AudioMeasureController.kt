@@ -55,6 +55,39 @@ class AudioMeasureController(private val context: Context) {
 
     class MeasureException(message: String) : Exception(message)
 
+    /**
+     * Download a UMIK-1 calibration file from miniDSP by serial number,
+     * validate it, and return it ready to persist. No network stack
+     * dependency: HttpURLConnection keeps this module plain.
+     */
+    suspend fun downloadUmikCalibration(
+        serial: String,
+        incidence: com.miruplay.tv.measure.MicCalibration.Incidence,
+    ): com.miruplay.tv.repository.MicCalibrationSettings = withContext(Dispatchers.IO) {
+        val url = java.net.URL(UmikCalibrationDownloader.buildUrl(serial, incidence))
+        val text = url.openConnection().let { connection ->
+            (connection as java.net.HttpURLConnection).apply { connectTimeout = 15_000; readTimeout = 30_000 }
+            try {
+                if (connection.responseCode !in 200..299) {
+                    throw MeasureException("下载校准文件失败（HTTP ${connection.responseCode}）")
+                }
+                connection.inputStream.use { stream ->
+                    stream.readBytes().toString(Charsets.UTF_8).also {
+                        if (it.length > com.miruplay.tv.measure.MicCalibration.MAX_TEXT_CHARS) {
+                            throw MeasureException("校准文件过大")
+                        }
+                    }
+                }
+            } finally {
+                connection.disconnect()
+            }
+        }
+        if (UmikCalibrationDownloader.isErrorBody(text)) {
+            throw MeasureException("miniDSP 上没有找到该序列号（$serial）的校准数据，请核对序列号")
+        }
+        UmikCalibrationDownloader.buildSettings(serial, incidence, text)
+    }
+
     /** Enumerate usable microphone inputs and gate on the RECORD_AUDIO permission. */
     fun probe(): Capabilities {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
