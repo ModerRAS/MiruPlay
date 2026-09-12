@@ -89,6 +89,10 @@ MiruPlay/
 - **Agent-doc index**: Agent-only checklists, guardrails, and recurring workflow notes live under `docs/agents/`. Start from `docs/agents/README.md` to find the right file.
 - **Keep AGENTS short**: Put long agent-facing instructions in `docs/agents/` and reference them from `AGENTS.md` instead of inlining large checklists here.
 
+### Pre-PR Checklist
+- **Mandatory before opening any PR to `master`**: full build + all-module tests + lint, composition-level tests for runtime-composed components, cross-checks proving existing features still work. Follow `docs/agents/pre-pr-checklist.md`.
+- **Checklist grows with features**: every feature PR adds its own check items and cross-check items to that document in the same PR.
+
 ### Web Control Parity
 - **Settings/menu parity is required across exposed surfaces**: If a settings-related menu item, toggle, form field, or config field changes in TV settings, WebAPI, or WebUI, update the other affected surfaces in the same change unless the user explicitly wants a surface-specific feature.
 - **Follow checklist**: Use `docs/agents/settings-web-control-parity-checklist.md` for affected layers, reverse-direction parity checks, verification, and file pointers.

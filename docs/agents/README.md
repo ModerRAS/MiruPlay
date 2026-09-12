@@ -19,5 +19,6 @@ This directory is for agent-oriented project guidance that should not be inlined
 - Name files by the workflow or rule they describe, for example `settings-web-control-parity-checklist.md`.
 
 ## Current docs
+- `pre-pr-checklist.md`: mandatory checks before opening any PR to master — hard gates, composition-level testing, cross-check regression items per subsystem; the checklist itself grows with each feature PR.
 - `settings-web-control-parity-checklist.md`: parity checklist for settings/menu changes across TV settings, WebAPI, and WebUI.
 - `wiki-memory-checklist.md`: when to save durable findings into the project wiki or persistent memory.
