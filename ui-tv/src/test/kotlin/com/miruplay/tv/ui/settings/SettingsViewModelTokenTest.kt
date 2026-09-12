@@ -51,6 +51,8 @@ import java.io.File
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SettingsViewModelTokenTest {
+    @MockK lateinit var appContext: android.content.Context
+    @MockK(relaxed = true) lateinit var audioMeasureController: com.miruplay.tv.audiomeasure.AudioMeasureController
     @MockK lateinit var mediaRepository: MediaSourceRepository
     @MockK lateinit var mediaSourceFactory: MediaSourceFactory
     @MockK lateinit var securePrefs: AppCredentialStore
@@ -188,6 +190,8 @@ class SettingsViewModelTokenTest {
             bangumiArchiveStore = bangumiArchiveStore,
             bangumiSyncEngine = bangumiSyncEngine,
             backgroundTasks = backgroundTasks,
+            appContext = appContext,
+            audioMeasureController = audioMeasureController,
             audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
         )
 }
