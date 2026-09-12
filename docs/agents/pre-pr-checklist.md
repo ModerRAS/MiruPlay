@@ -12,7 +12,43 @@ This checklist grows over time: **every feature PR adds its own check items and 
 - [ ] No `@Suppress` or type gymnastics added just to make compilation pass
 - [ ] `git status` clean of unrelated files (scratch files, `tmp/`, `adb-artifacts/`, `build/`)
 
-## 2. Composition-level testing (the EMPTY_BUFFER lesson)
+## 2. Real-device verification (mandatory — passing tests is NOT verification)
+
+Unit tests verify code. Only operating the app on real hardware verifies the feature. A change that affects anything user-visible is **not done** until you have personally driven the feature on a real device and observed it working. "测试过了" is what CI says; it is not an acceptable answer for a feature.
+
+### What "verified" means
+
+- [ ] Debug APK installed on the HK1 (use the `miruplay-adb-debug` skill: connect → install → restart)
+- [ ] The feature was **actually operated**: keys pressed / routes hit / flows walked to completion, and the expected result **observed on screen** (ADB screenshot or UI dump for Compose UI; NanoKVM capture for video-surface/HDMI evidence)
+- [ ] No `Player error`, `AndroidRuntime:E`, or new OpenObserve error rows during the walk-through
+- [ ] Web-facing changes verified from a real browser (WebUI + WebAPI against the device), not from test doubles
+
+### Minimum device walk-through (before ANY user-facing PR)
+
+1. App launches to mode selection; navigate with the remote into the touched area
+2. Library loads content from a real source (WebDAV/115/local)
+3. Play an episode: picture + sound + seek + resume position; back out cleanly
+4. Settings round-trip for anything settings-related (toggle on device AND from WebUI — parity)
+5. WebControl reachable from browser (`http://<device>:9978`) and the affected WebUI flows work
+
+### Which verification matches which change
+
+| Change touches | Minimum device verification |
+|---|---|
+| `player-core` / audio / subtitles | Play an episode end-to-end with the affected path (DSP on/off, subtitle on/off); observe picture + sound + seek |
+| `ui-tv` screens / navigation | Walk the screen flow with remote keys; screenshot evidence |
+| `data` / repositories / Room | Open library + detail + play — data actually renders and saves |
+| `web-control` / WebUI | Drive the WebUI from a browser; check the affected API routes respond; parity toggle on TV side |
+| `scanner` / `media-source` | Add/test/scan a real source on the device; content appears |
+| DSP / measure / calibration | Run the affected flow from WebUI on-device; apply to live playback and hear/observe the change |
+| Pure CI / docs / JVM-desktop-only | Exempt — state this explicitly in the PR description |
+
+### Evidence in the PR
+
+- [ ] PR description records **what was observed on the device** (e.g. "played EP11 from 115 WebDAV, resume at 50s works, subtitles render"), with screenshots/logcat attached where practical
+- [ ] Any check that could not be device-verified is explicitly listed with the reason — silence is not an excuse
+
+## 3. Composition-level testing (the EMPTY_BUFFER lesson)
 
 v2.10.727 shipped a playback-breaking crash because two components (`DspAudioProcessor`, `MusicSrcBypassProcessor`) were correct in isolation but had never been exercised **together in the runtime chain** with boundary inputs. Unit tests that pass per-component do not protect composed systems.
 
@@ -22,7 +58,7 @@ If the change touches any component that gets **composed at runtime** — audio 
 - [ ] Include boundary inputs: **empty input**, zero-length buffers, end-of-stream, format change mid-stream, flush/reconfigure, rapid repeated calls
 - [ ] Reference example: `player-core/src/test/kotlin/com/miruplay/tv/player/MusicSrcBypassPipelineTest.kt` (regression test for the v2.10.727 crash)
 
-## 3. Cross-check: existing features still work
+## 4. Cross-check: existing features still work
 
 Full feature inventory of the app. Rule of thumb: **any module you touch, re-verify every feature that consumes it** (column "re-verify when"). Items marked ✦ are regression items that must be extended when related features change.
 
@@ -100,18 +136,18 @@ Re-verify when: shared core modules (repository, metadata, scraper, media-source
 
 - ✦ `-core`/`-desktop` twin modules stay compiling on both targets: `./gradlew assembleDebug` covers Android; run `./gradlew test` for JVM-side breakage
 
-## 4. Line-ending hygiene
+## 5. Line-ending hygiene
 
 - [ ] Keep each file's existing CRLF/LF style; never flip endings across a whole file
 - [ ] After editing, `git diff --stat` must show only the lines you intended — a whole-file diff means endings were rewritten; normalize before committing (see the Line Endings rule in `AGENTS.md`)
 
-## 5. PR description requirements
+## 6. PR description requirements
 
-- [ ] State what changed and **what was verified** (tests run, device smoke, manual flows)
-- [ ] State which cross-check items from section 3 were exercised
+- [ ] State what changed and **what was observed on a real device** (flows walked, screenshots, logcat clean) — "tests passed" alone is not verification
+- [ ] State which cross-check items from section 4 were exercised
 - [ ] If the change is intentionally narrow (e.g. CI-only, docs-only), say so explicitly
 
-## 6. How to extend this checklist
+## 7. How to extend this checklist
 
 Every feature PR should append to this file, in the same PR:
 

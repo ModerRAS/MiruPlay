@@ -94,7 +94,7 @@ MiruPlay/
 - After editing, sanity-check: `git diff --stat` should show only the lines you intended, not the whole file.
 
 ### Pre-PR Checklist
-- **Mandatory before opening any PR to `master`**: full build + all-module tests + lint, composition-level tests for runtime-composed components, cross-checks proving existing features still work. Follow `docs/agents/pre-pr-checklist.md`.
+- **Mandatory before opening any PR to `master`**: full build + all-module tests + lint, **real-device verification on the HK1** (operate the feature, observe it working — passing tests is not verification), composition-level tests for runtime-composed components, cross-checks proving existing features still work. Follow `docs/agents/pre-pr-checklist.md`.
 - **Checklist grows with features**: every feature PR adds its own check items and cross-check items to that document in the same PR.
 
 ### Web Control Parity
