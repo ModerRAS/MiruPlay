@@ -51,9 +51,13 @@ class MusicSrcBypassProcessor(
         } else {
             // pass through
             val bytes = inputBuffer.remaining()
-            val out = replaceOutputBuffer(bytes)
-            out.put(inputBuffer)
-            out.flip()
+            // Empty input can carry the shared EMPTY_BUFFER, which replaceOutputBuffer also
+            // returns — put(EMPTY_BUFFER) would be a self-copy and throw IllegalArgumentException.
+            if (bytes > 0) {
+                val out = replaceOutputBuffer(bytes)
+                out.put(inputBuffer)
+                out.flip()
+            }
         }
     }
 
