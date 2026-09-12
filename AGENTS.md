@@ -89,6 +89,14 @@ MiruPlay/
 - **Agent-doc index**: Agent-only checklists, guardrails, and recurring workflow notes live under `docs/agents/`. Start from `docs/agents/README.md` to find the right file.
 - **Keep AGENTS short**: Put long agent-facing instructions in `docs/agents/` and reference them from `AGENTS.md` instead of inlining large checklists here.
 
+### Line Endings
+- **Never change a file's line endings**: keep the existing CRLF/LF style of each file as-is. If a whole-file diff shows in `git diff --stat` (e.g. AGENTS.md flipping LF↔CRLF), the edit tool or branch merge rewrote endings — normalize the file back before committing (e.g. `python -c "open(p,'wb').write(open(p,'rb').read().replace(b'\r\n',b'\n'))"` for LF files), or the diff review and later merges will churn the whole file.
+- After editing, sanity-check: `git diff --stat` should show only the lines you intended, not the whole file.
+
+### Pre-PR Checklist
+- **Mandatory before opening any PR to `master`**: full build + all-module tests + lint, **real-device verification on the HK1** (operate the feature, observe it working — passing tests is not verification), composition-level tests for runtime-composed components, cross-checks proving existing features still work. Follow `docs/agents/pre-pr-checklist.md`.
+- **Checklist grows with features**: every feature PR adds its own check items and cross-check items to that document in the same PR.
+
 ### Web Control Parity
 - **Settings/menu parity is required across exposed surfaces**: If a settings-related menu item, toggle, form field, or config field changes in TV settings, WebAPI, or WebUI, update the other affected surfaces in the same change unless the user explicitly wants a surface-specific feature.
 - **Follow checklist**: Use `docs/agents/settings-web-control-parity-checklist.md` for affected layers, reverse-direction parity checks, verification, and file pointers.
