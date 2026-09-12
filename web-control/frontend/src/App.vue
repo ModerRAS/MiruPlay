@@ -66,6 +66,10 @@
             <el-icon><VideoPlay /></el-icon>
             <span>播放设置</span>
           </el-menu-item>
+          <el-menu-item index="audio-dsp">
+            <el-icon><Headset /></el-icon>
+            <span>音频 DSP</span>
+          </el-menu-item>
           <el-menu-item index="translation">
             <el-icon><ChatLineSquare /></el-icon>
             <span>字幕翻译</span>
@@ -1212,7 +1216,7 @@
             </el-card>
           </section>
 
-          <section v-show="activeView === 'playback'" class="view-stack audio-dsp-stack">
+          <section v-show="activeView === 'audio-dsp'" class="view-stack audio-dsp-stack">
             <el-card shadow="never" class="panel-card">
               <template #header>
                 <div class="card-header">
@@ -1431,8 +1435,8 @@
                 <span class="chart-label">或按序列号下载：</span>
                 <el-input v-model="audioDspMeasure.serial" placeholder="UMIK-1 序列号，如 700-1234" style="width: 220px" :disabled="audioDspMeasure.downloading" />
                 <el-radio-group v-model="audioDspMeasure.incidence" :disabled="audioDspMeasure.downloading" size="small">
-                  <el-radio-button label="0deg">0°（出厂校准）</el-radio-button>
-                  <el-radio-button label="90deg">90°（自动生成）</el-radio-button>
+                  <el-radio-button label="0deg">0°</el-radio-button>
+                  <el-radio-button label="90deg">90°</el-radio-button>
                 </el-radio-group>
                 <el-button size="small" type="primary" :loading="audioDspMeasure.downloading" @click="downloadAudioDspCalibration">从 miniDSP 下载</el-button>
               </div>
@@ -1820,6 +1824,7 @@ import {
   Download,
   Film,
   FolderOpened,
+  Headset,
   InfoFilled,
   Key,
   Link,
@@ -2341,10 +2346,8 @@ watch(activeView, (view) => {
   if (view === 'proxy') loadProxyConfig()
   if (view === 'metadata') loadMetadataSettings()
   if (view === 'scan') loadScanSettings()
-  if (view === 'playback') {
-    loadPlaybackSettings()
-    loadAudioDsp()
-  }
+  if (view === 'playback') loadPlaybackSettings()
+  if (view === 'audio-dsp') loadAudioDsp()
   if (view === 'translation') loadTranslationSettings()
   if (view === 'webui') loadWebControlAccess()
   if (view === 'app-update') loadAppUpdate()
@@ -2661,7 +2664,8 @@ async function refreshCurrent() {
   if (activeView.value === 'proxy') await loadProxyConfig()
   if (activeView.value === 'metadata') await loadMetadataSettings()
   if (activeView.value === 'scan') await loadScanSettings()
-  if (activeView.value === 'playback') await Promise.all([loadPlaybackSettings(), loadAudioDsp()])
+  if (activeView.value === 'playback') await loadPlaybackSettings()
+  if (activeView.value === 'audio-dsp') await loadAudioDsp()
   if (activeView.value === 'webui') await loadWebControlAccess()
   if (activeView.value === 'app-update') await loadAppUpdate()
   if (activeView.value === 'about') await loadInfo()

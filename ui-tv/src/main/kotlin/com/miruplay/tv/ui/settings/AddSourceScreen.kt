@@ -1,10 +1,13 @@
 package com.miruplay.tv.ui.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -366,6 +369,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
         MiruPlaySettingsSection.WEB_UI -> Icons.Filled.WifiTethering
         MiruPlaySettingsSection.SOURCES -> Icons.Filled.Storage
         MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
+        MiruPlaySettingsSection.AUDIO_DSP -> Icons.Filled.GraphicEq
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
         MiruPlaySettingsSection.PROXY -> Icons.Filled.Dns
         MiruPlaySettingsSection.SCAN -> Icons.Filled.Refresh
@@ -603,6 +607,7 @@ fun AddSourceScreen(
                     playbackEndAction = playbackEndAction,
                     preferredSubtitleLanguage = preferredSubtitleLanguage,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
+                    audioDspEnabled = audioDspConfig.enabled,
                     cloudDriveEnabled = cloudEnabled,
                     rssCount = rssSubscriptions.size,
                     proxyEnabled = rssProxyEnabled,
@@ -989,6 +994,7 @@ private fun SettingsMenuPanel(
     playbackEndAction: PlaybackEndAction,
     preferredSubtitleLanguage: SubtitleLanguagePreference,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
+    audioDspEnabled: Boolean,
     cloudDriveEnabled: Boolean,
     rssCount: Int,
     proxyEnabled: Boolean,
@@ -1011,6 +1017,7 @@ private fun SettingsMenuPanel(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
         playbackSummary = "${playbackEndAction.playbackEndMenuSummary()} · ${preferredSubtitleLanguage.displayLabel()}字幕 · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend)}",
+        audioDspEnabled = audioDspEnabled,
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
         proxyEnabled = proxyEnabled,
@@ -1463,9 +1470,19 @@ private fun SettingsContent(
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                 onPlaybackBackendSelected = onPlaybackBackendSelected,
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
-                audioDspConfig = audioDspConfig,
-                onAudioDspEnabledChange = onAudioDspEnabledChange,
-                onAudioDspPresetSelected = onAudioDspPresetSelected,
+                musicSrcBypassMode = musicSrcBypassMode,
+                onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
+            )
+        }
+
+        MiruPlaySettingsSection.AUDIO_DSP -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            AudioDspPanel(
+                config = audioDspConfig,
+                onEnabledChange = onAudioDspEnabledChange,
+                onPresetSelected = onAudioDspPresetSelected,
                 audioMeasure = audioMeasure,
                 onProbeAudioMeasure = onProbeAudioMeasure,
                 onStartSweepMeasurement = onStartSweepMeasurement,
@@ -1473,8 +1490,6 @@ private fun SettingsContent(
                 onApplyMeasuredResult = onApplyMeasuredResult,
                 onClearAudioMeasureResult = onClearAudioMeasureResult,
                 onDownloadCalibration = onDownloadCalibration,
-                musicSrcBypassMode = musicSrcBypassMode,
-                onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
             )
         }
 
@@ -3219,16 +3234,6 @@ private fun PlaybackPanel(
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
-    audioDspConfig: AudioDspConfig,
-    onAudioDspEnabledChange: (Boolean) -> Unit,
-    onAudioDspPresetSelected: (String) -> Unit,
-    audioMeasure: SettingsViewModel.AudioMeasureUiState,
-    onProbeAudioMeasure: () -> Unit,
-    onStartSweepMeasurement: () -> Unit,
-    onImportWavMeasurement: (Uri) -> Unit,
-    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
-    onClearAudioMeasureResult: () -> Unit,
-    onDownloadCalibration: (String, String) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
 ) {
@@ -3278,19 +3283,6 @@ private fun PlaybackPanel(
                 PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail()
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
-        )
-
-        AudioDspTvControls(
-            config = audioDspConfig,
-            onEnabledChange = onAudioDspEnabledChange,
-            onPresetSelected = onAudioDspPresetSelected,
-            audioMeasure = audioMeasure,
-            onProbeAudioMeasure = onProbeAudioMeasure,
-            onStartSweepMeasurement = onStartSweepMeasurement,
-            onImportWavMeasurement = onImportWavMeasurement,
-            onApplyMeasuredResult = onApplyMeasuredResult,
-            onClearAudioMeasureResult = onClearAudioMeasureResult,
-            onDownloadCalibration = onDownloadCalibration,
         )
 
         MusicSrcBypassTvControls(
@@ -3481,6 +3473,35 @@ private fun PlaybackPanel(
 }
 
 @Composable
+private fun AudioDspPanel(
+    config: AudioDspConfig,
+    onEnabledChange: (Boolean) -> Unit,
+    onPresetSelected: (String) -> Unit,
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onImportWavMeasurement: (Uri) -> Unit,
+    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
+    onClearAudioMeasureResult: () -> Unit,
+    onDownloadCalibration: (String, String) -> Unit,
+) {
+    SettingsPanel {
+        AudioDspTvControls(
+            config = config,
+            onEnabledChange = onEnabledChange,
+            onPresetSelected = onPresetSelected,
+            audioMeasure = audioMeasure,
+            onProbeAudioMeasure = onProbeAudioMeasure,
+            onStartSweepMeasurement = onStartSweepMeasurement,
+            onImportWavMeasurement = onImportWavMeasurement,
+            onApplyMeasuredResult = onApplyMeasuredResult,
+            onClearAudioMeasureResult = onClearAudioMeasureResult,
+            onDownloadCalibration = onDownloadCalibration,
+        )
+    }
+}
+
+@Composable
 private fun AudioDspTvControls(
     config: AudioDspConfig,
     onEnabledChange: (Boolean) -> Unit,
@@ -3493,7 +3514,6 @@ private fun AudioDspTvControls(
     onClearAudioMeasureResult: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
 ) {
-    Spacer(Modifier.height(24.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = Icons.Filled.GraphicEq,
@@ -3554,16 +3574,37 @@ private fun AudioDspTvControls(
         color = TextSecondary,
     )
     Spacer(Modifier.height(8.dp))
+    val context = LocalContext.current
+    var micPermissionDenied by remember { mutableStateOf(false) }
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            micPermissionDenied = false
+            onProbeAudioMeasure()
+            onStartSweepMeasurement()
+        } else {
+            micPermissionDenied = true
+        }
+    }
+    val startSweepWithPermission = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            micPermissionDenied = false
+            onProbeAudioMeasure()
+            onStartSweepMeasurement()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ScanOptionChip(
             text = if (audioMeasure.measuring) audioMeasure.progress ?: "测量中…" else "播放扫频并测量",
             icon = Icons.Filled.GraphicEq,
             selected = false,
             enabled = !audioMeasure.measuring,
-            onClick = {
-                onProbeAudioMeasure()
-                onStartSweepMeasurement()
-            },
+            onClick = startSweepWithPermission,
             modifier = Modifier.width(220.dp),
         )
         val wavPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -3617,6 +3658,14 @@ private fun AudioDspTvControls(
         },
         color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
     )
+    if (micPermissionDenied) {
+        Spacer(Modifier.height(8.dp))
+        StatusMessage(
+            icon = Icons.Filled.Error,
+            text = "麦克风权限被拒绝，请在系统设置中允许 MiruPlay 使用麦克风后重试",
+            color = Color(0xFFE57373),
+        )
+    }
     audioMeasure.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         StatusMessage(

@@ -9,7 +9,7 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据", "关于"),
+            listOf("WebUI", "媒体源", "播放", "音频 DSP", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据", "关于"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle },
         )
         assertEquals(
@@ -17,6 +17,7 @@ class SettingsSectionDisplayConventionsTest {
                 "访问地址与二维码",
                 "本地、WebDAV、SMB",
                 "播完动作",
+                "PEQ、扫频测量与校准",
                 "RSS 离线下载与入库",
                 "Bangumi、Archive 与 RSS 出站代理",
                 "媒体库更新策略",
@@ -426,8 +427,12 @@ class SettingsSectionDisplayConventionsTest {
             MiruPlaySettingsSection.WEB_UI.stepAndroidTvSettingsSection(1),
         )
         assertEquals(
-            MiruPlaySettingsSection.CLOUD_DRIVE,
+            MiruPlaySettingsSection.AUDIO_DSP,
             MiruPlaySettingsSection.PLAYBACK.stepAndroidTvSettingsSection(1),
+        )
+        assertEquals(
+            MiruPlaySettingsSection.CLOUD_DRIVE,
+            MiruPlaySettingsSection.AUDIO_DSP.stepAndroidTvSettingsSection(1),
         )
         assertEquals(
             MiruPlaySettingsSection.APP_UPDATE,
