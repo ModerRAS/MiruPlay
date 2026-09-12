@@ -51,6 +51,10 @@ enum class UpdateChannel {
 /** 持久化的更新渠道选择；data 模块提供实现，App/WebUI 共享同一存储 */
 interface AppUpdateChannelStore {
     var updateChannel: UpdateChannel
+
+    /** 渠道被其他表面（WebAPI/WebUI）修改时回调；默认不通知 */
+    fun addChannelChangeListener(onChanged: (UpdateChannel) -> Unit): java.io.Closeable =
+        java.io.Closeable { }
 }
 
 interface AppUpdateRepository {

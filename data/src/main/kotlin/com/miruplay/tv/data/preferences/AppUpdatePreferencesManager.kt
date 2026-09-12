@@ -21,7 +21,7 @@ class AppUpdatePreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_UPDATE_CHANNEL, value.id).apply()
         }
 
-    fun addChannelChangeListener(onChanged: (UpdateChannel) -> Unit): Closeable {
+    override fun addChannelChangeListener(onChanged: (UpdateChannel) -> Unit): Closeable {
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key == KEY_UPDATE_CHANNEL) {
                 onChanged(updateChannel)

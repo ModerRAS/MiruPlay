@@ -427,11 +427,18 @@ class SettingsViewModel @Inject constructor(
     private val _logUploadStatusMessage = MutableStateFlow(settingsAndroidTvLogUploadStatusMessage())
     val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
 
-    private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
+    private val _appUpdateState = MutableStateFlow(AppUpdateUiState(channel = appUpdateChannelStore.updateChannel))
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
 
     private val _appUpdateChannel = MutableStateFlow(appUpdateChannelStore.updateChannel)
     val appUpdateChannel: StateFlow<UpdateChannel> = _appUpdateChannel.asStateFlow()
+
+    // 其他表面（WebAPI/WebUI）改渠道时同步 UI
+    private val updateChannelChangeListener: java.io.Closeable =
+        appUpdateChannelStore.addChannelChangeListener { channel ->
+            _appUpdateChannel.value = channel
+            _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
+        }
 
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
     val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
@@ -1239,6 +1246,8 @@ class SettingsViewModel @Inject constructor(
         if (channel == _appUpdateChannel.value) return
         appUpdateChannelStore.updateChannel = channel
         _appUpdateChannel.value = channel
+        // UI 立即反映选择，不等检查结果
+        _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
         checkAppUpdate()
     }
 
@@ -1511,6 +1520,7 @@ class SettingsViewModel @Inject constructor(
     override fun onCleared() {
         logUploadConfigObserverJob?.cancel()
         logUploadAutoScheduler.stop()
+        updateChannelChangeListener.close()
         super.onCleared()
     }
 }

@@ -133,8 +133,10 @@ Re-verify when: any route, DTO, server, or WebUI change. **Follow `docs/agents/s
 Re-verify when: app-update flow, logging, CI workflows.
 
 - ✦ **App self-update**: check / download / install-permission; versionName logic
+- ✦ **App update channel**: switch alpha/beta/stable in TV settings, WebAPI and WebUI; switching re-checks with the selected channel; channel persists across restart
 - ✦ **Log upload** to OpenObserve; `/api/logs`, startup diagnostics
-- ✦ CI green: `ci.yml` build + test + lint; nightly/release versioning unaffected
+- ✦ CI green: `ci.yml` build + test + lint; release versioning unaffected (nightly retired)
+- ✦ **Release channel flow**: after an alpha publish, latest.json contains `channels` with all published channels; promote via workflow_dispatch only edits the manifest and does not create a new release
 
 ### 5.10 Shared/JVM modules (`*-desktop`, `*-core` twins)
 Re-verify when: shared core modules change.
