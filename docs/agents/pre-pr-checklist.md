@@ -1,158 +1,158 @@
 # Pre-PR Checklist
 
-Run this before opening (or pushing a branch for) any PR to `master`. Goal: the PR should arrive as a normally usable build — new feature working, existing features unaffected.
+This checklist exists to catch one specific class of bug: **the kind where every unit test passes but the feature is broken in real use** — like v2.10.727, where 194 tests were green and the app could not play a single video (`Unexpected runtime error` on every attempt). Unit tests are CI's job; this manual check is for the gap between "tests green" and "works for the user".
 
-This checklist grows over time: **every feature PR adds its own check items and cross-check items** to this document (see "How to extend").
+Run it before opening (or pushing a branch for) any PR to `master`. It grows over time: **every feature PR adds its own items** (see the end).
 
-## 1. Hard gates (never skip)
+## 1. The principle: test what unit tests cannot see
 
-- [ ] `./gradlew assembleDebug` — full build, not just the touched module
-- [ ] `./gradlew test` — **all modules**, not only the changed one. Module-scoped tests can pass while another module's tests break
-- [ ] `./gradlew lint` — clean or explicitly justified warnings
-- [ ] No `@Suppress` or type gymnastics added just to make compilation pass
-- [ ] `git status` clean of unrelated files (scratch files, `tmp/`, `adb-artifacts/`, `build/`)
+Unit tests run components in isolation, with tidy inputs, in a JVM. The bugs that survive them share these shapes — check each shape your change could hit:
 
-## 2. Real-device verification (mandatory — passing tests is NOT verification)
+| Failure class (tests green, feature broken) | Historical incident in this repo | How to check |
+|---|---|---|
+| **Runtime composition** — components wired together at runtime, tested only apart | #77: `DspAudioProcessor` + `MusicSrcBypassProcessor` both correct alone; the chain crashed on the first empty-buffer drain | Compose the real chain/wiring in a test AND drive it the way production drives it |
+| **Boundary inputs** — empty/zero-length, EOF, flush, reconfigure, rapid repeats | #77: crash was on an EMPTY buffer drain before any audio played | Exercise the composed system with empty, EOF, flush, format-change, repeated calls |
+| **Real user operation order** — the exact sequence a user does, not the sequence a test does | #77: crash hit every time a user pressed play, never in a test | Walk the real flow on the device: launch → browse → play → seek → exit → resume |
+| **Real environment** — real codecs, AudioTrack/HAL, sample rates, network paths | #77: only manifests on-device (device native rate, real MediaCodec) | Verify on real hardware (HK1), not emulator/JVM |
+| **Real data shapes** — real files/feeds the tests don't model | Episode-count inflation regression; CUE/整轨 music files | Test with real library content on the device |
+| **Real transport quirks** — URL encoding, redirects, timeouts | WebDAV URL encoding (`+`→`%20`, per-segment) | Play through the actual remote source, not a local fixture |
+| **Runtime state transitions** — toggling settings mid-play, restart mid-flow | DSP enable/disable while playing; scheduler double-run after restart | Toggle the setting ON DEVICE while the feature is running |
+| **Cross-surface state** — TV settings ↔ WebAPI ↔ WebUI drift | Settings parity incidents | Change from both surfaces and re-check the other |
 
-Unit tests verify code. Only operating the app on real hardware verifies the feature. A change that affects anything user-visible is **not done** until you have personally driven the feature on a real device and observed it working. "测试过了" is what CI says; it is not an acceptable answer for a feature.
+## 2. Real-device verification (mandatory)
 
-### What "verified" means
+A change that affects anything user-visible is **not done** until it has been operated on a real device and observed working. This is the part that catches "tests green but broken".
 
-- [ ] Debug APK installed on the HK1 (use the `miruplay-adb-debug` skill: connect → install → restart)
-- [ ] The feature was **actually operated**: keys pressed / routes hit / flows walked to completion, and the expected result **observed on screen** (ADB screenshot or UI dump for Compose UI; NanoKVM capture for video-surface/HDMI evidence)
-- [ ] No `Player error`, `AndroidRuntime:E`, or new OpenObserve error rows during the walk-through
-- [ ] Web-facing changes verified from a real browser (WebUI + WebAPI against the device), not from test doubles
+- [ ] Debug APK installed on the HK1 (`miruplay-adb-debug` skill: connect → install → restart)
+- [ ] The feature **actually operated** to completion and the expected result **observed on screen** (ADB screenshot / UI dump for Compose UI; NanoKVM for video-surface evidence)
+- [ ] No `Player error`, `AndroidRuntime:E`, or new OpenObserve error rows during the walk
+- [ ] Web-facing changes verified from a real browser against the device (WebUI + WebAPI)
+- [ ] Only CI/docs/pure-JVM changes are exempt — and the PR must say so explicitly
 
-### Minimum device walk-through (before ANY user-facing PR)
+### Minimum device walk-through (act as the USER, not as the developer)
 
-1. App launches to mode selection; navigate with the remote into the touched area
-2. Library loads content from a real source (WebDAV/115/local)
-3. Play an episode: picture + sound + seek + resume position; back out cleanly
-4. Settings round-trip for anything settings-related (toggle on device AND from WebUI — parity)
-5. WebControl reachable from browser (`http://<device>:9978`) and the affected WebUI flows work
+1. Cold launch → mode selection → navigate with the remote into the touched area
+2. Library loads real content (WebDAV/115/local)
+3. Play an episode: picture + sound; seek; resume position; back out cleanly
+4. Settings round-trip for settings-related changes (toggle on device AND from WebUI; confirm both show it)
+5. Restart the app and re-check anything with state (resume, scan results, settings)
 
-### Which verification matches which change
+### Change type → minimum device verification
 
 | Change touches | Minimum device verification |
 |---|---|
-| `player-core` / audio / subtitles | Play an episode end-to-end with the affected path (DSP on/off, subtitle on/off); observe picture + sound + seek |
+| `player-core` / audio / subtitles | Play an episode end-to-end along the affected path (DSP on/off, subtitle on/off); observe picture + sound + seek |
 | `ui-tv` screens / navigation | Walk the screen flow with remote keys; screenshot evidence |
-| `data` / repositories / Room | Open library + detail + play — data actually renders and saves |
-| `web-control` / WebUI | Drive the WebUI from a browser; check the affected API routes respond; parity toggle on TV side |
+| `data` / repositories / Room | Open library + detail + play — data renders and persists after restart |
+| `web-control` / WebUI | Drive the WebUI from a browser; hit the affected routes; parity toggle on TV side |
 | `scanner` / `media-source` | Add/test/scan a real source on the device; content appears |
-| DSP / measure / calibration | Run the affected flow from WebUI on-device; apply to live playback and hear/observe the change |
-| Pure CI / docs / JVM-desktop-only | Exempt — state this explicitly in the PR description |
+| DSP / measure / calibration | Run the flow from WebUI on-device; apply to live playback and observe the change |
+| CI / docs / JVM-desktop-only | Exempt — state explicitly |
 
-### Evidence in the PR
+## 3. Composition-level test (when the change wires things together)
 
-- [ ] PR description records **what was observed on the device** (e.g. "played EP11 from 115 WebDAV, resume at 50s works, subtitles render"), with screenshots/logcat attached where practical
-- [ ] Any check that could not be device-verified is explicitly listed with the reason — silence is not an excuse
+If the change touches anything **composed at runtime** — audio processor chains (`DspRenderersFactory`), renderer factories, media source adapters, data source factories, DI graphs, repository pipelines — add a test that:
 
-## 3. Composition-level testing (the EMPTY_BUFFER lesson)
+- [ ] Instantiates the **real composition** (e.g. real `AudioProcessingPipeline` + `DefaultAudioSink.DefaultAudioProcessorChain`), driven like production (`DefaultAudioSink.processBuffers` semantics)
+- [ ] Includes the boundary inputs from section 1: empty, EOF, flush/reconfigure, format change, rapid repeats
+- [ ] Reference: `player-core/src/test/kotlin/com/miruplay/tv/player/MusicSrcBypassPipelineTest.kt`
 
-v2.10.727 shipped a playback-breaking crash because two components (`DspAudioProcessor`, `MusicSrcBypassProcessor`) were correct in isolation but had never been exercised **together in the runtime chain** with boundary inputs. Unit tests that pass per-component do not protect composed systems.
+## 4. Hard gates (CI already runs these — know their limits)
 
-If the change touches any component that gets **composed at runtime** — audio processor chains (`DspRenderersFactory`), renderer factories, media source adapters, data source factories, DI graphs, repository pipelines — then:
+- [ ] `./gradlew assembleDebug`, `./gradlew test` (all modules), `./gradlew lint`
+- [ ] `git status` clean of unrelated files; no line-ending flips (whole-file diff in `--stat` = endings rewritten, normalize before committing)
+- These green only means the code compiles and behaves in isolation — they do **not** clear a user-facing PR. Sections 1–2 do.
 
-- [ ] Add a test that instantiates the **real composition** (real `AudioProcessingPipeline` / real chain / real adapter wiring), driven the way the production caller drives it (e.g. `DefaultAudioSink.processBuffers` semantics)
-- [ ] Include boundary inputs: **empty input**, zero-length buffers, end-of-stream, format change mid-stream, flush/reconfigure, rapid repeated calls
-- [ ] Reference example: `player-core/src/test/kotlin/com/miruplay/tv/player/MusicSrcBypassPipelineTest.kt` (regression test for the v2.10.727 crash)
+## 5. Cross-check: existing features still work
 
-## 4. Cross-check: existing features still work
+Any module you touch, re-verify on the device every feature that consumes it. Items marked ✦ are regression items that must be extended when related features change.
 
-Full feature inventory of the app. Rule of thumb: **any module you touch, re-verify every feature that consumes it** (column "re-verify when"). Items marked ✦ are regression items that must be extended when related features change.
+### 5.1 Playback pipeline (`player-core`, `player-mpv-android`, `player-mpv`, `player-ijkplayer-android`)
+Re-verify when: player-core change, new AudioProcessor/renderer, `DspRenderersFactory`, subtitle renderer, `MiruPlayMediaService`.
 
-### 3.1 Playback pipeline (`player-core`, `player-mpv-android`, `player-mpv`, `player-ijkplayer-android`)
-Re-verify when: any player-core change, new AudioProcessor, new renderer, DspRenderersFactory, subtitle renderer, or MiruPlayMediaService change.
+- ✦ **Video playback on all 3 backends** (Exo / IJK / mpv): picture + sound, seek, pause/resume, stop — source types still route to the right backend
+- ✦ **Audio DSP chain**: enabled / disabled / toggled at runtime; PEQ presets incl. surround downmix + limiter; format change mid-play (48k ↔ 44.1k, gapless next episode)
+- ✦ **Music SRC bypass**: SYSTEM / SOFTWARE modes with 48kHz and 44.1kHz sources
+- ✦ **Subtitles**: libass render (embedded + external .ass/.srt); an episode WITHOUT subtitle tracks still plays
+- ✦ **Playback progress**: resume position, save on stop, shown in library UI
+- ✦ **MediaSession**: background playback, `/api/playback/command`, status reporting
 
-- ✦ **Video playback via all 3 backends** (Exo / IJK / mpv): play to picture+sound, seek, pause/resume, stop — backend selection (`PlaybackDataSourceFactory`, renderers factory wiring) still routes each source type to the right backend
-- ✦ **Audio DSP chain**: DSP enabled + disabled + toggled at runtime; PEQ presets incl. surround downmix and limiter; empty-buffer drain; end-of-stream; format change mid-play (48kHz ↔ 44.1kHz episodes, gapless next-episode)
-- ✦ **Music SRC bypass**: modes SYSTEM / SOFTWARE with 48kHz and 44.1kHz sources (see `MusicSrcBypassPipelineTest` for the composed-pipeline test this requires)
-- ✦ **Subtitles**: libass/native ASS render for embedded + external .ass/.srt; subtitle monitor; episode with NO subtitle track doesn't break playback
-- ✦ **Playback progress**: start position resume (`start_position_ms`), progress save on stop, progress surfaced in library UI
-- ✦ **MediaSessionService**: background playback, external control commands (`/api/playback/command`), playback status reporting
+### 5.2 Audio DSP & measurement (`audio-dsp-core`, `audio-dsp-native`, `audio-measure-core`, `audio-measure-android`)
+Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure pipeline, calibration, or their routes change.
 
-### 3.2 Audio DSP & measurement (`audio-dsp-core`, `audio-dsp-native`, `audio-measure-core`, `audio-measure-android`)
-Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure pipeline, calibration files, or their WebAPI routes change.
+- ✦ **PEQ presets** apply to live playback and persist
+- ✦ **Sweep measurement**: generate → capture → analyze → measured preset apply
+- ✦ **Mic calibration** (.cal import/activate/list/download) doesn't disturb existing presets
+- ✦ **REW EQ import** (`RewEqParser`)
+- ✦ DSP off ⇒ bit-transparent passthrough (hear no difference, no resample)
 
-- ✦ **PEQ presets** apply to live playback (compile → stream) and persist
-- ✦ **Sweep measurement**: generate sweep → capture → analyze → measured preset apply
-- ✦ **Mic calibration** (.cal import/activate/list/download) doesn't disturb existing presets; `/api/audio-dsp/measure/calibration*` round-trips
-- ✦ **REW EQ import** (`RewEqParser`, `/api/audio-dsp/import-rew`)
-- ✦ DSP off ⇒ bit-transparent passthrough (no resample, no gain change)
+### 5.3 Music mode (`ui-tv` music screens, `data`, player-core)
+Re-verify when: music screens, music metadata, DSP chain, audio source handling.
 
-### 3.3 Music mode (`ui-tv` music screens, `data`, player-core)
-Re-verify when: music screens, music metadata, DSP chain, or audio source handling change.
+- ✦ **Music library/album/player**: album list → detail → play (CUE / 整轨 / single tracks)
+- ✦ Music DSP/SRC settings affect music playback without touching anime playback, and vice versa
 
-- ✦ **Music library/album/player**: album list → album detail → play (CUE / 整轨 / single tracks)
-- ✦ Music-mode DSP + SRC bypass settings apply to music playback without affecting anime playback and vice versa
+### 5.4 Drama / anime modes (`ui-tv` mode, detail, library screens)
+Re-verify when: navigation, mode selection, detail/library screens, metadata join logic.
 
-### 3.4 Drama / anime modes (`ui-tv` mode, detail, library screens)
-Re-verify when: navigation, mode selection, detail/library screens, or metadata join logic change.
+- ✦ **Mode switching** anime ↔ drama ↔ music keeps state, doesn't leak sources
+- ✦ **Library**: grid loads, refresh, scan doesn't duplicate entries
+- ✦ **Episode dedup** by (season, episode) — file-count inflation stays fixed
+- ✦ **Detail screen**: metadata join, episode list, comments via `bangumiEpisodeId` end-to-end
 
-- ✦ **App mode selection**: anime ↔ drama ↔ music switching keeps state and doesn't leak sources across modes
-- ✦ **Library screen**: grid loads, filter/sort, content refresh; scan does not duplicate entries
-- ✦ **Episode dedup**: episode counts use (season, episode) dedup — file-count inflation regression stays fixed
-- ✦ **Detail screen**: metadata join, episode list, comment lookup via `bangumiEpisodeId` (PlaybackSource must carry it end-to-end)
+### 5.5 Media sources (`media-source`, `scanner`, MainActivity)
+Re-verify when: source adapters, scanner, source config.
 
-### 3.5 Media sources (`media-source`, `scanner`, MainActivity)
-Re-verify when: source adapters, scanner, or source config change.
+- ✦ **Local / WebDAV / SMB**: add, test (`/api/sources/test`), scan; WebDAV URL encoding in `resolvePlayableUri()` unchanged
+- ✦ Scanner skips system dirs (`/proc`, `/sys` …)
+- ✦ `test_local_path` intent hook still works
 
-- ✦ **Local / WebDAV / SMB** sources: add, test (`/api/sources/test`), scan; WebDAV URL encoding in `resolvePlayableUri()` unchanged (segments individually URL-encoded, `+`→`%20`)
-- ✦ Scanner skips system dirs (`/proc`, `/sys` …) — do not add arbitrary dir scanning
-- ✦ `test_local_path` intent hook still works (developer workflow depends on it)
-
-### 3.6 Metadata & library data (`data`, `metadata`, `scraper`, `metadata-core`)
-Re-verify when: Room schema, DAOs, repositories, Bangumi/TMDB clients, NFO read/write change.
+### 5.6 Metadata & data layer (`data`, `metadata`, `scraper`, `metadata-core`)
+Re-verify when: Room schema, DAOs, repositories, Bangumi/TMDB clients, NFO.
 
 - ✦ **Room migrations**: schema change ⇒ new migration + test; never bump version without one
-- ✦ **Repository contracts**: interface + `*Impl` pairs stay in sync; no DB access outside `data` module
-- ✦ **Bangumi**: metadata fetch, episode comments, bangumi-archive sync/upload/download routes
-- ✦ NFO metadata read/write round-trip
+- ✦ **Repository contracts**: interface + `*Impl` pairs in sync; no DB access outside `data`
+- ✦ **Bangumi**: metadata fetch, episode comments, bangumi-archive sync routes
+- ✦ NFO read/write round-trip
 
-### 3.7 Cloud sync & RSS (`sync-engine`, `cloud-drive*`)
-Re-verify when: RSS scheduler, cloud-drive adapters, token handling change.
+### 5.7 Cloud sync & RSS (`sync-engine`, `cloud-drive*`)
+Re-verify when: RSS scheduler, cloud-drive adapters, token handling.
 
-- ✦ **CloudDrive login/token/config/directories** routes; RSS subscription add/delete/list + run
-- ✦ Scheduler starts on app launch and doesn't double-run after restart
+- ✦ **CloudDrive login/token/config/directories**; RSS subscription add/delete/list + run
+- ✦ Scheduler starts once per launch, no double-run after restart
 
-### 3.8 Web control (`web-control-core`, `web-control`, `web-control/frontend`)
+### 5.8 Web control (`web-control-core`, `web-control`, frontend)
 Re-verify when: any route, DTO, server, or WebUI change. **Follow `docs/agents/settings-web-control-parity-checklist.md` for settings surfaces.**
 
-- ✦ **Server boots** on port 9978 and `/api/info` responds; no existing route silently renamed/removed (see route list in `web-control-core`)
-- ✦ **WebUI (Vue frontend)**: settings forms, playback control, library view still work against the app; rebuild frontend assets if `frontend/` changed
-- ✦ **Settings parity** TV ↔ WebAPI ↔ WebUI, including reverse direction
+- ✦ **Server boots** on 9978, `/api/info` responds; no route silently renamed/removed
+- ✦ **WebUI (Vue)**: forms, playback control, library work against the real device
+- ✦ **Settings parity** TV ↔ WebAPI ↔ WebUI, both directions
 - ✦ `/api/proxy` still proxies media for WebUI playback
 
-### 3.9 App maintenance features (`app`, CI)
-Re-verify when: app-update flow, logging, CI workflows change.
+### 5.9 App maintenance (`app`, CI)
+Re-verify when: app-update flow, logging, CI workflows.
 
-- ✦ **App self-update**: check / download / install-permission flow; versionName logic (`baseAppVersionName` + CI run_number)
-- ✦ **Log upload** to OpenObserve; `/api/logs`, log-download, startup diagnostics
-- ✦ CI builds: `ci.yml` assembleDebug + test + lint green; nightly/release versioning unaffected
+- ✦ **App self-update**: check / download / install-permission; versionName logic
+- ✦ **Log upload** to OpenObserve; `/api/logs`, startup diagnostics
+- ✦ CI green: `ci.yml` build + test + lint; nightly/release versioning unaffected
 
-### 3.10 Shared/JVM modules (`*-desktop`, `*-core` twins)
-Re-verify when: shared core modules (repository, metadata, scraper, media-source, sync-engine) change.
+### 5.10 Shared/JVM modules (`*-desktop`, `*-core` twins)
+Re-verify when: shared core modules change.
 
-- ✦ `-core`/`-desktop` twin modules stay compiling on both targets: `./gradlew assembleDebug` covers Android; run `./gradlew test` for JVM-side breakage
-
-## 5. Line-ending hygiene
-
-- [ ] Keep each file's existing CRLF/LF style; never flip endings across a whole file
-- [ ] After editing, `git diff --stat` must show only the lines you intended — a whole-file diff means endings were rewritten; normalize before committing (see the Line Endings rule in `AGENTS.md`)
+- ✦ Twin modules compile and test on both targets
 
 ## 6. PR description requirements
 
-- [ ] State what changed and **what was observed on a real device** (flows walked, screenshots, logcat clean) — "tests passed" alone is not verification
-- [ ] State which cross-check items from section 4 were exercised
-- [ ] If the change is intentionally narrow (e.g. CI-only, docs-only), say so explicitly
+- [ ] State what changed and **what was observed on the device** (flows walked, screenshots, logcat clean) — "tests passed" alone is not verification
+- [ ] State which cross-check items from section 5 were exercised on device
+- [ ] List any check you could NOT device-verify, with the reason
 
 ## 7. How to extend this checklist
 
-Every feature PR should append to this file, in the same PR:
+Every feature PR appends to this file, in the same PR:
 
-1. One or more **own check items** — how to verify the new feature actually works (not just compiles)
-2. One or more **cross-check items** — what existing feature the new feature shares state/chain/config with, and how to prove that feature is unaffected
-3. Mark them with ✦ in the matching subsystem section, or add a new subsection if the feature creates a new subsystem
+1. **Own check items** — how to operate the new feature on the device and what result to observe
+2. **Cross-check items** — which existing feature shares state/chain/config with it, and how to prove that feature still works on the device
+3. **New failure classes** — if you hit (or can imagine) a new "tests green but broken" mode, add a row to the table in section 1
 
-The target: when the next person opens a PR, the checklist tells them everything that must still work — so "it compiled and its own tests passed" is never the bar.
+The bar: every PR arrives with the feature operated and observed on real hardware, and the checklist keeps collecting every way "tests green" has lied to us.
