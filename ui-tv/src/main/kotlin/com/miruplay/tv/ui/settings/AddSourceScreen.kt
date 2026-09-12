@@ -68,6 +68,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -711,6 +712,7 @@ fun AddSourceScreen(
                     onImportWavMeasurement = viewModel::importWavMeasurement,
                     onApplyMeasuredResult = viewModel::applyMeasuredResult,
                     onClearAudioMeasureResult = viewModel::clearAudioMeasureResult,
+                    onDownloadCalibration = viewModel::downloadCalibration,
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
                     savedToken = savedToken,
@@ -1189,6 +1191,7 @@ private fun SettingsContent(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onDownloadCalibration: (String, String) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
     savedToken: String,
@@ -1465,6 +1468,7 @@ private fun SettingsContent(
                 onImportWavMeasurement = onImportWavMeasurement,
                 onApplyMeasuredResult = onApplyMeasuredResult,
                 onClearAudioMeasureResult = onClearAudioMeasureResult,
+                onDownloadCalibration = onDownloadCalibration,
                 musicSrcBypassMode = musicSrcBypassMode,
                 onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
             )
@@ -3219,6 +3223,7 @@ private fun PlaybackPanel(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onDownloadCalibration: (String, String) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
 ) {
@@ -3280,6 +3285,7 @@ private fun PlaybackPanel(
             onImportWavMeasurement = onImportWavMeasurement,
             onApplyMeasuredResult = onApplyMeasuredResult,
             onClearAudioMeasureResult = onClearAudioMeasureResult,
+            onDownloadCalibration = onDownloadCalibration,
         )
 
         MusicSrcBypassTvControls(
@@ -3480,6 +3486,7 @@ private fun AudioDspTvControls(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onDownloadCalibration: (String, String) -> Unit,
 ) {
     Spacer(Modifier.height(24.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3568,6 +3575,43 @@ private fun AudioDspTvControls(
             modifier = Modifier.width(180.dp),
         )
     }
+    Spacer(Modifier.height(8.dp))
+    var serialInput by rememberSaveable { mutableStateOf("") }
+    var downloadIncidence by rememberSaveable { mutableStateOf("0deg") }
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        TvTextField(
+            value = serialInput,
+            onValueChange = { serialInput = it },
+            label = "UMIK-1 序列号（如 700-1234）",
+            isPassword = false,
+            modifier = Modifier.width(280.dp),
+        )
+        ScanOptionChip(
+            text = if (downloadIncidence == "0deg") "0° 入射" else "90° 入射",
+            icon = Icons.Filled.Tune,
+            selected = downloadIncidence == "90deg",
+            enabled = true,
+            onClick = { downloadIncidence = if (downloadIncidence == "0deg") "90deg" else "0deg" },
+            modifier = Modifier.width(140.dp),
+        )
+        ScanOptionChip(
+            text = if (audioMeasure.downloadingCalibration) "下载中…" else "从 miniDSP 下载",
+            icon = Icons.Filled.Download,
+            selected = false,
+            enabled = !audioMeasure.downloadingCalibration && serialInput.isNotBlank(),
+            onClick = { onDownloadCalibration(serialInput, downloadIncidence) },
+            modifier = Modifier.width(200.dp),
+        )
+    }
+    StatusMessage(
+        icon = if (audioMeasure.calibrationName != null) Icons.Filled.CheckCircle else Icons.Filled.Info,
+        text = if (audioMeasure.calibrationName != null) {
+            "当前校准：${audioMeasure.calibrationName}（已保存 ${audioMeasure.calibrationCount} 份，管理请用 WebUI）"
+        } else {
+            "未设置校准：直接测量会把麦克风自身的频响算进 EQ 里"
+        },
+        color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
+    )
     audioMeasure.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         StatusMessage(

@@ -9,6 +9,7 @@ import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
+import com.miruplay.tv.repository.MicCalibrationSettings
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -133,6 +134,21 @@ class PlaybackPreferencesManager @Inject constructor(
         audioDspConfig = config
     }
 
+    override suspend fun getAudioMeasureCalibrations(): List<MicCalibrationSettings> {
+        val stored = prefs.getString(KEY_AUDIO_MEASURE_CALIBRATIONS, null) ?: return emptyList()
+        return runCatching { json.decodeFromString<List<MicCalibrationSettings>>(stored) }.getOrDefault(emptyList())
+    }
+
+    override suspend fun getAudioMeasureCalibrationActiveId(): String? =
+        prefs.getString(KEY_AUDIO_MEASURE_CALIBRATION_ACTIVE, null)
+
+    override suspend fun saveAudioMeasureCalibrations(calibrations: List<MicCalibrationSettings>, activeId: String?) {
+        prefs.edit()
+            .putString(KEY_AUDIO_MEASURE_CALIBRATIONS, json.encodeToString(calibrations))
+            .putString(KEY_AUDIO_MEASURE_CALIBRATION_ACTIVE, activeId)
+            .apply()
+    }
+
     override suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = musicSrcBypassMode
 
     override suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) {
@@ -146,6 +162,8 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
         private const val KEY_AUDIO_DSP_CONFIG = "audio_dsp_config"
+        private const val KEY_AUDIO_MEASURE_CALIBRATIONS = "audio_measure_calibrations"
+        private const val KEY_AUDIO_MEASURE_CALIBRATION_ACTIVE = "audio_measure_calibration_active"
         private const val KEY_MUSIC_SRC_BYPASS_MODE = "music_src_bypass_mode"
     }
 }

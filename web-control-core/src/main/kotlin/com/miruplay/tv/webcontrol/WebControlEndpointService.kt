@@ -96,6 +96,18 @@ interface WebControlEndpointService {
         AudioDspMeasureResultDto(valid = false, invalidReason = "measurement not supported by this host")
     suspend fun applyAudioDspMeasure(request: AudioDspMeasureApplyRequest): AudioDspDto =
         throw UnsupportedOperationException("measured EQ application not supported")
+    suspend fun saveAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationRequest): AudioDspMeasureCapabilitiesDto =
+        AudioDspMeasureCapabilitiesDto(available = false, reason = "calibration not supported by this host")
+    suspend fun clearAudioDspMeasureCalibration(): AudioDspMeasureCapabilitiesDto =
+        AudioDspMeasureCapabilitiesDto(available = false, reason = "calibration not supported by this host")
+    suspend fun downloadAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationDownloadRequest): AudioDspMeasureCapabilitiesDto =
+        AudioDspMeasureCapabilitiesDto(available = false, reason = "calibration download not supported by this host")
+    suspend fun listAudioDspMeasureCalibrations(): AudioDspMeasureCalibrationListDto =
+        AudioDspMeasureCalibrationListDto()
+    suspend fun activateAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationActivateRequest): AudioDspMeasureCalibrationListDto =
+        AudioDspMeasureCalibrationListDto()
+    suspend fun deleteAudioDspMeasureCalibration(id: String): AudioDspMeasureCalibrationListDto =
+        AudioDspMeasureCalibrationListDto()
     suspend fun getWebControlAccess(): WebControlAccessDto =
         throw UnsupportedOperationException("WebUI 访问设置 not supported")
     suspend fun saveWebControlAccess(request: WebControlAccessRequest): WebControlAccessDto =

@@ -1396,6 +1396,49 @@
                 <el-button :loading="loading.audioDspMeasureWav" @click="audioDspMeasureFileInput?.click()">导入 WAV</el-button>
                 <input ref="audioDspMeasureFileInput" class="hidden-file-input" type="file" accept=".wav,audio/wav,audio/x-wav" @change="importAudioDspMeasureWav" />
               </div>
+              <div style="margin-top: 10px">
+                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                  <span class="chart-label">麦克风校准：</span>
+                  <el-tag v-if="audioDspMeasure.calibrationName" type="success">{{ audioDspMeasure.calibrationName }}</el-tag>
+                  <el-tag v-else type="info">未设置</el-tag>
+                  <el-button size="small" @click="audioDspCalibrationFileInput?.click()">导入 .cal</el-button>
+                  <input ref="audioDspCalibrationFileInput" class="hidden-file-input" type="file" accept=".cal,.txt,text/plain" @change="importAudioDspCalibration" />
+                  <el-button size="small" :loading="loading.audioDspCalibrationList" @click="loadAudioDspCalibrationList">刷新列表</el-button>
+                </div>
+                <el-table
+                  v-if="audioDspMeasure.calibrationList.items?.length"
+                  :data="audioDspMeasure.calibrationList.items"
+                  size="small"
+                  style="margin-top: 10px"
+                >
+                  <el-table-column label="使用" width="70">
+                    <template #default="{ row }">
+                      <el-radio :model-value="audioDspMeasure.calibrationList.activeId" :label="row.id" @change="activateAudioDspCalibration(row.id)">{{ '' }}</el-radio>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="name" label="名称" min-width="180" />
+                  <el-table-column label="来源" width="120">
+                    <template #default="{ row }">{{ row.source === 'import' ? '导入' : 'miniDSP 下载' }}</template>
+                  </el-table-column>
+                  <el-table-column label="操作" width="90">
+                    <template #default="{ row }">
+                      <el-button size="small" type="danger" text @click="deleteAudioDspCalibration(row.id)">删除</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+              </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                <span class="chart-label">或按序列号下载：</span>
+                <el-input v-model="audioDspMeasure.serial" placeholder="UMIK-1 序列号，如 700-1234" style="width: 220px" :disabled="audioDspMeasure.downloading" />
+                <el-radio-group v-model="audioDspMeasure.incidence" :disabled="audioDspMeasure.downloading" size="small">
+                  <el-radio-button label="0deg">0°（出厂校准）</el-radio-button>
+                  <el-radio-button label="90deg">90°（自动生成）</el-radio-button>
+                </el-radio-group>
+                <el-button size="small" type="primary" :loading="audioDspMeasure.downloading" @click="downloadAudioDspCalibration">从 miniDSP 下载</el-button>
+              </div>
+              <div v-if="audioDspMeasure.calibrationWarning" style="margin-top: 6px">
+                <el-alert type="warning" :title="audioDspMeasure.calibrationWarning" :closable="false" show-icon />
+              </div>
               <div v-if="audioDspMeasure.error" style="margin: 8px 0">
                 <el-alert type="error" :title="audioDspMeasure.error" :closable="false" show-icon />
               </div>
@@ -1884,6 +1927,8 @@ const loading = reactive({
   audioDspSave: false,
   audioDspMeasureWav: false,
   audioDspMeasureApply: false,
+  audioDspCalibration: false,
+  audioDspCalibrationList: false,
   audioDspPreview: false,
   audioDspRewImport: false,
   webControlAccess: false,
@@ -2027,11 +2072,17 @@ const audioDspFileInput = ref(null)
 const audioDspRewFileInput = ref(null)
 const audioDspRewTarget = ref('ALL')
 const audioDspMeasureFileInput = ref(null)
+const audioDspCalibrationFileInput = ref(null)
 const audioDspMeasureTarget = ref('ALL')
 const audioDspMeasure = reactive({
   running: false,
   error: '',
-  result: null
+  result: null,
+  calibrationName: null,
+  calibrationWarning: '',
+  serial: '',
+  downloading: false,
+  calibrationList: { items: [], activeId: null }
 })
 const webControlAccess = reactive({
   enabled: false,
@@ -3594,6 +3645,7 @@ async function loadAudioDsp() {
   loading.audioDsp = true
   try {
     applyAudioDsp(await api('/api/audio-dsp'))
+    loadAudioDspMeasureCapabilities()
   } finally {
     loading.audioDsp = false
   }
@@ -3611,6 +3663,116 @@ async function saveAudioDsp() {
     ElMessage.error(error.message || '音频 DSP 配置保存失败')
   } finally {
     loading.audioDspSave = false
+  }
+}
+
+async function loadAudioDspMeasureCapabilities() {
+  try {
+    const caps = await api('/api/audio-dsp/measure/capabilities')
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
+  } catch {
+    // capabilities 不影响主流程
+  }
+}
+
+async function downloadAudioDspCalibration() {
+  const serial = (audioDspMeasure.serial || '').trim()
+  if (!serial) return
+  audioDspMeasure.downloading = true
+  try {
+    const caps = await api('/api/audio-dsp/measure/calibration/download', {
+      method: 'POST',
+      body: JSON.stringify({ serial, incidence: audioDspMeasure.incidence })
+    })
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
+    loadAudioDspCalibrationList()
+    ElMessage.success(caps.calibrationWarning ? '校准已下载（有覆盖范围警告）' : '校准已下载并启用')
+  } catch (error) {
+    ElMessage.error(error.message || '校准下载失败')
+  } finally {
+    audioDspMeasure.downloading = false
+  }
+}
+
+async function loadAudioDspCalibrationList() {
+  loading.audioDspCalibrationList = true
+  try {
+    const list = await api('/api/audio-dsp/measure/calibration/list')
+    audioDspMeasure.calibrationList = { items: list.items || [], activeId: list.activeId || null }
+    const items = list.items || []
+    const active = items.find(i => i.id === (list.activeId || null)) || items[0]
+    audioDspMeasure.calibrationName = active?.name || null
+    audioDspMeasure.calibrationWarning = active?.warning || null
+  } catch (error) {
+    ElMessage.error(error.message || '校准列表加载失败')
+  } finally {
+    loading.audioDspCalibrationList = false
+  }
+}
+
+async function activateAudioDspCalibration(id) {
+  try {
+    const list = await api('/api/audio-dsp/measure/calibration/activate', {
+      method: 'POST',
+      body: JSON.stringify({ id })
+    })
+    audioDspMeasure.calibrationList = { items: list.items || [], activeId: list.activeId || null }
+    const items = list.items || []
+    const active = items.find(i => i.id === (list.activeId || null))
+    audioDspMeasure.calibrationName = active?.name || null
+    audioDspMeasure.calibrationWarning = active?.warning || null
+    ElMessage.success('校准已启用')
+  } catch (error) {
+    ElMessage.error(error.message || '校准切换失败')
+  }
+}
+
+async function deleteAudioDspCalibration(id) {
+  try {
+    const list = await api('/api/audio-dsp/measure/calibration/item?id=' + encodeURIComponent(id), { method: 'DELETE' })
+    audioDspMeasure.calibrationList = { items: list.items || [], activeId: list.activeId || null }
+    const items = list.items || []
+    const active = items.find(i => i.id === (list.activeId || null)) || items[0]
+    audioDspMeasure.calibrationName = active?.name || null
+    audioDspMeasure.calibrationWarning = active?.warning || null
+    ElMessage.success('校准已删除')
+  } catch (error) {
+    ElMessage.error(error.message || '删除失败')
+  }
+}
+
+async function importAudioDspCalibration(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  loading.audioDspCalibration = true
+  try {
+    const text = await file.text()
+    const caps = await api('/api/audio-dsp/measure/calibration', {
+      method: 'PUT',
+      body: JSON.stringify({ name: file.name, text })
+    })
+    audioDspMeasure.calibrationName = caps.calibrationName || file.name
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
+    loadAudioDspCalibrationList()
+    ElMessage.success(caps.calibrationWarning ? '校准已导入（有覆盖范围警告）' : '校准文件已导入')
+  } catch (error) {
+    ElMessage.error(error.message || '校准文件导入失败')
+  } finally {
+    loading.audioDspCalibration = false
+  }
+}
+
+async function clearAudioDspMeasureCalibration() {
+  try {
+    const caps = await api('/api/audio-dsp/measure/calibration', { method: 'DELETE' })
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = null
+    ElMessage.success('校准已清除')
+  } catch (error) {
+    ElMessage.error(error.message || '清除校准失败')
   }
 }
 

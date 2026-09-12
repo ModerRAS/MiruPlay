@@ -417,6 +417,43 @@ data class AudioDspMeasureCapabilitiesDto(
     val available: Boolean = false,
     val reason: String? = null,
     val inputDeviceName: String? = null,
+    val calibrationName: String? = null,
+    val calibrationWarning: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationRequest(
+    val name: String,
+    /** Raw .cal text (UMIK-1 style: freq/dB, or freq/0°/90°). */
+    val text: String,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationListDto(
+    val items: List<AudioDspMeasureCalibrationItemDto> = emptyList(),
+    val activeId: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationItemDto(
+    val id: String,
+    val name: String,
+    val source: String,
+    val active: Boolean = false,
+    val warning: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationActivateRequest(
+    val id: String,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationDownloadRequest(
+    /** UMIK-1 7-digit serial, with or without the dash (700-1234 / 7001234). */
+    val serial: String,
+    /** "0deg" (unique factory cal) or "90deg" (auto-generated). */
+    val incidence: String = "0deg",
 )
 
 @Serializable
