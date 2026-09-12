@@ -10,6 +10,7 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import com.miruplay.tv.measure.LogSweep
 import com.miruplay.tv.measure.LogSweepGenerator
+import com.miruplay.tv.measure.MicCalibration
 import com.miruplay.tv.measure.RoomMeasurer
 import com.miruplay.tv.measure.WavFile
 import kotlinx.coroutines.Dispatchers
@@ -89,9 +90,13 @@ class AudioMeasureController(private val context: Context) {
      * Play the dual reference sweep through the default output while capturing
      * the room with the probed microphone, then run the fail-closed pipeline.
      */
-    suspend fun measureRoom(onProgress: (String) -> Unit = {}): MeasureOutcome = withContext(Dispatchers.IO) {
+    suspend fun measureRoom(
+        calibrationText: String? = null,
+        onProgress: (String) -> Unit = {},
+    ): MeasureOutcome = withContext(Dispatchers.IO) {
         val capabilities = probe()
         if (!capabilities.available) throw MeasureException(capabilities.reason ?: "microphone unavailable")
+        val calibration = calibrationText?.let { MicCalibration.parse(it).calibration }
         val sweeps = SWEEP_DURATIONS_S.map {
             LogSweepGenerator.generate(SWEEP_F1_HZ, SWEEP_F2_HZ, it, SAMPLE_RATE_HZ)
         }
@@ -106,6 +111,7 @@ class AudioMeasureController(private val context: Context) {
             sweeps = sweeps,
             fs = SAMPLE_RATE_HZ,
             irLengthS = IR_LENGTH_S,
+            calibration = calibration,
         )
         MeasureOutcome(measurement, capabilities)
     }
@@ -117,6 +123,7 @@ class AudioMeasureController(private val context: Context) {
      */
     suspend fun importWav(
         wavBytes: ByteArray,
+        calibrationText: String? = null,
         onProgress: (String) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
         onProgress("解析 WAV…")
@@ -130,6 +137,7 @@ class AudioMeasureController(private val context: Context) {
             fs = fs,
             irLengthS = IR_LENGTH_S,
             assumeSharedClock = true,
+            calibration = calibrationText?.let { MicCalibration.parse(it).calibration },
         )
         MeasureOutcome(measurement, Capabilities(true, null, "shared-clock import"))
     }

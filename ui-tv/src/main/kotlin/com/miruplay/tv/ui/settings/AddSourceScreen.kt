@@ -711,6 +711,8 @@ fun AddSourceScreen(
                     onImportWavMeasurement = viewModel::importWavMeasurement,
                     onApplyMeasuredResult = viewModel::applyMeasuredResult,
                     onClearAudioMeasureResult = viewModel::clearAudioMeasureResult,
+                    onImportCalibration = viewModel::importCalibrationFile,
+                    onClearCalibration = viewModel::clearCalibrationFile,
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
                     savedToken = savedToken,
@@ -1189,6 +1191,8 @@ private fun SettingsContent(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onImportCalibration: (Uri) -> Unit,
+    onClearCalibration: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
     savedToken: String,
@@ -1465,6 +1469,8 @@ private fun SettingsContent(
                 onImportWavMeasurement = onImportWavMeasurement,
                 onApplyMeasuredResult = onApplyMeasuredResult,
                 onClearAudioMeasureResult = onClearAudioMeasureResult,
+                onImportCalibration = onImportCalibration,
+                onClearCalibration = onClearCalibration,
                 musicSrcBypassMode = musicSrcBypassMode,
                 onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
             )
@@ -3219,6 +3225,8 @@ private fun PlaybackPanel(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onImportCalibration: (Uri) -> Unit,
+    onClearCalibration: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
 ) {
@@ -3280,6 +3288,8 @@ private fun PlaybackPanel(
             onImportWavMeasurement = onImportWavMeasurement,
             onApplyMeasuredResult = onApplyMeasuredResult,
             onClearAudioMeasureResult = onClearAudioMeasureResult,
+            onImportCalibration = onImportCalibration,
+            onClearCalibration = onClearCalibration,
         )
 
         MusicSrcBypassTvControls(
@@ -3480,6 +3490,8 @@ private fun AudioDspTvControls(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
+    onImportCalibration: (Uri) -> Unit,
+    onClearCalibration: () -> Unit,
 ) {
     Spacer(Modifier.height(24.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3566,6 +3578,38 @@ private fun AudioDspTvControls(
                 wavPicker.launch(arrayOf("audio/wav", "audio/x-wav", "application/octet-stream"))
             },
             modifier = Modifier.width(180.dp),
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        val calPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            uri?.let(onImportCalibration)
+        }
+        ScanOptionChip(
+            text = if (audioMeasure.calibrationName == null) "导入校准文件 (.cal)" else "校准：${audioMeasure.calibrationName}",
+            icon = Icons.Filled.Tune,
+            selected = audioMeasure.calibrationName != null,
+            enabled = true,
+            onClick = { calPicker.launch(arrayOf("text/*", "application/octet-stream")) },
+            modifier = Modifier.width(260.dp),
+        )
+        if (audioMeasure.calibrationName != null) {
+            ScanOptionChip(
+                text = "清除校准",
+                icon = Icons.Filled.Close,
+                selected = false,
+                enabled = true,
+                onClick = onClearCalibration,
+                modifier = Modifier.width(130.dp),
+            )
+        }
+    }
+    audioMeasure.calibrationWarning?.let { warning ->
+        Spacer(Modifier.height(6.dp))
+        StatusMessage(
+            icon = Icons.Filled.Warning,
+            text = warning,
+            color = TextSecondary,
         )
     }
     audioMeasure.error?.let { error ->

@@ -9,6 +9,7 @@ import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
+import com.miruplay.tv.repository.MicCalibrationSettings
 import com.miruplay.tv.repository.PlaybackPreferencesRepository
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -133,6 +134,19 @@ class PlaybackPreferencesManager @Inject constructor(
         audioDspConfig = config
     }
 
+    override suspend fun getAudioMeasureCalibration(): MicCalibrationSettings? {
+        val name = prefs.getString(KEY_AUDIO_MEASURE_CALIBRATION_NAME, null)
+        val data = prefs.getString(KEY_AUDIO_MEASURE_CALIBRATION_DATA, null)
+        return if (name != null && data != null) MicCalibrationSettings(name, data) else null
+    }
+
+    override suspend fun setAudioMeasureCalibration(settings: MicCalibrationSettings?) {
+        prefs.edit()
+            .putString(KEY_AUDIO_MEASURE_CALIBRATION_NAME, settings?.name)
+            .putString(KEY_AUDIO_MEASURE_CALIBRATION_DATA, settings?.data)
+            .apply()
+    }
+
     override suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = musicSrcBypassMode
 
     override suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) {
@@ -146,6 +160,8 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
         private const val KEY_AUDIO_DSP_CONFIG = "audio_dsp_config"
+        private const val KEY_AUDIO_MEASURE_CALIBRATION_NAME = "audio_measure_calibration_name"
+        private const val KEY_AUDIO_MEASURE_CALIBRATION_DATA = "audio_measure_calibration_data"
         private const val KEY_MUSIC_SRC_BYPASS_MODE = "music_src_bypass_mode"
     }
 }

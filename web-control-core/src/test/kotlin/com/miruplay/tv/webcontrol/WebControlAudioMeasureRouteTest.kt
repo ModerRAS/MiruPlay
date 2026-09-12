@@ -91,8 +91,29 @@ class WebControlAudioMeasureRouteTest {
         var appliedBands: List<AudioDspBand>? = null
         var appliedTarget: AudioDspChannelTarget? = null
 
+        var calibrationName: String? = null
+        var calibrationText: String? = null
+
         override suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto =
-            AudioDspMeasureCapabilitiesDto(available = true, reason = null, inputDeviceName = "USB mic")
+            AudioDspMeasureCapabilitiesDto(
+                available = true,
+                reason = null,
+                inputDeviceName = "USB mic",
+                calibrationName = calibrationName,
+                calibrationWarning = null,
+            )
+
+        override suspend fun saveAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationRequest): AudioDspMeasureCapabilitiesDto {
+            calibrationName = request.name
+            calibrationText = request.text
+            return getAudioDspMeasureCapabilities()
+        }
+
+        override suspend fun clearAudioDspMeasureCalibration(): AudioDspMeasureCapabilitiesDto {
+            calibrationName = null
+            calibrationText = null
+            return getAudioDspMeasureCapabilities()
+        }
 
         override suspend fun importAudioDspMeasureWav(request: AudioDspMeasureImportRequest): AudioDspMeasureResultDto =
             throw IllegalArgumentException("WAV base64 payload is invalid")
@@ -157,5 +178,36 @@ class WebControlAudioMeasureRouteTest {
         val bytes = ByteArray(size)
         this.data.read(bytes)
         return String(bytes, Charsets.UTF_8)
+    }
+
+    @Test
+    fun `PUT and DELETE measure calibration round-trips through capabilities`() {
+        val service = CapturingMeasureService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val saved = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/audio-dsp/measure/calibration",
+                body = """
+                    {"name": "7001234_90deg.txt", "text": "10.054	-4.1234
+1000.0	0.5"}
+                """.trimIndent(),
+            )
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, saved.status)
+        val savedBody = saved.bodyText()
+        assertTrue(savedBody.contains("7001234_90deg.txt"))
+
+        val deleted = server.serve(
+            FakeSession(method = NanoHTTPD.Method.DELETE, uri = "/api/audio-dsp/measure/calibration")
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, deleted.status)
+        val deletedBody = deleted.bodyText()
+        assertTrue(deletedBody.contains("\"calibrationName\":null"))
     }
 }

@@ -23,4 +23,13 @@ interface PlaybackPreferencesRepository {
     suspend fun setAudioDspConfig(config: AudioDspConfig) = Unit
     suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = MusicSrcBypassMode.SOFTWARE
     suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) = Unit
+    /** Selected mic calibration (.cal text + display name); null when none. */
+    suspend fun getAudioMeasureCalibration(): MicCalibrationSettings? = null
+    suspend fun setAudioMeasureCalibration(settings: MicCalibrationSettings?) = Unit
 }
+
+/** Persisted mic calibration for sweep measurement; [data] is the raw .cal text. */
+data class MicCalibrationSettings(
+    val name: String,
+    val data: String,
+)

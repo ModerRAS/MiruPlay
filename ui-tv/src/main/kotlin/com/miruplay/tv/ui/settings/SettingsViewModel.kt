@@ -23,6 +23,7 @@ import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.measure.AutoEqFitter
+import com.miruplay.tv.measure.MicCalibration
 import com.miruplay.tv.measure.MeasuredPresetFactory
 import com.miruplay.tv.measure.RoomMeasurer
 import com.miruplay.tv.model.PlaybackEndAction
@@ -220,10 +221,53 @@ class SettingsViewModel @Inject constructor(
         val progress: String? = null,
         val error: String? = null,
         val result: AudioMeasureResultUi? = null,
+        val calibrationName: String? = null,
+        val calibrationWarning: String? = null,
     )
 
     private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
     val audioMeasure: StateFlow<AudioMeasureUiState> = _audioMeasure.asStateFlow()
+
+    init {
+        refreshAudioMeasureCalibration()
+    }
+
+    private fun refreshAudioMeasureCalibration() {
+        viewModelScope.launch {
+            val settings = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()
+            val warning = settings?.let {
+                runCatching { MicCalibration.parse(it.data).calibration.coverageWarning() }.getOrNull()
+            }
+            _audioMeasure.update { it.copy(calibrationName = settings?.name, calibrationWarning = warning) }
+        }
+    }
+
+    fun importCalibrationFile(uri: Uri) {
+        viewModelScope.launch {
+            try {
+                val bytes = withContext(Dispatchers.IO) {
+                    appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw IllegalStateException("无法读取所选文件")
+                }
+                val text = bytes.toString(Charsets.UTF_8)
+                val parsed = MicCalibration.parse(text)
+                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "calibration"
+                playbackPreferences.setAudioMeasureCalibration(com.miruplay.tv.repository.MicCalibrationSettings(name, text))
+                _audioMeasure.update {
+                    it.copy(calibrationName = name, calibrationWarning = parsed.calibration.coverageWarning())
+                }
+            } catch (e: Exception) {
+                _audioMeasure.update { it.copy(error = e.message ?: "校准文件导入失败") }
+            }
+        }
+    }
+
+    fun clearCalibrationFile() {
+        viewModelScope.launch {
+            playbackPreferences.setAudioMeasureCalibration(null)
+            _audioMeasure.update { it.copy(calibrationName = null, calibrationWarning = null) }
+        }
+    }
 
     fun probeAudioMeasure() {
         viewModelScope.launch {
@@ -236,7 +280,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
             try {
-                val outcome = audioMeasureController.measureRoom { progress ->
+                val calibrationText = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()?.data
+                val outcome = audioMeasureController.measureRoom(calibrationText) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
                 }
                 _audioMeasure.update {
@@ -262,7 +307,8 @@ class SettingsViewModel @Inject constructor(
                     appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: throw IllegalStateException("无法读取所选文件")
                 }
-                val outcome = audioMeasureController.importWav(bytes) { progress ->
+                val calibrationText = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()?.data
+                val outcome = audioMeasureController.importWav(bytes, calibrationText) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
                 }
                 _audioMeasure.update {

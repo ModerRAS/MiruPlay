@@ -43,6 +43,7 @@ import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.MicCalibrationSettings
 import com.miruplay.tv.repository.LogUploadRepository
 import com.miruplay.tv.repository.MediaIndexRepository
 import com.miruplay.tv.repository.MediaSourceRepository
@@ -887,11 +888,22 @@ class WebControlService @Inject constructor(
 
     override suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto = runOnIo {
         val caps = audioMeasureController.probe()
-        AudioDspMeasureCapabilitiesDto(caps.available, caps.reason, caps.inputDeviceName)
+        val calibration = audioDspMeasureCalibration()
+        AudioDspMeasureCapabilitiesDto(
+            available = caps.available,
+            reason = caps.reason,
+            inputDeviceName = caps.inputDeviceName,
+            calibrationName = calibration?.name,
+            calibrationWarning = calibration?.let {
+                runCatching {
+                    com.miruplay.tv.measure.MicCalibration.parse(it.data).calibration.coverageWarning()
+                }.getOrNull()
+            },
+        )
     }
 
     override suspend fun runAudioDspMeasure(): AudioDspMeasureResultDto = runOnIo {
-        val outcome = audioMeasureController.measureRoom()
+        val outcome = audioMeasureController.measureRoom(audioDspMeasureCalibration()?.data)
         outcome.toMeasureResultDto()
     }
 
@@ -901,8 +913,26 @@ class WebControlService @Inject constructor(
         }
         val bytes = runCatching { java.util.Base64.getDecoder().decode(request.wavBase64) }
             .getOrElse { throw IllegalArgumentException("WAV base64 payload is invalid") }
-        audioMeasureController.importWav(bytes).toMeasureResultDto()
+        audioMeasureController.importWav(bytes, audioDspMeasureCalibration()?.data).toMeasureResultDto()
     }
+
+    override suspend fun saveAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationRequest): AudioDspMeasureCapabilitiesDto = runOnIo {
+        val parsed = runCatching {
+            com.miruplay.tv.measure.MicCalibration.parse(request.text)
+        }.getOrElse { throw IllegalArgumentException(it.message ?: "calibration file is invalid") }
+        playbackPreferencesRepository.setAudioMeasureCalibration(
+            com.miruplay.tv.repository.MicCalibrationSettings(request.name, request.text),
+        )
+        getAudioDspMeasureCapabilities()
+    }
+
+    override suspend fun clearAudioDspMeasureCalibration(): AudioDspMeasureCapabilitiesDto = runOnIo {
+        playbackPreferencesRepository.setAudioMeasureCalibration(null)
+        getAudioDspMeasureCapabilities()
+    }
+
+    private suspend fun audioDspMeasureCalibration(): MicCalibrationSettings? =
+        runCatching { playbackPreferencesRepository.getAudioMeasureCalibration() }.getOrNull()
 
     override suspend fun applyAudioDspMeasure(request: AudioDspMeasureApplyRequest): AudioDspDto = runOnIo {
         require(request.bands.isNotEmpty()) { "measured band list is empty" }

@@ -417,6 +417,15 @@ data class AudioDspMeasureCapabilitiesDto(
     val available: Boolean = false,
     val reason: String? = null,
     val inputDeviceName: String? = null,
+    val calibrationName: String? = null,
+    val calibrationWarning: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationRequest(
+    val name: String,
+    /** Raw .cal text (UMIK-1 style: freq/dB, or freq/0°/90°). */
+    val text: String,
 )
 
 @Serializable

@@ -1396,6 +1396,16 @@
                 <el-button :loading="loading.audioDspMeasureWav" @click="audioDspMeasureFileInput?.click()">导入 WAV</el-button>
                 <input ref="audioDspMeasureFileInput" class="hidden-file-input" type="file" accept=".wav,audio/wav,audio/x-wav" @change="importAudioDspMeasureWav" />
               </div>
+              <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                <span class="chart-label">麦克风校准：</span>
+                <el-tag v-if="audioDspMeasure.calibrationName" type="success" closable @close="clearAudioDspMeasureCalibration">{{ audioDspMeasure.calibrationName }}</el-tag>
+                <el-tag v-else type="info">未设置</el-tag>
+                <el-button size="small" @click="audioDspCalibrationFileInput?.click()">导入 .cal</el-button>
+                <input ref="audioDspCalibrationFileInput" class="hidden-file-input" type="file" accept=".cal,.txt,text/plain" @change="importAudioDspCalibration" />
+              </div>
+              <div v-if="audioDspMeasure.calibrationWarning" style="margin-top: 6px">
+                <el-alert type="warning" :title="audioDspMeasure.calibrationWarning" :closable="false" show-icon />
+              </div>
               <div v-if="audioDspMeasure.error" style="margin: 8px 0">
                 <el-alert type="error" :title="audioDspMeasure.error" :closable="false" show-icon />
               </div>
@@ -1884,6 +1894,7 @@ const loading = reactive({
   audioDspSave: false,
   audioDspMeasureWav: false,
   audioDspMeasureApply: false,
+  audioDspCalibration: false,
   audioDspPreview: false,
   audioDspRewImport: false,
   webControlAccess: false,
@@ -2027,11 +2038,14 @@ const audioDspFileInput = ref(null)
 const audioDspRewFileInput = ref(null)
 const audioDspRewTarget = ref('ALL')
 const audioDspMeasureFileInput = ref(null)
+const audioDspCalibrationFileInput = ref(null)
 const audioDspMeasureTarget = ref('ALL')
 const audioDspMeasure = reactive({
   running: false,
   error: '',
-  result: null
+  result: null,
+  calibrationName: null,
+  calibrationWarning: ''
 })
 const webControlAccess = reactive({
   enabled: false,
@@ -3594,6 +3608,7 @@ async function loadAudioDsp() {
   loading.audioDsp = true
   try {
     applyAudioDsp(await api('/api/audio-dsp'))
+    loadAudioDspMeasureCapabilities()
   } finally {
     loading.audioDsp = false
   }
@@ -3611,6 +3626,48 @@ async function saveAudioDsp() {
     ElMessage.error(error.message || '音频 DSP 配置保存失败')
   } finally {
     loading.audioDspSave = false
+  }
+}
+
+async function loadAudioDspMeasureCapabilities() {
+  try {
+    const caps = await api('/api/audio-dsp/measure/capabilities')
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
+  } catch {
+    // capabilities 不影响主流程
+  }
+}
+
+async function importAudioDspCalibration(event) {
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  loading.audioDspCalibration = true
+  try {
+    const text = await file.text()
+    const caps = await api('/api/audio-dsp/measure/calibration', {
+      method: 'PUT',
+      body: JSON.stringify({ name: file.name, text })
+    })
+    audioDspMeasure.calibrationName = caps.calibrationName || file.name
+    audioDspMeasure.calibrationWarning = caps.calibrationWarning || ''
+    ElMessage.success(caps.calibrationWarning ? '校准已导入（有覆盖范围警告）' : '校准文件已导入')
+  } catch (error) {
+    ElMessage.error(error.message || '校准文件导入失败')
+  } finally {
+    loading.audioDspCalibration = false
+  }
+}
+
+async function clearAudioDspMeasureCalibration() {
+  try {
+    const caps = await api('/api/audio-dsp/measure/calibration', { method: 'DELETE' })
+    audioDspMeasure.calibrationName = caps.calibrationName || null
+    audioDspMeasure.calibrationWarning = null
+    ElMessage.success('校准已清除')
+  } catch (error) {
+    ElMessage.error(error.message || '清除校准失败')
   }
 }
 

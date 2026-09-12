@@ -82,6 +82,8 @@ object RoomMeasurer {
          * for mic-acoustic capture across independent clocks.
          */
         assumeSharedClock: Boolean = false,
+        /** Mic calibration (REW-style .cal): subtracted before smoothing/fitting. */
+        calibration: MicCalibration? = null,
     ): Measurement {
         require(recordings.size == sweeps.size) { "one recording per sweep required" }
         require(recordings.isNotEmpty()) { "at least one sweep required" }
@@ -90,7 +92,7 @@ object RoomMeasurer {
         val freqs = ResponseAnalysis.logFreqGrid(gridLoHz, gridHiHz, gridPerOctave)
 
         if (assumeSharedClock) {
-            return measureSharedClock(recordings, sweeps, fs, irLen, freqs, fitConfig)
+            return measureSharedClock(recordings, sweeps, fs, irLen, freqs, fitConfig, calibration)
         }
         // Per-sweep drift estimates (same physical drift must be seen by all).
         val estimates = recordings.indices.map { i ->
@@ -131,6 +133,7 @@ object RoomMeasurer {
         )
 
         val responseDb = ResponseAnalysis.irToResponseDb(ir, freqs, fs)
+        calibration?.let { cal -> cal.correct(responseDb, freqs).copyInto(responseDb) }
         val center = responseDb.meanWhere(BooleanArray(freqs.size) { freqs[it] in 200.0..2_000.0 })
         for (i in freqs.indices) responseDb[i] -= center
 
@@ -186,6 +189,7 @@ object RoomMeasurer {
         irLen: Int,
         freqs: DoubleArray,
         fitConfig: PeqFitConfig,
+        calibration: MicCalibration?,
     ): Measurement {
         val ir = Deconvolver.deconvolve(recordings[0], sweeps[0].sweep).copyOf(irLen)
         val drift = DriftCheck(
@@ -197,6 +201,7 @@ object RoomMeasurer {
             estimates = emptyList(),
         )
         val responseDb = ResponseAnalysis.irToResponseDb(ir, freqs, fs)
+        calibration?.let { cal -> cal.correct(responseDb, freqs).copyInto(responseDb) }
         val center = responseDb.meanWhere(BooleanArray(freqs.size) { freqs[it] in 200.0..2_000.0 })
         for (i in freqs.indices) responseDb[i] -= center
         val smoothed = ResponseAnalysis.smoothGaussianLogf(freqs, responseDb, ResponseAnalysis.smoothingWidthVariable(freqs))
