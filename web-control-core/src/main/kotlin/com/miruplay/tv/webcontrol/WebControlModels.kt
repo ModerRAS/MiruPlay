@@ -429,6 +429,26 @@ data class AudioDspMeasureCalibrationRequest(
 )
 
 @Serializable
+data class AudioDspMeasureCalibrationListDto(
+    val items: List<AudioDspMeasureCalibrationItemDto> = emptyList(),
+    val activeId: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationItemDto(
+    val id: String,
+    val name: String,
+    val source: String,
+    val active: Boolean = false,
+    val warning: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureCalibrationActivateRequest(
+    val id: String,
+)
+
+@Serializable
 data class AudioDspMeasureCalibrationDownloadRequest(
     /** UMIK-1 7-digit serial, with or without the dash (700-1234 / 7001234). */
     val serial: String,

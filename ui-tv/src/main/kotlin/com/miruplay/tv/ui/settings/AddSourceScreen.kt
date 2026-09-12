@@ -712,8 +712,6 @@ fun AddSourceScreen(
                     onImportWavMeasurement = viewModel::importWavMeasurement,
                     onApplyMeasuredResult = viewModel::applyMeasuredResult,
                     onClearAudioMeasureResult = viewModel::clearAudioMeasureResult,
-                    onImportCalibration = viewModel::importCalibrationFile,
-                    onClearCalibration = viewModel::clearCalibrationFile,
                     onDownloadCalibration = viewModel::downloadCalibration,
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
@@ -1193,8 +1191,6 @@ private fun SettingsContent(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
-    onImportCalibration: (Uri) -> Unit,
-    onClearCalibration: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
@@ -1472,8 +1468,6 @@ private fun SettingsContent(
                 onImportWavMeasurement = onImportWavMeasurement,
                 onApplyMeasuredResult = onApplyMeasuredResult,
                 onClearAudioMeasureResult = onClearAudioMeasureResult,
-                onImportCalibration = onImportCalibration,
-                onClearCalibration = onClearCalibration,
                 onDownloadCalibration = onDownloadCalibration,
                 musicSrcBypassMode = musicSrcBypassMode,
                 onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
@@ -3229,8 +3223,6 @@ private fun PlaybackPanel(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
-    onImportCalibration: (Uri) -> Unit,
-    onClearCalibration: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
@@ -3293,8 +3285,6 @@ private fun PlaybackPanel(
             onImportWavMeasurement = onImportWavMeasurement,
             onApplyMeasuredResult = onApplyMeasuredResult,
             onClearAudioMeasureResult = onClearAudioMeasureResult,
-            onImportCalibration = onImportCalibration,
-            onClearCalibration = onClearCalibration,
             onDownloadCalibration = onDownloadCalibration,
         )
 
@@ -3496,8 +3486,6 @@ private fun AudioDspTvControls(
     onImportWavMeasurement: (Uri) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
-    onImportCalibration: (Uri) -> Unit,
-    onClearCalibration: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
 ) {
     Spacer(Modifier.height(24.dp))
@@ -3588,30 +3576,6 @@ private fun AudioDspTvControls(
         )
     }
     Spacer(Modifier.height(8.dp))
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        val calPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            uri?.let(onImportCalibration)
-        }
-        ScanOptionChip(
-            text = if (audioMeasure.calibrationName == null) "导入校准文件 (.cal)" else "校准：${audioMeasure.calibrationName}",
-            icon = Icons.Filled.Tune,
-            selected = audioMeasure.calibrationName != null,
-            enabled = true,
-            onClick = { calPicker.launch(arrayOf("text/*", "application/octet-stream")) },
-            modifier = Modifier.width(260.dp),
-        )
-        if (audioMeasure.calibrationName != null) {
-            ScanOptionChip(
-                text = "清除校准",
-                icon = Icons.Filled.Close,
-                selected = false,
-                enabled = true,
-                onClick = onClearCalibration,
-                modifier = Modifier.width(130.dp),
-            )
-        }
-    }
-    Spacer(Modifier.height(8.dp))
     var serialInput by rememberSaveable { mutableStateOf("") }
     var downloadIncidence by rememberSaveable { mutableStateOf("0deg") }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -3639,14 +3603,15 @@ private fun AudioDspTvControls(
             modifier = Modifier.width(200.dp),
         )
     }
-    audioMeasure.calibrationWarning?.let { warning ->
-        Spacer(Modifier.height(6.dp))
-        StatusMessage(
-            icon = Icons.Filled.Warning,
-            text = warning,
-            color = TextSecondary,
-        )
-    }
+    StatusMessage(
+        icon = if (audioMeasure.calibrationName != null) Icons.Filled.CheckCircle else Icons.Filled.Info,
+        text = if (audioMeasure.calibrationName != null) {
+            "当前校准：${audioMeasure.calibrationName}（已保存 ${audioMeasure.calibrationCount} 份，管理请用 WebUI）"
+        } else {
+            "未设置校准：直接测量会把麦克风自身的频响算进 EQ 里"
+        },
+        color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
+    )
     audioMeasure.error?.let { error ->
         Spacer(Modifier.height(8.dp))
         StatusMessage(

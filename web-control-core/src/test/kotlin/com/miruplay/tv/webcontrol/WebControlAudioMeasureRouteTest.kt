@@ -115,6 +115,29 @@ class WebControlAudioMeasureRouteTest {
             return getAudioDspMeasureCapabilities()
         }
 
+        override suspend fun listAudioDspMeasureCalibrations(): AudioDspMeasureCalibrationListDto =
+            AudioDspMeasureCalibrationListDto(
+                items = listOf(
+                    AudioDspMeasureCalibrationItemDto(
+                        id = "umik-7001234-zero_deg",
+                        name = calibrationName ?: "UMIK-1 7001234 90°",
+                        source = "umik-7001234-zero_deg",
+                        active = calibrationName != null,
+                    ),
+                ),
+                activeId = calibrationName?.let { "umik-7001234-zero_deg" },
+            )
+
+        override suspend fun activateAudioDspMeasureCalibration(request: AudioDspMeasureCalibrationActivateRequest): AudioDspMeasureCalibrationListDto {
+            calibrationName = "activated"
+            return listAudioDspMeasureCalibrations()
+        }
+
+        override suspend fun deleteAudioDspMeasureCalibration(id: String): AudioDspMeasureCalibrationListDto {
+            calibrationName = null
+            return listAudioDspMeasureCalibrations()
+        }
+
         override suspend fun importAudioDspMeasureWav(request: AudioDspMeasureImportRequest): AudioDspMeasureResultDto =
             throw IllegalArgumentException("WAV base64 payload is invalid")
 
@@ -209,5 +232,43 @@ class WebControlAudioMeasureRouteTest {
         assertEquals(NanoHTTPD.Response.Status.OK, deleted.status)
         val deletedBody = deleted.bodyText()
         assertTrue(deletedBody.contains("\"calibrationName\":null"))
+    }
+
+    @Test
+    fun `calibration list activate and delete round-trip`() {
+        val service = CapturingMeasureService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledWebControlAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val list = server.serve(
+            FakeSession(method = NanoHTTPD.Method.GET, uri = "/api/audio-dsp/measure/calibration/list")
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, list.status)
+        val listBody = list.bodyText()
+        assertTrue(listBody.contains("umik-7001234-zero_deg"))
+
+        val activated = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/audio-dsp/measure/calibration/activate",
+                body = "{\"id\": \"umik-7001234-zero_deg\"}",
+            )
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, activated.status)
+        assertTrue(activated.bodyText().contains("activated"))
+
+        val deleted = server.serve(
+            FakeSession(
+                method = NanoHTTPD.Method.DELETE,
+                uri = "/api/audio-dsp/measure/calibration/item",
+                body = "{\"id\": \"umik-7001234-zero_deg\"}",
+            )
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, deleted.status)
+        val deletedBody = deleted.bodyText()
+        assertTrue(deletedBody.contains("\"activeId\":null"))
     }
 }

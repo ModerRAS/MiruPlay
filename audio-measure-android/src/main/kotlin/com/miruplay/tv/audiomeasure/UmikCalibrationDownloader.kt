@@ -42,8 +42,15 @@ object UmikCalibrationDownloader {
         }
         MicCalibration.parse(text) // validate before saving
         return MicCalibrationSettings(
+            id = "umik-$sn-${incidence.name.lowercase()}",
             name = "UMIK-1 $sn $label",
+            source = sourceKey(serial, incidence),
             data = text,
+            createdAtMs = 0L, // set by callers that know the clock
         )
     }
+
+    /** Stable dedupe key: re-entering the same serial+incidence reuses the saved file. */
+    fun sourceKey(serial: String, incidence: MicCalibration.Incidence): String =
+        "umik-${normalizeSerial(serial)}-${incidence.name.lowercase()}" 
 }

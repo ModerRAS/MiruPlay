@@ -85,7 +85,14 @@ class AudioMeasureController(private val context: Context) {
         if (UmikCalibrationDownloader.isErrorBody(text)) {
             throw MeasureException("miniDSP 上没有找到该序列号（$serial）的校准数据，请核对序列号")
         }
-        UmikCalibrationDownloader.buildSettings(serial, incidence, text)
+        val settings = UmikCalibrationDownloader.buildSettings(serial, incidence, text)
+        // Guard against truncated/hiccup downloads: the official file always
+        // reaches 20 kHz, so a short coverage means something went wrong.
+        val coverage = com.miruplay.tv.measure.MicCalibration.parse(settings.data).calibration.coverageWarning()
+        if (coverage != null) {
+            throw MeasureException(coverage)
+        }
+        settings
     }
 
     /** Enumerate usable microphone inputs and gate on the RECORD_AUDIO permission. */

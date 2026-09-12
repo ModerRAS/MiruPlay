@@ -224,6 +224,7 @@ class SettingsViewModel @Inject constructor(
         val calibrationName: String? = null,
         val calibrationWarning: String? = null,
         val downloadingCalibration: Boolean = false,
+        val calibrationCount: Int = 0,
     )
 
     private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
@@ -235,59 +236,51 @@ class SettingsViewModel @Inject constructor(
 
     private fun refreshAudioMeasureCalibration() {
         viewModelScope.launch {
-            val settings = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()
-            val warning = settings?.let {
-                runCatching { MicCalibration.parse(it.data).calibration.coverageWarning() }.getOrNull()
+            val state = runCatching {
+                val all = playbackPreferences.getAudioMeasureCalibrations()
+                val activeId = playbackPreferences.getAudioMeasureCalibrationActiveId()
+                val active = all.firstOrNull { it.id == activeId } ?: all.firstOrNull()
+                Triple(active?.name, all.size, active?.let {
+                    runCatching { MicCalibration.parse(it.data).calibration.coverageWarning() }.getOrNull()
+                })
+            }.getOrNull()
+            _audioMeasure.update {
+                it.copy(
+                    calibrationName = state?.first,
+                    calibrationCount = state?.second ?: 0,
+                    calibrationWarning = state?.third,
+                )
             }
-            _audioMeasure.update { it.copy(calibrationName = settings?.name, calibrationWarning = warning) }
         }
     }
 
-    fun importCalibrationFile(uri: Uri) {
-        viewModelScope.launch {
-            try {
-                val bytes = withContext(Dispatchers.IO) {
-                    appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("无法读取所选文件")
-                }
-                val text = bytes.toString(Charsets.UTF_8)
-                val parsed = MicCalibration.parse(text)
-                val name = uri.lastPathSegment?.substringAfterLast('/') ?: "calibration"
-                playbackPreferences.setAudioMeasureCalibration(com.miruplay.tv.repository.MicCalibrationSettings(name, text))
-                _audioMeasure.update {
-                    it.copy(calibrationName = name, calibrationWarning = parsed.calibration.coverageWarning())
-                }
-            } catch (e: Exception) {
-                _audioMeasure.update { it.copy(error = e.message ?: "校准文件导入失败") }
-            }
-        }
-    }
 
     fun downloadCalibration(serial: String, incidence: String) {
         if (_audioMeasure.value.downloadingCalibration) return
         viewModelScope.launch {
             _audioMeasure.update { it.copy(downloadingCalibration = true, error = null) }
             try {
-                val settings = audioMeasureController.downloadUmikCalibration(
-                    serial,
-                    if (incidence == "90deg") com.miruplay.tv.measure.MicCalibration.Incidence.NINETY_DEG
-                    else com.miruplay.tv.measure.MicCalibration.Incidence.ZERO_DEG,
-                )
-                playbackPreferences.setAudioMeasureCalibration(settings)
+                val inc = if (incidence == "90deg") com.miruplay.tv.measure.MicCalibration.Incidence.NINETY_DEG
+                else com.miruplay.tv.measure.MicCalibration.Incidence.ZERO_DEG
+                val key = com.miruplay.tv.audiomeasure.UmikCalibrationDownloader.sourceKey(serial, inc)
+                val existing = runCatching { playbackPreferences.getAudioMeasureCalibrations() }.getOrDefault(emptyList())
+                // Dedupe: same serial+incidence reuses the saved file, no re-download.
+                val settings = existing.firstOrNull { it.source == key }
+                    ?: audioMeasureController.downloadUmikCalibration(serial, inc)
+                val updated = (existing.filterNot { it.id == settings.id } + settings).sortedBy { it.id }
+                playbackPreferences.saveAudioMeasureCalibrations(updated, settings.id)
                 val warning = runCatching { MicCalibration.parse(settings.data).calibration.coverageWarning() }.getOrNull()
                 _audioMeasure.update {
-                    it.copy(downloadingCalibration = false, calibrationName = settings.name, calibrationWarning = warning)
+                    it.copy(
+                        downloadingCalibration = false,
+                        calibrationName = settings.name,
+                        calibrationCount = updated.size,
+                        calibrationWarning = warning,
+                    )
                 }
             } catch (e: Exception) {
                 _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message ?: "下载校准失败") }
             }
-        }
-    }
-
-    fun clearCalibrationFile() {
-        viewModelScope.launch {
-            playbackPreferences.setAudioMeasureCalibration(null)
-            _audioMeasure.update { it.copy(calibrationName = null, calibrationWarning = null) }
         }
     }
 
@@ -297,13 +290,19 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+
+    private suspend fun activeCalibrationText(): String? {
+        val all = runCatching { playbackPreferences.getAudioMeasureCalibrations() }.getOrDefault(emptyList())
+        val activeId = runCatching { playbackPreferences.getAudioMeasureCalibrationActiveId() }.getOrNull()
+        return (all.firstOrNull { it.id == activeId } ?: all.firstOrNull())?.data
+    }
+
     fun startSweepMeasurement() {
         if (_audioMeasure.value.measuring) return
         viewModelScope.launch {
             _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
             try {
-                val calibrationText = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()?.data
-                val outcome = audioMeasureController.measureRoom(calibrationText) { progress ->
+                val outcome = audioMeasureController.measureRoom(activeCalibrationText()) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
                 }
                 _audioMeasure.update {
@@ -329,8 +328,7 @@ class SettingsViewModel @Inject constructor(
                     appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
                         ?: throw IllegalStateException("无法读取所选文件")
                 }
-                val calibrationText = runCatching { playbackPreferences.getAudioMeasureCalibration() }.getOrNull()?.data
-                val outcome = audioMeasureController.importWav(bytes, calibrationText) { progress ->
+                val outcome = audioMeasureController.importWav(bytes, activeCalibrationText()) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
                 }
                 _audioMeasure.update {
