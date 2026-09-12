@@ -85,6 +85,8 @@ Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure 
 - ✦ **Mic calibration** (.cal import/activate/list/download) doesn't disturb existing presets
 - ✦ **REW EQ import** (`RewEqParser`)
 - ✦ DSP off ⇒ bit-transparent passthrough (hear no difference, no resample)
+- ✦ **DSP section relocation**: TV 设置「音频 DSP」分区与 WebUI「音频 DSP」视图独立于播放设置；两侧入口都能打开 DSP 开关/预设/测量/校准，播放设置不再包含 DSP
+- ✦ **RECORD_AUDIO runtime permission**: 首次扫频测量触发系统权限弹窗；授权后自动开始测量；拒绝后显示引导文案且不崩溃
 
 ### 5.3 Music mode (`ui-tv` music screens, `data`, player-core)
 Re-verify when: music screens, music metadata, DSP chain, audio source handling.

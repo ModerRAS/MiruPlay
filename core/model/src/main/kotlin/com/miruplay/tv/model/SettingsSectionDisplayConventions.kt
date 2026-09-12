@@ -16,6 +16,10 @@ enum class MiruPlaySettingsSection(
         androidTvTitle = "播放",
         androidTvDescription = "播完动作",
     ),
+    AUDIO_DSP(
+        androidTvTitle = "音频 DSP",
+        androidTvDescription = "PEQ、扫频测量与校准",
+    ),
     CLOUD_DRIVE(
         androidTvTitle = "CloudDrive",
         androidTvDescription = "RSS 离线下载与入库",
@@ -51,6 +55,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
         MiruPlaySettingsSection.WEB_UI,
         MiruPlaySettingsSection.SOURCES,
         MiruPlaySettingsSection.PLAYBACK,
+        MiruPlaySettingsSection.AUDIO_DSP,
         MiruPlaySettingsSection.CLOUD_DRIVE,
         MiruPlaySettingsSection.PROXY,
         MiruPlaySettingsSection.SCAN,
@@ -138,6 +143,7 @@ data class SettingsSectionMenuSummaryInput(
     val webUiAddressCount: Int = 0,
     val sourceCount: Int = 0,
     val playbackSummary: String = "",
+    val audioDspEnabled: Boolean = false,
     val cloudDriveEnabled: Boolean = false,
     val rssCount: Int = 0,
     val proxyEnabled: Boolean = false,
@@ -160,6 +166,8 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
         MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(input.webUiAddressCount)
         MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
+        MiruPlaySettingsSection.AUDIO_DSP ->
+            if (input.audioDspEnabled) "已启用 · 扫频校准" else "未启用"
         MiruPlaySettingsSection.CLOUD_DRIVE -> settingsCloudDriveMenuSummary(input.cloudDriveEnabled, input.rssCount)
         MiruPlaySettingsSection.PROXY -> settingsProxyMenuSummary(input.proxyEnabled, input.proxyHost, input.proxyPort)
         MiruPlaySettingsSection.SCAN -> settingsScanMenuSummary(
