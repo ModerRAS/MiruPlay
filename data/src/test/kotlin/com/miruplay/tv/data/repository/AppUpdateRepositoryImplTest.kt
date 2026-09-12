@@ -7,7 +7,9 @@ import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.RssDownloadTaskInfo
 import com.miruplay.tv.model.RssProcessedItemInfo
 import com.miruplay.tv.model.RssSubscriptionInfo
+import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateInfo
+import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
@@ -277,9 +279,91 @@ class AppUpdateRepositoryImplTest {
         }
     }
 
+    @Test
+    fun `parseChannelManifest returns selected channel entry`() {
+        val result = GitHubAppUpdateMapper.parseChannelManifest(
+            ROLLING_MANIFEST_JSON,
+            UpdateChannel.BETA,
+        )
+
+        assertTrue(result is ChannelManifestResult.Found)
+        val info = (result as ChannelManifestResult.Found).info
+        assertEquals("2.11.721", info.versionName)
+        assertEquals(721L, info.versionCode)
+        assertEquals("app-release.apk", info.assetName)
+        assertEquals("https://example.test/v2.11.721/app-release.apk", info.downloadUrl)
+    }
+
+    @Test
+    fun `parseChannelManifest reports missing channel`() {
+        val result = GitHubAppUpdateMapper.parseChannelManifest(
+            ROLLING_MANIFEST_JSON,
+            UpdateChannel.STABLE,
+        )
+
+        assertTrue(result is ChannelManifestResult.ChannelMissing)
+    }
+
+    @Test
+    fun `parseChannelManifest falls back to legacy top level when channels absent`() {
+        val result = GitHubAppUpdateMapper.parseChannelManifest(
+            """
+            {
+              "tag_name": "v2.1.604",
+              "name": "v2.1.604",
+              "draft": false,
+              "version_code": 604,
+              "assets": [
+                {
+                  "name": "app-release.apk",
+                  "size": 1,
+                  "browser_download_url": "https://example.test/app-release.apk"
+                }
+              ]
+            }
+            """.trimIndent(),
+            UpdateChannel.STABLE,
+        )
+
+        assertTrue(result is ChannelManifestResult.Found)
+        assertEquals("2.1.604", (result as ChannelManifestResult.Found).info.versionName)
+    }
+
+    @Test
+    fun `checkLatestUpdate returns ChannelNoRelease when channel has no entry`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(MockResponse().setBody(ROLLING_MANIFEST_JSON))
+            val repository = appUpdateRepository(channel = UpdateChannel.STABLE, proxy = proxy)
+
+            val result = repository.checkLatestUpdate()
+
+            assertTrue(result is Result.Error)
+            val error = (result as Result.Error).error
+            assertTrue(error is AppError.AppUpdateError.ChannelNoRelease)
+            assertEquals("stable", (error as AppError.AppUpdateError.ChannelNoRelease).channel)
+        }
+    }
+
+    @Test
+    fun `checkLatestUpdate returns selected channel latest info`() = runBlocking {
+        MockWebServer().use { proxy ->
+            proxy.enqueue(MockResponse().setBody(ROLLING_MANIFEST_JSON))
+            val repository = appUpdateRepository(channel = UpdateChannel.BETA, proxy = proxy)
+
+            val result = repository.checkLatestUpdate()
+
+            assertTrue(result is Result.Success)
+            val check = (result as Result.Success).data
+            assertEquals(UpdateChannel.BETA, check.channel)
+            assertEquals("2.11.721", check.latest.versionName)
+            assertEquals(721L, check.latest.versionCode)
+        }
+    }
+
     private fun appUpdateRepository(
         updateManifestUrl: String = "http://github.example/latest.json",
         latestReleaseApiUrl: String = "http://api.github.example/repos/ModerRAS/MiruPlay/releases/latest",
+        channel: UpdateChannel = UpdateChannel.ALPHA,
         proxy: MockWebServer,
     ): AppUpdateRepositoryImpl =
         AppUpdateRepositoryImpl(
@@ -292,9 +376,59 @@ class AppUpdateRepositoryImplTest {
                     rssProxyPort = proxy.port,
                 )
             ),
+            channelStore = FakeUpdateChannelStore(channel),
             updateManifestUrl = updateManifestUrl,
             latestReleaseApiUrl = latestReleaseApiUrl,
         )
+
+    private class FakeUpdateChannelStore(
+        initial: UpdateChannel = UpdateChannel.ALPHA,
+    ) : AppUpdateChannelStore {
+        override var updateChannel: UpdateChannel = initial
+    }
+
+    private companion object {
+        val ROLLING_MANIFEST_JSON = """
+        {
+          "schema_version": 1,
+          "tag_name": "v2.11.727",
+          "name": "v2.11.727",
+          "draft": false,
+          "prerelease": false,
+          "published_at": "2026-09-12T00:00:00Z",
+          "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/v2.11.727",
+          "channel": "alpha",
+          "version_code": 727,
+          "assets": [
+            {
+              "name": "app-release.apk",
+              "size": 1,
+              "browser_download_url": "https://example.test/v2.11.727/app-release.apk"
+            }
+          ],
+          "channels": {
+            "alpha": {
+              "tag_name": "v2.11.727",
+              "version_code": 727,
+              "asset_name": "app-release.apk",
+              "asset_size": 1,
+              "download_url": "https://example.test/v2.11.727/app-release.apk",
+              "published_at": "2026-09-12T00:00:00Z",
+              "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/v2.11.727"
+            },
+            "beta": {
+              "tag_name": "v2.11.721",
+              "version_code": 721,
+              "asset_name": "app-release.apk",
+              "asset_size": 1,
+              "download_url": "https://example.test/v2.11.721/app-release.apk",
+              "published_at": "2026-09-10T00:00:00Z",
+              "html_url": "https://github.com/ModerRAS/MiruPlay/releases/tag/v2.11.721"
+            }
+          }
+        }
+        """.trimIndent()
+    }
 
     private class FakeCloudDriveAutomationRepository(
         private val config: CloudDriveAutomationConfig

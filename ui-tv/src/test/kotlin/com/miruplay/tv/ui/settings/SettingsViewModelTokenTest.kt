@@ -17,6 +17,7 @@ import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.AppModePreferencesRepository
+import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadRepository
@@ -184,6 +185,7 @@ class SettingsViewModelTokenTest {
             cloudDriveRepository = cloudDriveRepository,
             logUploadRepository = logUploadRepository,
             appUpdateRepository = appUpdateRepository,
+            appUpdateChannelStore = AppUpdateChannelStoreStub,
             cloudDriveClient = cloudDriveClient,
             cloudDriveEngine = cloudDriveEngine,
             cloudDriveScheduler = cloudDriveScheduler,
@@ -194,4 +196,8 @@ class SettingsViewModelTokenTest {
             audioMeasureController = audioMeasureController,
             audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
         )
+}
+
+private object AppUpdateChannelStoreStub : AppUpdateChannelStore {
+    override var updateChannel: com.miruplay.tv.repository.UpdateChannel = com.miruplay.tv.repository.UpdateChannel.ALPHA
 }

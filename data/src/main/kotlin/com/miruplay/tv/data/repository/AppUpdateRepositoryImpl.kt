@@ -11,11 +11,13 @@ import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.repository.AppUpdateCheck
+import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.repository.UpdateChannel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -41,6 +43,7 @@ class AppUpdateRepositoryImpl internal constructor(
     @ApplicationContext private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
+    private val channelStore: AppUpdateChannelStore,
     private val updateManifestUrl: String,
     private val latestReleaseApiUrl: String,
 ) : AppUpdateRepository {
@@ -52,15 +55,18 @@ class AppUpdateRepositoryImpl internal constructor(
         @ApplicationContext context: Context,
         okHttpClient: OkHttpClient,
         cloudDriveRepository: CloudDriveAutomationRepository,
+        channelStore: AppUpdateChannelStore,
     ) : this(
         context = context,
         okHttpClient = okHttpClient,
         cloudDriveRepository = cloudDriveRepository,
+        channelStore = channelStore,
         updateManifestUrl = UPDATE_MANIFEST_URL,
         latestReleaseApiUrl = LATEST_RELEASE_API_URL,
     )
 
     override suspend fun checkLatestUpdate(): Result<AppUpdateCheck> = withContext(Dispatchers.IO) {
+        val channel = channelStore.updateChannel
         val currentVersionName = currentVersionName()
         val currentVersionCode = currentVersionCode()
         MiruLog.i(
@@ -69,11 +75,12 @@ class AppUpdateRepositoryImpl internal constructor(
             mapOf(
                 "current_version_name" to currentVersionName,
                 "current_version_code" to currentVersionCode.toString(),
+                "channel" to channel.id,
                 "update_manifest_url" to updateManifestUrl,
             )
         )
 
-        val latestWithSource = when (val manifest = fetchLatestUpdate(updateManifestUrl, githubApi = false)) {
+        val latestWithSource = when (val manifest = fetchLatestUpdate(updateManifestUrl, githubApi = false, channel = channel)) {
             is Result.Success -> manifest.data to "manifest"
             is Result.Error -> {
                 MiruLog.w(
@@ -81,9 +88,15 @@ class AppUpdateRepositoryImpl internal constructor(
                     "Update manifest unavailable; falling back to GitHub API",
                     attributes = mapOf("manifest_error" to manifest.error.toString()),
                 )
-                when (val fallback = fetchLatestUpdate(latestReleaseApiUrl, githubApi = true)) {
-                    is Result.Success -> fallback.data to "github_api"
-                    is Result.Error -> return@withContext Result.failure(fallback.error)
+                // 仅网络故障才走 fallback；渠道缺条目等内容性失败直接上报，
+                // 否则渠道提示会被 fallback 结果掩盖
+                if (manifest.error is AppError.NetworkError) {
+                    when (val fallback = fetchLatestUpdate(latestReleaseApiUrl, githubApi = true, channel = channel)) {
+                        is Result.Success -> fallback.data to "github_api"
+                        is Result.Error -> return@withContext Result.failure(fallback.error)
+                    }
+                } else {
+                    return@withContext Result.failure(manifest.error)
                 }
             }
         }
@@ -98,6 +111,7 @@ class AppUpdateRepositoryImpl internal constructor(
             "App update check completed",
             mapOf(
                 "source" to latestWithSource.second,
+                "channel" to channel.id,
                 "latest_version_name" to latest.versionName,
                 "latest_version_code" to latest.versionCode.orEmptyString(),
                 "asset_name" to latest.assetName,
@@ -109,13 +123,14 @@ class AppUpdateRepositoryImpl internal constructor(
             AppUpdateCheck(
                 currentVersionName = currentVersionName,
                 currentVersionCode = currentVersionCode,
+                channel = channel,
                 latest = latest,
                 updateAvailable = updateAvailable,
             )
         )
     }
 
-    private suspend fun fetchLatestUpdate(url: String, githubApi: Boolean): Result<AppUpdateInfo> {
+    private suspend fun fetchLatestUpdate(url: String, githubApi: Boolean, channel: UpdateChannel): Result<AppUpdateInfo> {
         val request = Request.Builder()
             .url(url)
             .header("Accept", if (githubApi) "application/vnd.github+json" else "application/json")
@@ -148,9 +163,19 @@ class AppUpdateRepositoryImpl internal constructor(
                 if (responseBody.isBlank()) {
                     return@use Result.failure(AppError.AppUpdateError.NoReleaseFound)
                 }
-                GitHubAppUpdateMapper.parseLatestRelease(responseBody, json)
-                    ?.let { Result.success(it) }
-                    ?: Result.failure(AppError.AppUpdateError.NoInstallableApk)
+                val parsed: ChannelManifestResult = when (githubApi) {
+                    true -> GitHubAppUpdateMapper.parseLatestRelease(responseBody, json)
+                        ?.let { ChannelManifestResult.Found(it) }
+                        ?: ChannelManifestResult.Malformed
+                    false -> GitHubAppUpdateMapper.parseChannelManifest(responseBody, channel)
+                }
+                return@use when (parsed) {
+                    is ChannelManifestResult.Found -> Result.success(parsed.info)
+                    is ChannelManifestResult.ChannelMissing ->
+                        Result.failure(AppError.AppUpdateError.ChannelNoRelease(channel.id))
+                    is ChannelManifestResult.Malformed ->
+                        Result.failure(AppError.AppUpdateError.NoInstallableApk)
+                }
             }
         } catch (error: Exception) {
             MiruLog.w(TAG, "App update request threw", error, mapOf("url" to url))
@@ -370,7 +395,59 @@ class AppUpdateRepositoryImpl internal constructor(
     }
 }
 
+internal sealed class ChannelManifestResult {
+    data class Found(val info: AppUpdateInfo) : ChannelManifestResult()
+    data object ChannelMissing : ChannelManifestResult()
+    data object Malformed : ChannelManifestResult()
+}
+
 internal object GitHubAppUpdateMapper {
+
+    /**
+     * 滚动式三渠道 manifest：顶层 = 旧 schema（host release 信息），
+     * channels = { alpha|beta|stable: {tag_name, version_code, asset_name, asset_size,
+     * download_url, published_at, html_url} }。
+     * 所选渠道无条目时返回 ChannelMissing。
+     */
+    fun parseChannelManifest(
+        responseBody: String,
+        channel: UpdateChannel,
+        json: Json = Json { ignoreUnknownKeys = true },
+    ): ChannelManifestResult {
+        val root = runCatching { json.parseToJsonElement(responseBody).jsonObject }.getOrNull()
+            ?: return ChannelManifestResult.Malformed
+        val channelsObject = root["channels"]
+            ?.takeIf { it is kotlinx.serialization.json.JsonObject }
+            ?.jsonObject
+            ?: run {
+                // 旧 manifest（无 channels 字段）退回顶层旧行为
+                if (root.containsKey("channels")) return ChannelManifestResult.Malformed
+                return parseLatestRelease(responseBody, json)
+                    ?.let { ChannelManifestResult.Found(it) }
+                    ?: ChannelManifestResult.Malformed
+            }
+        val entry = channelsObject[channel.id]
+            ?.takeIf { it is kotlinx.serialization.json.JsonObject }
+            ?.jsonObject
+            ?: return ChannelManifestResult.ChannelMissing
+        val tagName = entry.string("tag_name")
+        val downloadUrl = entry.string("download_url")
+        if (tagName.isBlank() || downloadUrl.isBlank()) return ChannelManifestResult.Malformed
+        return ChannelManifestResult.Found(
+            AppUpdateInfo(
+                versionName = normalizeReleaseVersionName(tagName),
+                versionCode = entry["version_code"]?.jsonPrimitive?.longOrNull,
+                releaseName = tagName,
+                tagName = tagName,
+                publishedAt = entry.string("published_at"),
+                releaseUrl = entry.string("html_url"),
+                assetName = entry.string("asset_name"),
+                assetSizeBytes = entry["asset_size"]?.jsonPrimitive?.longOrNull ?: 0L,
+                downloadUrl = downloadUrl,
+            )
+        )
+    }
+
     fun parseLatestRelease(
         responseBody: String,
         json: Json = Json { ignoreUnknownKeys = true },

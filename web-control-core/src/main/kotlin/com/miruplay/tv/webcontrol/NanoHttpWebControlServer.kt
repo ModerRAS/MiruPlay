@@ -326,6 +326,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.POST && route == "/api/app-update/install-permission" -> {
                 jsonResponse(AppUpdateDto.serializer(), webControlService.openInstallPermissionSettings())
             }
+            session.method == Method.POST && route == "/api/app-update/channel" -> {
+                val request = parseBody(session, AppUpdateChannelRequest.serializer())
+                jsonResponse(AppUpdateDto.serializer(), webControlService.setAppUpdateChannel(request))
+            }
             session.method == Method.POST && route == "/api/app-control" -> {
                 val request = parseBody(session, AppControlRequest.serializer())
                 jsonResponse(AppControlDto.serializer(), webControlService.appControl(request))

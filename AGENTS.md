@@ -122,31 +122,27 @@ MiruPlay/
 ### WebDAV URL Encoding
 `resolvePlayableUri()` in `MainActivity` auto-detects WebDAV sources and joins remote URLs using `URLEncoder.encode()` with `+`→`%20` replacement. All path segments are individually encoded.
 
-### Nightly CI Versioning
-CI generates date-based versions (`YYYY.mm.dd`) for nightly builds. Version properties passed via `-PVERSION_NAME` / `-PVERSION_CODE` Gradle project properties.
-
-### Release Build 自动创建 Tag
-`build-release` 任务 push 到 main/master 时会自动构建 release APK。
-版本号从 `app/build.gradle.kts` 中 `appVersionName` 的默认值提取 major.minor，patch 用 CI `run_number`。
-例如 `appVersionName = "0.1.0"` → 实际版本 `0.1.<run_number>`。
-发新版流程：
-1. 修改 `app/build.gradle.kts` 中的 `appVersionName` 默认值（如 `0.2.0`）
-2. 提交并 push 到 main/master
-3. CI 自动构建、打 tag、创建 Release
-
-tag 格式为 `v<major>.<minor>.<run_number>`（如 `v0.2.123`），不会 push 到 origin。
+### 三渠道发版（alpha / beta / stable）
+- **版本号/tag 不带渠道后缀**：`versionName` = `{major.minor}.{run_number}`（如 `2.11.727`），tag = `v{major.minor}.{run_number}`（如 `v2.11.727`），`versionCode` = `run_number`。渠道信息只存在于 latest.json。
+- **push 到 main/master → 自动发 alpha**：`build-release` job 构建签名 APK、打 tag、发 Release（`prerelease: false`，保证 `releases/latest/download/latest.json` 固定 URL 可用），并把本次发布写入 rolling manifest。
+- **beta/stable = promote，不重新构建**：Actions 页面手动 `workflow_dispatch`，选 `channel`（beta/stable）+ `promote_tag`（要 promote 的已发布版本 tag，如 `v2.11.727`）。`promote-release` job 只编辑当前 Latest release 的 latest.json 资产（同名覆盖上传），把对应渠道条目指向该 release 的 APK，无构建无签名。
+- **rolling manifest**：latest.json 顶层完整保留旧 schema（旧 app 只读顶层，零影响），顶层 `channel` = 本次发布渠道，`channels` 对象滚动携带 alpha/beta/stable 各自最新条目；每次发布先下载上一个 manifest 合并再上传，其他渠道条目原样保留。
+- **串行保证**：`build-release` 与 `promote-release` 共用 `concurrency: group: release-publish, cancel-in-progress: false`，发布永不并发写 manifest；排队丢弃中间 run 是预期行为（release notes 按 `PREV_TAG..HEAD` 区间生成，丢弃 run 的 commit 仍在 HEAD 里）。
+- **清理旧 release 时不得删除**被 latest.json `channels.*` 条目引用的 release。
+- **应用侧**：设置 → 应用更新面板可选 alpha/beta/stable 渠道（存储在 `AppUpdatePreferencesManager`，WebAPI `POST /api/app-update/channel` 与 WebUI 同步），更新器按 `channels[selected]` 取版本，目标 `versionCode` 低于已装版本时不提示安装。
+- **nightly 流程已退役**：CI 中无 nightly job。
 
 ### Agent-managed Version Bump
-当用户要求推送到 GitHub（例如要求 `push`、`推 master`、`推到 origin/main`）且本轮改动会进入 `main/master` release 流程时，Codex 需要自行判断是否更新 `app/build.gradle.kts` 中的 `baseAppVersionName`。仅要求本地提交时不要自动改版本号，除非用户明确要求发版或改版本。
+当用户要求推送到 GitHub（例如要求 `push`、`推 master`、`推到 origin/main`）且本轮改动会进入 `main/master` release 流程时，Codex 需要自行判断是否更新 `app/build.gradle.kts` 中的 `baseAppVersionName`。仅要求本地提交时不要自动改版本号，除非用户明确要求发版或改版本。`baseAppVersionName` 只决定 alpha 自动发版的 major.minor 前缀；beta/stable 是在 Actions 页面上对已有 release 做 promote，与该值无关。
 
-决策前必须查询线上已发布版本，不能只依赖本地 tag；优先使用 `gh release list --limit 20`，也可以用 `git ls-remote --tags origin 'refs/tags/v*'` 交叉确认。只参考稳定 release/tag（`v<major>.<minor>.<patch>`），忽略 nightly、pre-release 和非 semver tag。以线上最高稳定版本作为基准。
+决策前必须查询线上已发布版本，不能只依赖本地 tag；优先使用 `gh release list --limit 20`，也可以用 `git ls-remote --tags origin 'refs/tags/v*'` 交叉确认。只参考稳定 release/tag（`v<major>.<minor>.<patch>`），忽略非 semver tag。以线上最高稳定版本作为基准。
 
 版本递增规则：
 - **Patch 级**：bug fix、性能优化、日志/测试/文档、小型 UI 调整、兼容性内部改动，不修改 `baseAppVersionName` 的 major/minor；CI 会用下一次 `run_number` 生成新的 patch。
 - **Minor 级**：用户可见的新功能、主要工作流变化、新设置项、新外部接口或较明显的体验改进，将 `baseAppVersionName` 升到线上最高稳定版本的下一个 minor，并把 patch 写成 `0`（例如线上最高 `v0.1.426`，新功能设为 `"0.2.0"`）。
 - **Major 级**：不兼容的数据/配置/API 变化、需要用户手动迁移或可能破坏既有安装行为的改动，将 `baseAppVersionName` 升到下一个 major，并把 minor/patch 写成 `0.0`。
 
-如果线上最高稳定版本的 major/minor 已经高于本地 `baseAppVersionName`，即使只是 patch 级改动，也要先把本地 base 对齐到线上 major/minor，避免发布出较低版本线。不要手工创建 release tag；push 到 `main/master` 后由 CI 负责 tag 和 GitHub Release。提交或推送前，在最终回复里说明本次选择的版本级别和依据。
+如果线上最高稳定版本的 major/minor 已经高于本地 `baseAppVersionName`，即使只是 patch 级改动，也要先把本地 base 对齐到线上 major/minor，避免发布出较低版本线。不要手工创建 release tag；push 到 `main/master` 后由 CI 负责 tag 和 GitHub Release；beta/stable 用 Actions 的 workflow_dispatch（channel + promote_tag）promote。提交或推送前，在最终回复里说明本次选择的版本级别和依据。
 
 ## COMMANDS
 ```bash

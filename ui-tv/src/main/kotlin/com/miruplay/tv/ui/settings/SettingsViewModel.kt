@@ -64,6 +64,8 @@ import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.AppUpdateChannelStore
+import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
 import com.miruplay.tv.repository.LogUploadActionCoordinator
@@ -130,6 +132,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     private val logUploadRepository: LogUploadRepository,
     private val appUpdateRepository: AppUpdateRepository,
+    private val appUpdateChannelStore: AppUpdateChannelStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
@@ -424,8 +427,18 @@ class SettingsViewModel @Inject constructor(
     private val _logUploadStatusMessage = MutableStateFlow(settingsAndroidTvLogUploadStatusMessage())
     val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
 
-    private val _appUpdateState = MutableStateFlow(AppUpdateUiState())
+    private val _appUpdateState = MutableStateFlow(AppUpdateUiState(channel = appUpdateChannelStore.updateChannel))
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
+
+    private val _appUpdateChannel = MutableStateFlow(appUpdateChannelStore.updateChannel)
+    val appUpdateChannel: StateFlow<UpdateChannel> = _appUpdateChannel.asStateFlow()
+
+    // 其他表面（WebAPI/WebUI）改渠道时同步 UI
+    private val updateChannelChangeListener: java.io.Closeable =
+        appUpdateChannelStore.addChannelChangeListener { channel ->
+            _appUpdateChannel.value = channel
+            _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
+        }
 
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
     val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
@@ -1229,6 +1242,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAppUpdateChannel(channel: UpdateChannel) {
+        if (channel == _appUpdateChannel.value) return
+        appUpdateChannelStore.updateChannel = channel
+        _appUpdateChannel.value = channel
+        // UI 立即反映选择，不等检查结果
+        _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
+        checkAppUpdate()
+    }
+
     fun checkAppUpdate() {
         if (_appUpdateState.value.isBusy) return
         viewModelScope.launch {
@@ -1473,6 +1495,7 @@ class SettingsViewModel @Inject constructor(
             } else {
                 settingsAppUpdateLatestStatus(currentVersionName)
             },
+            channel = channel,
         )
     }
 
@@ -1497,6 +1520,7 @@ class SettingsViewModel @Inject constructor(
     override fun onCleared() {
         logUploadConfigObserverJob?.cancel()
         logUploadAutoScheduler.stop()
+        updateChannelChangeListener.close()
         super.onCleared()
     }
 }
@@ -1563,6 +1587,7 @@ data class AppUpdateUiState(
     val isBusy: Boolean = false,
     val progressPercent: Int? = null,
     val statusMessage: String = settingsAppUpdateIdleStatus(),
+    val channel: UpdateChannel = UpdateChannel.ALPHA,
 )
 
 data class BangumiSyncAllUiState(
