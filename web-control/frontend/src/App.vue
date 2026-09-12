@@ -33,68 +33,7 @@
           </div>
         </div>
 
-        <el-menu
-          class="nav-menu"
-          :default-active="activeView"
-          @select="activeView = $event"
-        >
-          <el-menu-item index="library">
-            <el-icon><Film /></el-icon>
-            <span>片库</span>
-          </el-menu-item>
-          <el-menu-item index="sources">
-            <el-icon><FolderOpened /></el-icon>
-            <span>媒体源</span>
-          </el-menu-item>
-          <el-menu-item index="automation">
-            <el-icon><Cloudy /></el-icon>
-            <span>自动化</span>
-          </el-menu-item>
-          <el-menu-item index="proxy">
-            <el-icon><Setting /></el-icon>
-            <span>代理配置</span>
-          </el-menu-item>
-          <el-menu-item index="metadata">
-            <el-icon><Key /></el-icon>
-            <span>元数据</span>
-          </el-menu-item>
-          <el-menu-item index="scan">
-            <el-icon><Refresh /></el-icon>
-            <span>扫描设置</span>
-          </el-menu-item>
-          <el-menu-item index="playback">
-            <el-icon><VideoPlay /></el-icon>
-            <span>播放设置</span>
-          </el-menu-item>
-          <el-menu-item index="audio-dsp">
-            <el-icon><Headset /></el-icon>
-            <span>音频 DSP</span>
-          </el-menu-item>
-          <el-menu-item index="translation">
-            <el-icon><ChatLineSquare /></el-icon>
-            <span>字幕翻译</span>
-          </el-menu-item>
-          <el-menu-item index="webui">
-            <el-icon><Monitor /></el-icon>
-            <span>WebUI 访问</span>
-          </el-menu-item>
-          <el-menu-item index="app-update">
-            <el-icon><Download /></el-icon>
-            <span>应用更新</span>
-          </el-menu-item>
-          <el-menu-item index="about">
-            <el-icon><InfoFilled /></el-icon>
-            <span>关于</span>
-          </el-menu-item>
-          <el-menu-item index="logs">
-            <el-icon><Upload /></el-icon>
-            <span>日志</span>
-          </el-menu-item>
-          <el-menu-item index="remote">
-            <el-icon><SwitchButton /></el-icon>
-            <span>遥控器</span>
-          </el-menu-item>
-        </el-menu>
+        <NavMenu :active-view="activeView" @select="onNavSelect" />
 
         <el-card class="access-card" shadow="never">
           <span>访问地址</span>
@@ -104,8 +43,19 @@
         </el-card>
       </aside>
 
+      <el-drawer
+        v-model="navOpen"
+        direction="ltr"
+        size="82%"
+        :append-to-body="true"
+        title="MiruPlay 导航"
+      >
+        <NavMenu :active-view="activeView" @select="onNavSelect" />
+      </el-drawer>
+
       <section class="main-pane">
         <header class="page-header">
+          <el-button class="nav-burger" :icon="Expand" circle aria-label="打开导航" @click="navOpen = true" />
           <div>
             <h1>{{ viewMeta.title }}</h1>
             <p>{{ viewMeta.subtitle }}</p>
@@ -1823,6 +1773,7 @@ import {
   DArrowRight,
   Download,
   Film,
+  Expand,
   FolderOpened,
   Headset,
   InfoFilled,
@@ -1839,8 +1790,10 @@ import {
   ChatLineSquare
 } from '@element-plus/icons-vue'
 import { api, formatTime, getTranslationSettings, getWebControlToken, originalTitleOf, setTranslationSettings, setWebControlToken, titleOf } from './api'
+import NavMenu from './components/NavMenu.vue'
 
 const activeView = ref('library')
+const navOpen = ref(false)
 const query = ref('')
 const accessReady = ref(false)
 const authRequired = ref(false)
@@ -2216,6 +2169,11 @@ const audioPreviewPoints = computed(() => {
   }).join(' ')
 })
 
+function onNavSelect(view) {
+  activeView.value = view
+  navOpen.value = false
+}
+
 const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
@@ -2224,6 +2182,7 @@ const viewMeta = computed(() => ({
   metadata: ['元数据', '配置 Bangumi/TMDB Token，让收藏和观看进度同步不必在电视上输入。'],
   scan: ['扫描设置', '自动扫描、入库归并、海报墙排列与应用内容模式。'],
   playback: ['播放设置', '默认播放结束动作与色调映射后端。'],
+  'audio-dsp': ['音频 DSP', 'PEQ、扫频测量与麦克风校准。'],
   webui: ['WebUI 访问', '启用 WebUI、轮换访问令牌、查看访问地址。'],
   'app-update': ['应用更新', '检查、下载并安装 MiruPlay 最新版本。'],
   about: ['关于', '查看应用版本、包名与设备信息。'],

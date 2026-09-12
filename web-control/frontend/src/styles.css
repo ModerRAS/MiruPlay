@@ -88,6 +88,10 @@ body {
   background: var(--bg);
 }
 
+.nav-burger {
+  display: none;
+}
+
 .side-nav {
   position: sticky;
   top: 0;
@@ -894,35 +898,26 @@ body {
 }
 
 @media (max-width: 920px) {
-  .app-shell {
-    display: block;
+  .nav-burger {
+    display: inline-flex;
   }
 
   .side-nav {
-    position: sticky;
-    z-index: 20;
-    height: auto;
-    padding: 0.65rem;
-    border-right: 0;
-    border-bottom: 1px solid var(--line);
-    grid-template-rows: auto;
-  }
-
-  .brand,
-  .access-card {
     display: none;
   }
 
-  .nav-menu {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.4rem;
+  .page-header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    align-items: center;
+    background: var(--bg);
+    padding: 0.6rem 0;
+    margin-bottom: 1rem;
   }
 
-  .nav-menu .el-menu-item {
-    justify-content: center;
-    margin: 0;
-    padding: 0 0.5rem;
+  .page-header h1 {
+    font-size: 1.5rem;
   }
 
   .main-pane {
@@ -930,10 +925,9 @@ body {
   }
 
   .source-form-panel {
-    scroll-margin-top: 18rem;
+    scroll-margin-top: 5rem;
   }
 
-  .page-header,
   .header-actions,
   .source-layout,
   .automation-layout,
