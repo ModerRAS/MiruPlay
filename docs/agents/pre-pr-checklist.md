@@ -47,6 +47,7 @@ A change that affects anything user-visible is **not done** until it has been op
 | `web-control` / WebUI | Drive the WebUI from a browser; hit the affected routes; parity toggle on TV side |
 | `scanner` / `media-source` | Add/test/scan a real source on the device; content appears |
 | DSP / measure / calibration | Run the flow from WebUI on-device; apply to live playback and observe the change |
+| Topping DAC (USB HID) | Plug the DAC into the HK1, grant USB permission, set volume at a safe level and observe the FRONT PANEL move; push a preset and confirm the display shows the bands |
 | CI / docs / JVM-desktop-only | Exempt — state explicitly |
 
 ## 3. Composition-level test (when the change wires things together)

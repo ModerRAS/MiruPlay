@@ -110,6 +110,7 @@ class WebControlService @Inject constructor(
     private val playbackController: PlaybackController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
     private val audioMeasureController: com.miruplay.tv.audiomeasure.AudioMeasureController,
+    private val toppingController: com.miruplay.tv.topping.ToppingController,
     private val playbackDebugOverrides: PlaybackDebugOverrides,
     private val navigator: WebControlNavigator,
     private val bangumiArchiveStore: BangumiArchiveStore,
@@ -888,6 +889,59 @@ class WebControlService @Inject constructor(
         } ?: RewEqParser.parse(request.text, request.presetId, request.presetName, request.target)
         AudioDspRewImportDto(result.preset, result.importedBandCount, result.warnings)
     }
+
+    override suspend fun getToppingStatus(): ToppingStatusDto = runOnIo { toppingController.status().toDto() }
+
+    override suspend fun setToppingVolume(request: ToppingVolumeRequest): ToppingStatusDto = runOnIo {
+        toppingController.setVolume(request.db, request.confirmed).toDto()
+    }
+
+    override suspend fun applyToppingPreset(request: ToppingPresetApplyRequest): ToppingPresetApplyDto = runOnIo {
+        val text = request.text.orEmpty()
+        val preset = when {
+            text.isNotBlank() -> {
+                require(text.length <= MAX_REW_IMPORT_CHARS) { "REW filter export is too large" }
+                RewEqParser.parse(text, presetId = "topping-import", presetName = "Topping import").preset
+            }
+            !request.presetId.isNullOrBlank() -> {
+                val config = playbackPreferencesRepository.getAudioDspConfig().normalized()
+                requireNotNull(config.presets.firstOrNull { it.id == request.presetId }) { "预设不存在：" + request.presetId }
+            }
+            else -> throw IllegalArgumentException("需要 text 或 presetId 之一")
+        }
+        val mapping = toppingController.applyPreset(preset)
+        ToppingPresetApplyDto(
+            status = toppingController.status().toDto(),
+            appliedBandCount = mapping.bands.count { it.on },
+            warnings = mapping.warnings,
+        )
+    }
+
+    override suspend fun flatTopping(): ToppingStatusDto = runOnIo { toppingController.flat().toDto() }
+
+    override suspend fun setToppingGain(request: ToppingGainRequest): ToppingStatusDto = runOnIo {
+        toppingController.setGain(request.on).toDto()
+    }
+
+    override suspend fun setToppingPower(request: ToppingPowerRequest): ToppingStatusDto = runOnIo {
+        toppingController.setPower(request.on).toDto()
+    }
+
+    override suspend fun setToppingPreamp(request: ToppingPreampRequest): ToppingStatusDto = runOnIo {
+        toppingController.setPreamp(request.db).toDto()
+    }
+
+    override suspend fun requestToppingUsbPermission(): ToppingStatusDto = runOnIo {
+        toppingController.requestUsbPermission()
+        toppingController.status().toDto()
+    }
+
+    private fun com.miruplay.tv.topping.ToppingController.Status.toDto(): ToppingStatusDto = ToppingStatusDto(
+        attached = attached, model = model, confirmed = confirmed, hidVolume = hidVolume,
+        usbPermission = usbPermission, reason = reason,
+        preampDb = preampDb, volumeDb = volumeDb, gainOn = gainOn,
+        bands = bands.map { ToppingBandDto(it.typeCode, it.freqHz, it.gainDb, it.q, it.on) },
+    )
 
     override suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto = runOnIo {
         val caps = audioMeasureController.probe()

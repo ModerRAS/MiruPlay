@@ -75,6 +75,12 @@ Suggested scope for the subagent:
 - Only affected modules/files
 - Only missing WebAPI/WebUI/app-surface follow-through
 
+## Known multi-surface features (reference)
+
+| Feature | TV settings | WebAPI | WebUI | Notes |
+|---|---|---|---|---|
+| Topping DAC 控制（toppingctl 协议） | ✅ AUDIO_DSP 区内 `ToppingDacControls` | ✅ `/api/topping/{status,volume,preset,flat,gain,power,preamp,usb-permission}` | ✅ 音频 DSP 视图 Topping DAC 卡片 | 音量仅 DX5 II（音量不在 HID 上的型号禁用输入）；> −10 dB 需确认；未 confirmed 型号拒写 |
+
 ## Fast File Pointers
 - TV settings UI: `ui-tv/src/main/kotlin/com/miruplay/tv/ui/settings/`
 - Shared settings state: `ui-tv/src/main/kotlin/com/miruplay/tv/ui/settings/SettingsViewModel.kt`

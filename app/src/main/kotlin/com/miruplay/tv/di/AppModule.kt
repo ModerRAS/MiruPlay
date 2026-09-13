@@ -50,6 +50,12 @@ object AppModule {
     fun provideAudioMeasureController(@ApplicationContext context: Context): AudioMeasureController {
         return AudioMeasureController(context)
     }
+
+    @Provides
+    @Singleton
+    fun provideToppingController(@ApplicationContext context: Context): com.miruplay.tv.topping.ToppingController {
+        return com.miruplay.tv.topping.ToppingController(com.miruplay.tv.topping.ToppingUsb(context))
+    }
 }
 
 internal fun miruPlayDatabaseMigrations(): Array<Migration> =

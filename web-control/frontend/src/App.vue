@@ -1449,6 +1449,70 @@
                 </div>
               </div>
             </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <span>Topping DAC（USB HID 直控）</span>
+                  <el-tag :type="topping.status?.attached ? 'success' : 'info'">
+                    {{ topping.status?.attached ? (topping.status.model || '已连接') : '未连接' }}
+                  </el-tag>
+                </div>
+              </template>
+              <el-alert
+                v-if="!topping.status?.attached"
+                type="info"
+                :closable="false"
+                show-icon
+                :title="topping.status?.reason || '未检测到已确认型号的 Topping DAC（支持 DX5 II；音量控制仅限 DX5 II）'"
+              />
+              <template v-else>
+                <el-alert
+                  v-if="!topping.status.usbPermission"
+                  type="warning"
+                  :closable="false"
+                  show-icon
+                  title="还没有 USB 权限，请先在电视端弹窗里允许访问，或点击下方按钮。"
+                />
+                <div class="form-actions" style="margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+                  <el-input v-model="topping.volumeDb" placeholder="音量 dB（-99..0）" style="width: 170px" :disabled="!topping.status.hidVolume" />
+                  <el-button type="primary" :loading="loading.toppingAction" :disabled="!topping.status.confirmed || !topping.status.hidVolume" @click="setToppingVolume">设置音量</el-button>
+                  <el-checkbox v-model="topping.confirmLoud">允许 &gt; -10 dB</el-checkbox>
+                  <el-input v-model="topping.preampDb" placeholder="Preamp dB（-40..+10）" style="width: 190px" />
+                  <el-button :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="setToppingPreamp">设置 Preamp</el-button>
+                </div>
+                <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+                  <el-input
+                    v-model="topping.presetText"
+                    type="textarea"
+                    :rows="3"
+                    placeholder="留空 = 推送当前应用的音频 DSP 预设；或粘贴 AutoEQ / REW ParametricEQ.txt（仅 PK/LS/HS，最多 10 段）"
+                    style="max-width: 640px"
+                  />
+                  <el-button type="primary" :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="pushToppingPreset">推送 PEQ 到 DAC</el-button>
+                </div>
+                <div class="form-actions" style="margin-top: 12px">
+                  <el-button :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="toppingAction('/api/topping/flat', {}, '已关闭全部频段')">关闭全部频段</el-button>
+                  <el-button :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="toppingAction('/api/topping/gain', { on: !topping.status.gainOn }, topping.status.gainOn ? '增益已关闭' : '增益已开启')">
+                    {{ topping.status.gainOn ? '关闭增益' : '开启增益' }}
+                  </el-button>
+                  <el-button :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="toppingAction('/api/topping/power', { on: true }, '设备已唤醒')">唤醒设备</el-button>
+                  <el-button :loading="loading.toppingAction" :disabled="!topping.status.confirmed" @click="toppingAction('/api/topping/power', { on: false }, '设备已休眠')">休眠设备</el-button>
+                  <el-button v-if="!topping.status.usbPermission" type="warning" :loading="loading.toppingAction" @click="toppingAction('/api/topping/usb-permission', {}, 'USB 权限已授予')">授予 USB 权限</el-button>
+                </div>
+                <div v-if="topping.status.bands?.some(b => b.on)" style="margin-top: 10px">
+                  <span class="chart-label">DAC 当前频段：</span>
+                  <el-tag v-for="(b, i) in topping.status.bands.filter(b => b.on)" :key="i" size="small" style="margin: 2px">
+                    {{ b.freqHz }} Hz / {{ b.gainDb > 0 ? '+' : '' }}{{ b.gainDb.toFixed(1) }} dB / Q {{ b.q.toFixed(2) }}
+                  </el-tag>
+                </div>
+                <div v-if="topping.status.volumeDb != null || topping.status.preampDb != null" style="margin-top: 6px">
+                  <span class="chart-label">最近写入：</span>
+                  <el-tag v-if="topping.status.volumeDb != null" size="small">音量 {{ topping.status.volumeDb }} dB</el-tag>
+                  <el-tag v-if="topping.status.preampDb != null" size="small" type="warning">Preamp {{ topping.status.preampDb }} dB</el-tag>
+                </div>
+              </template>
+            </el-card>
           </section>
 
           <section v-show="activeView === 'webui'" class="view-stack">
@@ -1881,6 +1945,8 @@ const playback = reactive({
   error: null
 })
 const loading = reactive({
+  topping: false,
+  toppingAction: false,
   library: false,
   sources: true,
   save: false,
@@ -2076,6 +2142,13 @@ const audioDspMeasure = reactive({
   stageText: '',
   stagePercent: 0,
   calibrationList: { items: [], activeId: null }
+})
+const topping = reactive({
+  status: null,
+  volumeDb: null,
+  preampDb: null,
+  confirmLoud: false,
+  presetText: ''
 })
 const webControlAccess = reactive({
   enabled: false,
@@ -3645,9 +3718,50 @@ async function loadAudioDsp() {
   try {
     applyAudioDsp(await api('/api/audio-dsp'))
     loadAudioDspMeasureCapabilities()
+    loadToppingStatus()
   } finally {
     loading.audioDsp = false
   }
+}
+
+async function loadToppingStatus() {
+  try {
+    topping.status = await api('/api/topping/status')
+  } catch {
+    topping.status = { attached: false, reason: '无法查询 Topping DAC 状态' }
+  }
+}
+
+async function toppingAction(path, body, successText) {
+  loading.toppingAction = true
+  try {
+    topping.status = await api(path, { method: 'POST', body: JSON.stringify(body || {}) })
+    if (successText) ElMessage.success(successText)
+  } catch (error) {
+    ElMessage.error(error.message || 'Topping DAC 操作失败')
+  } finally {
+    loading.toppingAction = false
+    loadToppingStatus()
+  }
+}
+
+function setToppingVolume() {
+  const db = Number(topping.volumeDb)
+  if (Number.isNaN(db)) return
+  toppingAction('/api/topping/volume', { db, confirmed: topping.confirmLoud }, `音量已设为 ${db} dB`)
+}
+
+function setToppingPreamp() {
+  const db = Number(topping.preampDb)
+  if (Number.isNaN(db)) return
+  toppingAction('/api/topping/preamp', { db }, `Preamp 已设为 ${db} dB`)
+}
+
+function pushToppingPreset() {
+  const payload = topping.presetText.trim()
+    ? { text: topping.presetText }
+    : { presetId: audioDsp.config.selectedPresetId }
+  toppingAction('/api/topping/preset', payload, 'PEQ 已推送到 Topping DAC')
 }
 
 async function saveAudioDsp() {

@@ -34,6 +34,7 @@ import io.mockk.MockKAnnotations
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
+import io.mockk.mockk
 import io.mockk.impl.annotations.MockK
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -195,6 +196,7 @@ class SettingsViewModelTokenTest {
             appContext = appContext,
             audioMeasureController = audioMeasureController,
             audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
+            toppingController = mockk(relaxed = true),
         )
 }
 

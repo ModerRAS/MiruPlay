@@ -271,6 +271,35 @@ open class NanoHttpWebControlServer(
             session.method == Method.GET && route == "/api/audio-dsp/measure/capabilities" -> {
                 jsonResponse(AudioDspMeasureCapabilitiesDto.serializer(), webControlService.getAudioDspMeasureCapabilities())
             }
+            session.method == Method.GET && route == "/api/topping/status" -> {
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.getToppingStatus())
+            }
+            session.method == Method.POST && route == "/api/topping/volume" -> {
+                val request = parseBody(session, ToppingVolumeRequest.serializer())
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.setToppingVolume(request))
+            }
+            session.method == Method.POST && route == "/api/topping/preset" -> {
+                val request = parseBody(session, ToppingPresetApplyRequest.serializer())
+                jsonResponse(ToppingPresetApplyDto.serializer(), webControlService.applyToppingPreset(request))
+            }
+            session.method == Method.POST && route == "/api/topping/flat" -> {
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.flatTopping())
+            }
+            session.method == Method.POST && route == "/api/topping/gain" -> {
+                val request = parseBody(session, ToppingGainRequest.serializer())
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.setToppingGain(request))
+            }
+            session.method == Method.POST && route == "/api/topping/power" -> {
+                val request = parseBody(session, ToppingPowerRequest.serializer())
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.setToppingPower(request))
+            }
+            session.method == Method.POST && route == "/api/topping/preamp" -> {
+                val request = parseBody(session, ToppingPreampRequest.serializer())
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.setToppingPreamp(request))
+            }
+            session.method == Method.POST && route == "/api/topping/usb-permission" -> {
+                jsonResponse(ToppingStatusDto.serializer(), webControlService.requestToppingUsbPermission())
+            }
             session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
                 jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.runAudioDspMeasure())
             }

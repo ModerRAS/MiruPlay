@@ -483,6 +483,56 @@ data class AudioDspMeasureApplyRequest(
 )
 
 @Serializable
+data class ToppingStatusDto(
+    val attached: Boolean = false,
+    val model: String? = null,
+    val confirmed: Boolean = false,
+    val hidVolume: Boolean = false,
+    val usbPermission: Boolean = false,
+    val reason: String? = null,
+    val preampDb: Double? = null,
+    val volumeDb: Double? = null,
+    val gainOn: Boolean? = null,
+    val bands: List<ToppingBandDto> = emptyList(),
+)
+
+@Serializable
+data class ToppingBandDto(
+    val typeCode: Int,
+    val freqHz: Int,
+    val gainDb: Double,
+    val q: Double,
+    val on: Boolean,
+)
+
+@Serializable
+data class ToppingVolumeRequest(val db: Double, val confirmed: Boolean = false)
+
+@Serializable
+data class ToppingPresetApplyRequest(
+    /** AutoEQ / REW ParametricEQ.txt text; parsed with the shared REW parser. */
+    val text: String? = null,
+    /** Or push an existing in-app preset id. */
+    val presetId: String? = null,
+)
+
+@Serializable
+data class ToppingPresetApplyDto(
+    val status: ToppingStatusDto = ToppingStatusDto(),
+    val appliedBandCount: Int = 0,
+    val warnings: List<String> = emptyList(),
+)
+
+@Serializable
+data class ToppingGainRequest(val on: Boolean)
+
+@Serializable
+data class ToppingPowerRequest(val on: Boolean)
+
+@Serializable
+data class ToppingPreampRequest(val db: Double)
+
+@Serializable
 data class WebControlAccessDto(
     val enabled: Boolean,
     val accessToken: String,
