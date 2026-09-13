@@ -29,6 +29,7 @@ android {
 }
 
 dependencies {
+    testImplementation(project(":topping-control"))
     api(project(":core:model"))
     api(project(":core:common"))
     implementation(project(":background-task"))
@@ -43,6 +44,7 @@ dependencies {
     implementation(project(":sync-engine"))
     implementation(project(":translation"))
     implementation(project(":audio-measure-android"))
+    implementation(project(":topping-control"))
     
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tv.foundation)

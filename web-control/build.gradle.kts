@@ -77,6 +77,7 @@ dependencies {
     api(project(":web-control-core"))
     implementation(project(":audio-dsp-core"))
     implementation(project(":audio-measure-android"))
+    implementation(project(":topping-control"))
     implementation(project(":background-task"))
     api(project(":core:model"))
     implementation(project(":core:common"))

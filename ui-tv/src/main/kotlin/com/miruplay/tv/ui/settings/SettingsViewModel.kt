@@ -142,6 +142,7 @@ class SettingsViewModel @Inject constructor(
     private val bangumiSyncEngine: BangumiSyncEngine,
     @ApplicationContext private val appContext: Context,
     private val audioMeasureController: AudioMeasureController,
+    private val toppingController: com.miruplay.tv.topping.ToppingController,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -233,8 +234,78 @@ class SettingsViewModel @Inject constructor(
     private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
     val audioMeasure: StateFlow<AudioMeasureUiState> = _audioMeasure.asStateFlow()
 
+    data class ToppingUiState(
+        val status: com.miruplay.tv.topping.ToppingController.Status? = null,
+        val busy: Boolean = false,
+        val message: String? = null,
+        val error: String? = null,
+    )
+
+    private val _topping = MutableStateFlow(ToppingUiState())
+    val topping: StateFlow<ToppingUiState> = _topping.asStateFlow()
+
     init {
         refreshAudioMeasureCalibration()
+        refreshTopping()
+    }
+
+    fun refreshTopping() {
+        viewModelScope.launch {
+            _topping.update { it.copy(status = toppingController.status()) }
+        }
+    }
+
+    private suspend fun toppingCommand(message: String, block: suspend () -> com.miruplay.tv.topping.ToppingController.Status) {
+        if (_topping.value.busy) return
+        _topping.update { it.copy(busy = true, error = null) }
+        try {
+            val status = block()
+            _topping.update { it.copy(busy = false, status = status, message = message) }
+        } catch (e: Exception) {
+            _topping.update {
+                it.copy(busy = false, error = e.message ?: "操作失败", status = toppingController.status())
+            }
+        }
+    }
+
+    fun setToppingVolume(db: Double, confirmed: Boolean = false) {
+        viewModelScope.launch {
+            toppingCommand("音量已设为 ${db} dB") { toppingController.setVolume(db, confirmed) }
+        }
+    }
+
+    fun pushToppingPreset(presetId: String) {
+        viewModelScope.launch {
+            toppingCommand("预设已推送到 Topping DAC") {
+                val config = runCatching { playbackPreferences.audioDspConfig.normalized() }
+                    .getOrDefault(AudioDspConfig.neutral())
+                val preset = config.presets.firstOrNull { it.id == presetId }
+                    ?: throw IllegalStateException("预设不存在：" + presetId)
+                toppingController.applyPreset(preset).let { toppingController.status() }
+            }
+        }
+    }
+
+    fun flatTopping() {
+        viewModelScope.launch { toppingCommand("已关闭全部 PEQ 频段") { toppingController.flat() } }
+    }
+
+    fun setToppingGain(on: Boolean) {
+        viewModelScope.launch { toppingCommand(if (on) "增益已开启" else "增益已关闭") { toppingController.setGain(on) } }
+    }
+
+    fun setToppingPower(on: Boolean) {
+        viewModelScope.launch { toppingCommand(if (on) "设备已唤醒" else "设备已休眠") { toppingController.setPower(on) } }
+    }
+
+    fun setToppingPreamp(db: Double) {
+        viewModelScope.launch { toppingCommand("Preamp 已设为 ${db} dB") { toppingController.setPreamp(db) } }
+    }
+
+    fun requestToppingUsbPermission() {
+        viewModelScope.launch {
+            toppingCommand("USB 权限已授予") { toppingController.requestUsbPermission(); toppingController.status() }
+        }
     }
 
     private fun refreshAudioMeasureCalibration() {

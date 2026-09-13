@@ -49,6 +49,13 @@ import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Speaker
+import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MusicNote
@@ -1479,6 +1486,7 @@ private fun SettingsContent(
             section = selectedSection,
             modifier = modifier
         ) {
+            ToppingDacControls()
             AudioDspPanel(
                 config = audioDspConfig,
                 onEnabledChange = onAudioDspEnabledChange,
@@ -3799,6 +3807,160 @@ private fun MusicSrcBypassTvControls(
         },
         color = if (mode == MusicSrcBypassMode.SOFTWARE) ProgressGreen else TextSecondary,
     )
+}
+
+@Composable
+private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
+    val topping by viewModel.topping.collectAsStateWithLifecycle()
+    val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
+    val status = topping.status
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Speaker,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(text = "Topping DAC 控制", style = TvTypography.subtitle, color = TextPrimary)
+        }
+        Spacer(Modifier.height(6.dp))
+        when {
+            status == null -> Text(
+                text = "正在检测 USB DAC…",
+                style = TvTypography.body,
+                color = TextSecondary,
+            )
+            !status.attached -> Text(
+                text = status.reason ?: "未检测到 Topping DAC",
+                style = TvTypography.body,
+                color = TextSecondary,
+            )
+            else -> Column {
+                Text(
+                    text = "已连接：" + status.model + if (!status.confirmed) "（寄存器映射未实机确认，拒绝写入）" else "",
+                    style = TvTypography.body,
+                    color = if (status.confirmed) TextPrimary else TextSecondary,
+                )
+                if (!status.usbPermission) {
+                    Spacer(Modifier.height(8.dp))
+                    ScanOptionChip(
+                        text = "授予 USB 权限",
+                        icon = Icons.Filled.Usb,
+                        selected = false,
+                        enabled = !topping.busy,
+                        onClick = { viewModel.requestToppingUsbPermission() },
+                        modifier = Modifier.width(190.dp),
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        val volumeInput = rememberSaveable { mutableStateOf("-30") }
+        var confirmLoud by rememberSaveable { mutableStateOf(false) }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            TvTextField(
+                value = volumeInput.value,
+                onValueChange = { volumeInput.value = it },
+                label = "音量 dB（-99..0）",
+                isPassword = false,
+                modifier = Modifier.width(200.dp),
+            )
+            ScanOptionChip(
+                text = "设置音量",
+                icon = Icons.Filled.VolumeUp,
+                selected = false,
+                enabled = !topping.busy && status?.confirmed == true && status.hidVolume,
+                onClick = {
+                    volumeInput.value.toDoubleOrNull()?.let { viewModel.setToppingVolume(it, confirmLoud) }
+                },
+                modifier = Modifier.width(150.dp),
+            )
+            ScanOptionChip(
+                text = "允许 > -10 dB",
+                icon = Icons.Filled.Warning,
+                selected = confirmLoud,
+                enabled = true,
+                onClick = { confirmLoud = !confirmLoud },
+                modifier = Modifier.width(170.dp),
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        val preampInput = rememberSaveable { mutableStateOf("") }
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            TvTextField(
+                value = preampInput.value,
+                onValueChange = { preampInput.value = it },
+                label = "Preamp dB（-40..+10）",
+                isPassword = false,
+                modifier = Modifier.width(200.dp),
+            )
+            ScanOptionChip(
+                text = "设置 Preamp",
+                icon = Icons.Filled.Tune,
+                selected = false,
+                enabled = !topping.busy && status?.confirmed == true,
+                onClick = {
+                    preampInput.value.toDoubleOrNull()?.let { viewModel.setToppingPreamp(it) }
+                },
+                modifier = Modifier.width(160.dp),
+            )
+        }
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "推送 PEQ 预设到 DAC 硬件（应用内预设 → 10 段硬件 PEQ，仅 PK/LS/HS）",
+            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            audioDspConfig.presets.forEach { preset ->
+                ScanOptionChip(
+                    text = "推送：" + preset.name,
+                    icon = Icons.Filled.Send,
+                    selected = false,
+                    enabled = !topping.busy && status?.confirmed == true,
+                    onClick = { viewModel.pushToppingPreset(preset.id) },
+                    modifier = Modifier.width(170.dp),
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = "关闭全部频段",
+                icon = Icons.Filled.Clear,
+                selected = false,
+                enabled = !topping.busy && status?.confirmed == true,
+                onClick = { viewModel.flatTopping() },
+                modifier = Modifier.width(160.dp),
+            )
+            ScanOptionChip(
+                text = if (status?.gainOn == true) "增益：开" else "增益：关",
+                icon = Icons.Filled.GraphicEq,
+                selected = false,
+                enabled = !topping.busy && status?.confirmed == true,
+                onClick = { viewModel.setToppingGain(status?.gainOn != true) },
+                modifier = Modifier.width(140.dp),
+            )
+            ScanOptionChip(
+                text = "设备休眠 / 唤醒",
+                icon = Icons.Filled.PowerSettingsNew,
+                selected = false,
+                enabled = !topping.busy && status?.confirmed == true,
+                onClick = { viewModel.setToppingPower(true) },
+                modifier = Modifier.width(180.dp),
+            )
+        }
+        val errorText = topping.error
+        val messageText = topping.message
+        if (errorText != null) {
+            StatusMessage(icon = Icons.Filled.Warning, text = errorText, color = AnimeRed)
+        } else if (messageText != null) {
+            StatusMessage(icon = Icons.Filled.CheckCircle, text = messageText, color = ProgressGreen)
+        }
+    }
 }
 
 @Composable

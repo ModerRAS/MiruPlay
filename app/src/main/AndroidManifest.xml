@@ -32,6 +32,10 @@
     <uses-feature
         android:name="android.software.leanback"
         android:required="false" />
+    <!-- Topping DAC USB HID 直控（topping-control 模块） -->
+    <uses-feature
+        android:name="android.hardware.usb.host"
+        android:required="false" />
 
     <application
         android:name=".MiruPlayApp"

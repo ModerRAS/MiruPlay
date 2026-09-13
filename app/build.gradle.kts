@@ -9,7 +9,7 @@ plugins {
 
 // 支持通过 -PVERSION_NAME / -PVERSION_CODE 显式传入版本信息。
 // 未显式传入 VERSION_NAME 时，默认把最后一段 patch 替换为 BUILD_NUMBER。
-val baseAppVersionName = "2.13.0"
+val baseAppVersionName = "2.14.0"
 
 fun String?.nonBlankOrNull(): String? =
     this?.trim()?.takeIf { it.isNotBlank() }
@@ -114,6 +114,7 @@ dependencies {
     implementation(project(":background-task"))
     implementation(project(":ui-tv"))
     implementation(project(":audio-measure-android"))
+    implementation(project(":topping-control"))
     implementation(project(":repository-api"))
     implementation(project(":media-source"))
     implementation(project(":data"))
