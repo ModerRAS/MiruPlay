@@ -66,6 +66,8 @@ object RoomMeasurer {
         gridHiHz: Double = 24_000.0,
         fitConfig: PeqFitConfig = PeqFitConfig(),
         ppmTolerance: Double = 1.0,
+        /** Search range passed to [DriftEstimator]; boundary hits fail closed. */
+        driftSearchRangePpm: Double = 15.0,
         /**
          * Tail-similarity quality gate. Disabled (0) by default: in the synthetic
          * reference scenario the deconvolution noise floor exceeds the room tail
@@ -95,8 +97,19 @@ object RoomMeasurer {
             return measureSharedClock(recordings, sweeps, fs, irLen, freqs, fitConfig, calibration)
         }
         // Per-sweep drift estimates (same physical drift must be seen by all).
-        val estimates = recordings.indices.map { i ->
-            DriftEstimator.estimate(recordings[i], sweeps[i].sweep, irLen)
+        // Independent per sweep: run them concurrently (2 threads ≈ 2× on the
+        // drift search, which dominates the analysis phase).
+        val driftPool = java.util.concurrent.Executors.newFixedThreadPool(minOf(recordings.size, 2))
+        val estimates = try {
+            recordings.indices
+                .map { i ->
+                    driftPool.submit(java.util.concurrent.Callable {
+                        DriftEstimator.estimate(recordings[i], sweeps[i].sweep, irLen, searchRangePpm = driftSearchRangePpm)
+                    })
+                }
+                .map { it.get() }
+        } finally {
+            driftPool.shutdown()
         }
         var spread = 0.0
         for (i in 1 until estimates.size) {
@@ -152,6 +165,12 @@ object RoomMeasurer {
                 invalidReason = "single sweep cannot verify clock drift; a dual sweep is required"
             !consistent ->
                 invalidReason = "clock-drift estimates disagree across sweeps (spread ${"%.2f".format(spread)} ppm > $ppmTolerance)"
+            kotlin.math.abs(meanPpm) >= driftSearchRangePpm - 0.1 ->
+                // Estimate pinned at the ±search boundary: the real drift is
+                // beyond the range and "compensation" would be wrong. Both
+                // sweeps hitting the same boundary looks "consistent" but is
+                // meaningless — fail closed instead of approving garbage.
+                invalidReason = "clock-drift estimate hit the ±${driftSearchRangePpm.toInt()} ppm search boundary; drift is too large to compensate"
             minTailSimilarity > 0.0 && tailSim < minTailSimilarity ->
                 invalidReason = "compensated room tails disagree (similarity ${"%.3f".format(tailSim)} < $minTailSimilarity)"
             drift.compensatedSharpness < minSharpness ->

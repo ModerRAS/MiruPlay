@@ -35,9 +35,16 @@ object DriftEstimator {
         coarseStepPpm: Double = 1.0,
         fineStepPpm: Double = 0.1,
     ): Estimate {
+        // The recording's spectrum is invariant across candidates: compute it
+        // once instead of once per candidate (one 512k-point FFT + ~8 MB alloc
+        // per candidate otherwise — the dominant analysis-phase cost).
+        val nFft = Fft.nextPow2(recorded.size + sweep.size)
+        val (yRe, yIm) = Fft.rfft(recorded, nFft)
+        val outLen = recorded.size - sweep.size + 1
+
         fun sharpnessAt(ppm: Double): Double {
             val sw = if (ppm == 0.0) sweep else MeasurementOps.applyDrift(sweep, ppm)
-            val ir = Deconvolver.deconvolve(recorded, sw)
+            val ir = Deconvolver.deconvolve(yRe, yIm, nFft, sw, outputLength = outLen)
             val n = minOf(irSampleCount, ir.size)
             return MeasurementOps.irSharpness(ir.copyOf(n))
         }
