@@ -11,11 +11,27 @@ package com.miruplay.tv.measure
  */
 object Deconvolver {
     fun deconvolve(recorded: DoubleArray, sweep: DoubleArray, regularization: Double = 1e-6): DoubleArray {
-        val nRef = sweep.size
-        val nFft = Fft.nextPow2(recorded.size + nRef)
+        val nFft = Fft.nextPow2(recorded.size + sweep.size)
+        val (yRe, yIm) = Fft.rfft(recorded, nFft)
+        return deconvolve(yRe, yIm, nFft, sweep, recorded.size - sweep.size + 1, regularization)
+    }
+
+    /**
+     * Cached-spectrum variant: [yRe]/[yIm] is rfft(recorded) at [nFft].
+     * Drift search re-deconvolves the SAME recording against many candidate
+     * references; caching the recording's spectrum saves one 512k-point FFT
+     * and ~8 MB of allocation per candidate (the dominant GC churn source).
+     */
+    fun deconvolve(
+        yRe: DoubleArray,
+        yIm: DoubleArray,
+        nFft: Int,
+        sweep: DoubleArray,
+        outputLength: Int,
+        regularization: Double = 1e-6,
+    ): DoubleArray {
         val m = nFft / 2 + 1
         val (xRe, xIm) = Fft.rfft(sweep, nFft)
-        val (yRe, yIm) = Fft.rfft(recorded, nFft)
 
         var maxX2 = 0.0
         for (i in 0 until m) {
@@ -34,6 +50,6 @@ object Deconvolver {
             hIm[i] = numIm / denom
         }
         val full = Fft.irfft(hRe, hIm, nFft)
-        return full.copyOf(minOf(recorded.size - nRef + 1, full.size))
+        return full.copyOf(minOf(outputLength, full.size))
     }
 }

@@ -32,13 +32,19 @@ class AudioMeasureController(private val context: Context) {
 
     companion object {
         const val SAMPLE_RATE_HZ = 48_000
-        private const val SWEEP_F1_HZ = 10.0
+        private const val SWEEP_F1_HZ = 20.0
         private const val SWEEP_F2_HZ = 20_000.0
+        /**
+         * Start at 20 Hz, not 10 Hz: 10–20 Hz is subsonic and only generates
+         * huge driver excursion (overload/distortion) that pollutes the sweep
+         * before anything audible. REW-level guidance: keep sweeps away from
+         * subsonic unless measuring a sub specifically.
+         */
         /** Dual sweep: different lengths ⇒ different drift-quantization lattices. */
         private val SWEEP_DURATIONS_S = listOf(4.0, 4.17)
         private const val ROOM_TAIL_S = 1.0
-        /** Play the sweep at −6 dBFS; the mic gain takes care of absolute level. */
-        private const val SWEEP_AMPLITUDE = 0.5
+        /** Play the sweep at −12 dBFS like REW: protects drivers and mic headroom. */
+        private const val SWEEP_AMPLITUDE = 0.25
         private const val IR_LENGTH_S = 1.0
     }
 
@@ -208,7 +214,7 @@ class AudioMeasureController(private val context: Context) {
             .setAudioAttributes(
                 android.media.AudioAttributes.Builder()
                     .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
                     .build(),
             )
             .setAudioFormat(
@@ -247,14 +253,20 @@ class AudioMeasureController(private val context: Context) {
             for (i in pcm.indices) {
                 pcm[i] = (sweep.sweep[i] * SWEEP_AMPLITUDE * Short.MAX_VALUE).roundToInt().toShort()
             }
-            track.play()
             // Stereo: duplicate the mono sweep on both channels.
             val stereo = ShortArray(pcm.size * 2)
             for (i in pcm.indices) {
                 stereo[2 * i] = pcm[i]
                 stereo[2 * i + 1] = pcm[i]
             }
-            var written = 0
+            // Prefill the track buffer BEFORE play(): play() on an empty buffer
+            // underruns immediately and produces a start-of-measurement pop.
+            val trackBufferShorts = maxOf(
+                AudioTrack.getMinBufferSize(fs, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT),
+                16_384,
+            ) * 2 / 2
+            var written = track.write(stereo, 0, minOf(trackBufferShorts, stereo.size))
+            track.play()
             while (written < stereo.size) {
                 written += track.write(stereo, written, stereo.size - written)
             }
@@ -277,6 +289,15 @@ class AudioMeasureController(private val context: Context) {
         val got = collected.get()
         if (got < expectedSamples * 9 / 10) {
             throw MeasureException("麦克风采集样本不足（$got / $expectedSamples），请检查输入路由")
+        }
+        val clipLimit = (0.995 * Short.MAX_VALUE).toInt()
+        var clipped = 0
+        for (i in 0 until got) {
+            val s = recording[i].toInt()
+            if (s >= clipLimit || s <= -clipLimit) clipped++
+        }
+        if (clipped * 1000 > got) {
+            throw MeasureException("麦克风输入过载（$clipped 个样本削波），请调低设备音量或麦克风增益后重试")
         }
         return DoubleArray(got) { recording[it] / 32768.0 }
     }

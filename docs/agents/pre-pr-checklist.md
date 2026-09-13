@@ -87,6 +87,10 @@ Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure 
 - ✦ DSP off ⇒ bit-transparent passthrough (hear no difference, no resample)
 - ✦ **DSP section relocation**: TV 设置「音频 DSP」分区与 WebUI「音频 DSP」视图独立于播放设置；两侧入口都能打开 DSP 开关/预设/测量/校准，播放设置不再包含 DSP
 - ✦ **RECORD_AUDIO runtime permission**: 首次扫频测量触发系统权限弹窗；授权后自动开始测量；拒绝后显示引导文案且不崩溃
+- ✦ **扫频测量预检**（WebUI）：进入「音频 DSP」后显示麦克风检测结果（检测到/不可用 + 原因）与 4 步操作清单；不可用时「在设备上测量」按钮置灰
+- ✦ **扫频全流程**：开始 → 播放双扫频（~10 s，无起播/结尾爆音）→ 分阶段进度文案 → 分析阶段提示 → 结果滚动可见；有效结果提示「应用为预设」，无效显示人话原因（时钟漂移边界/不一致/输入过载/IR 不锐利）
+- ✦ **漂移边界 fail-closed**：估计到达 ±15 ppm 搜索边界时测量无效（不再产出 0 滤波器的"有效"退化结果）
+- ✦ 交叉检查：测量用的 AudioTrack 独立于播放器 DSP 链；扫频前后正常播放、PEQ 预设应用不受影响
 
 ### 5.3 Music mode (`ui-tv` music screens, `data`, player-core)
 Re-verify when: music screens, music metadata, DSP chain, audio source handling.

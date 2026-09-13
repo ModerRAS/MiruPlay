@@ -1345,10 +1345,32 @@
                 show-icon
                 title="播放对数扫频并用麦克风采集房间响应，自动拟合只切不提的 PEQ。设备测量需要可用的麦克风输入；也可以导入在共享时钟环境（环回）录制的 WAV。"
               />
+              <el-alert
+                v-if="audioDspMeasure.caps && !audioDspMeasure.caps.available"
+                style="margin-top: 8px"
+                type="error"
+                :closable="false"
+                show-icon
+                title="设备测量不可用"
+                :description="`${audioDspMeasure.caps.reason || '未找到可用麦克风输入'}。可在电脑上播放扫频并用同一时钟输入录制后，用「导入 WAV」测量。`"
+              />
+              <div v-else-if="audioDspMeasure.caps" class="measure-checklist">
+                <div v-if="audioDspMeasure.caps.inputDeviceName" class="muted">检测到麦克风：{{ audioDspMeasure.caps.inputDeviceName }}</div>
+                <ol class="measure-steps">
+                  <li>麦克风放到听音位（正常听音高度，朝向电视）</li>
+                  <li>关窗、关风扇，测量全程保持安静（约 15–25 秒）</li>
+                  <li>把电视音量调到日常听音大小，测量期间不要调整</li>
+                  <li>开始后听到的扫频声是正常的，等结果出来再操作</li>
+                </ol>
+              </div>
               <div class="form-actions audio-dsp-actions" style="margin-top: 12px">
-                <el-button type="primary" :loading="audioDspMeasure.running" @click="runAudioDspMeasure">在设备上测量（约 15 秒）</el-button>
+                <el-button type="primary" :loading="audioDspMeasure.running" :disabled="audioDspMeasure.caps && !audioDspMeasure.caps.available" @click="runAudioDspMeasure">在设备上测量（约 15–25 秒）</el-button>
                 <el-button :loading="loading.audioDspMeasureWav" @click="audioDspMeasureFileInput?.click()">导入 WAV</el-button>
                 <input ref="audioDspMeasureFileInput" class="hidden-file-input" type="file" accept=".wav,audio/wav,audio/x-wav" @change="importAudioDspMeasureWav" />
+              </div>
+              <div v-if="audioDspMeasure.running" class="measure-stage">
+                <el-progress :percentage="audioDspMeasure.stagePercent" :stroke-width="6" :show-text="false" />
+                <span class="muted">{{ audioDspMeasure.stageText || '正在启动测量…' }}</span>
               </div>
               <div style="margin-top: 10px">
                 <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
@@ -1396,12 +1418,12 @@
               <div v-if="audioDspMeasure.error" style="margin: 8px 0">
                 <el-alert type="error" :title="audioDspMeasure.error" :closable="false" show-icon />
               </div>
-              <div v-if="audioDspMeasure.result" style="margin-top: 8px">
+              <div v-if="audioDspMeasure.result" ref="audioDspMeasureResultPanel" style="margin-top: 8px">
                 <el-alert
                   :type="audioDspMeasure.result.valid ? 'success' : 'error'"
                   :title="audioDspMeasure.result.valid
-                    ? `测量有效：估计漂移 ${audioDspMeasure.result.estimatedPpm?.toFixed?.(1) ?? '0.0'} ppm，${audioDspMeasure.result.bands?.length ?? 0} 个滤波器，匹配 ${audioDspMeasure.result.matchLoHz?.toFixed?.(0)}–${audioDspMeasure.result.matchHiHz?.toFixed?.(0)} Hz`
-                    : `测量无效：${audioDspMeasure.result.invalidReason || '未知原因'}（未应用任何 EQ）`"
+                    ? `测量有效：估计漂移 ${audioDspMeasure.result.estimatedPpm?.toFixed?.(1) ?? '0.0'} ppm，${audioDspMeasure.result.bands?.length ?? 0} 个滤波器，匹配 ${audioDspMeasure.result.matchLoHz?.toFixed?.(0)}–${audioDspMeasure.result.matchHiHz?.toFixed?.(0)} Hz。下一步：选择声道后点「应用为预设」。`
+                    : `测量无效，未应用任何 EQ：${measureInvalidHint(audioDspMeasure.result.invalidReason)}`"
                   :closable="false"
                   show-icon
                 />
@@ -2039,6 +2061,7 @@ const audioDspFileInput = ref(null)
 const audioDspRewFileInput = ref(null)
 const audioDspRewTarget = ref('ALL')
 const audioDspMeasureFileInput = ref(null)
+const audioDspMeasureResultPanel = ref(null)
 const audioDspCalibrationFileInput = ref(null)
 const audioDspMeasureTarget = ref('ALL')
 const audioDspMeasure = reactive({
@@ -2049,6 +2072,9 @@ const audioDspMeasure = reactive({
   calibrationWarning: '',
   serial: '',
   downloading: false,
+  caps: null,
+  stageText: '',
+  stagePercent: 0,
   calibrationList: { items: [], activeId: null }
 })
 const webControlAccess = reactive({
@@ -3642,6 +3668,7 @@ async function saveAudioDsp() {
 async function loadAudioDspMeasureCapabilities() {
   try {
     const caps = await api('/api/audio-dsp/measure/capabilities')
+    audioDspMeasure.caps = caps
     audioDspMeasure.calibrationName = caps.calibrationName || null
     audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
   } catch {
@@ -3749,18 +3776,64 @@ async function clearAudioDspMeasureCalibration() {
   }
 }
 
+// 扫频测量阶段提示：服务端是一次同步请求，无进度流，
+// 按已知的双扫频时间线（4.0s+1s 尾音 + 4.17s+1s 尾音 + 分析）在客户端同步显示阶段。
+const MEASURE_STAGES = [
+  { atS: 0, text: '播放扫频 1/2（4 秒，请保持安静）…', pct: 6 },
+  { atS: 4.0, text: '采集房间尾音…', pct: 26 },
+  { atS: 5.0, text: '播放扫频 2/2（4.2 秒）…', pct: 38 },
+  { atS: 9.2, text: '采集房间尾音…', pct: 68 },
+  { atS: 10.2, text: '分析房间响应：估计时钟漂移、拟合 PEQ（这步较慢，请等待）…', pct: 80 },
+]
+let measureStageTimer = null
+function startMeasureStages() {
+  stopMeasureStages()
+  const startedAt = Date.now()
+  const tick = () => {
+    const elapsedS = (Date.now() - startedAt) / 1000
+    let stage = MEASURE_STAGES[0]
+    for (const s of MEASURE_STAGES) if (elapsedS >= s.atS) stage = s
+    audioDspMeasure.stageText = stage.text
+    audioDspMeasure.stagePercent = Math.min(96, stage.pct + Math.max(0, elapsedS - 10.2))
+  }
+  tick()
+  measureStageTimer = window.setInterval(tick, 400)
+}
+function stopMeasureStages() {
+  if (measureStageTimer) {
+    window.clearInterval(measureStageTimer)
+    measureStageTimer = null
+  }
+  audioDspMeasure.stageText = ''
+  audioDspMeasure.stagePercent = 0
+}
+
+function measureInvalidHint(reason) {
+  if (!reason) return '未知原因'
+  if (reason.includes('single sweep')) return '单次扫频无法验证时钟漂移（内部错误，需要双扫频）'
+  if (reason.includes('clock-drift') && reason.includes('boundary')) return '输出与麦克风的时钟漂移超出可估计范围（±15 ppm）。内置麦克风通常无法达标，建议使用 USB 校准麦克风（如 UMIK-1），或改用共享时钟环境（环回）录制后「导入 WAV」'
+  if (reason.includes('clock-drift')) return 'USB 麦克风与电视输出时钟漂移过大或两次估计不一致。请重试 1–2 次；仍失败则改用共享时钟环境（环回）录制后「导入 WAV」'
+  if (reason.includes('tails')) return '两次测量的房间尾音不一致，结果不可信。请确认环境安静后重试'
+  if (reason.includes('sharpness')) return '脉冲响应不锐利：检查麦克风位置是否在听音位、环境噪声是否过大'
+  return reason
+}
+
 async function runAudioDspMeasure() {
   if (audioDspMeasure.running) return
   audioDspMeasure.running = true
   audioDspMeasure.error = ''
   audioDspMeasure.result = null
+  startMeasureStages()
   try {
     audioDspMeasure.result = await api('/api/audio-dsp/measure/run', { method: 'POST', body: '{}' })
     if (audioDspMeasure.result?.valid) ElMessage.success('扫频测量完成')
-    else ElMessage.warning(audioDspMeasure.result?.invalidReason || '测量被拒绝')
+    else ElMessage.warning('测量被拒绝，未应用任何 EQ')
+    await nextTick()
+    audioDspMeasureResultPanel?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   } catch (error) {
     audioDspMeasure.error = error.message || '扫频测量失败'
   } finally {
+    stopMeasureStages()
     audioDspMeasure.running = false
   }
 }
