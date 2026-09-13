@@ -19,4 +19,5 @@ dependencies {
     implementation(project(":repository-api"))
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
+    testImplementation(libs.mockk)
 }

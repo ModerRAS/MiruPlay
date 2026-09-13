@@ -44,7 +44,7 @@ object MeasuredPresetFactory {
         )
         return AudioDspPreset(
             id = id,
-            name = presetName ?: "扫频测量 ${formatTimestamp(timestampMs)}",
+            name = presetName ?: "房间校准 ${formatTimestamp(timestampMs)}",
             rules = listOf(rule),
         ).normalized()
     }
@@ -70,6 +70,9 @@ object MeasuredPresetFactory {
         return updated.normalized()
     }
 
+    /** Local wall-clock time, not UTC (Instant.toString() is UTC). */
     private fun formatTimestamp(timestampMs: Long): String =
-        java.time.Instant.ofEpochMilli(timestampMs).toString().replace('T', ' ').take(16)
+        java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm")
+            .withZone(java.time.ZoneId.systemDefault())
+            .format(java.time.Instant.ofEpochMilli(timestampMs))
 }

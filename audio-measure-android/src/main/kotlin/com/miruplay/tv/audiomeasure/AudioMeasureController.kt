@@ -12,6 +12,7 @@ import com.miruplay.tv.measure.LogSweep
 import com.miruplay.tv.measure.LogSweepGenerator
 import com.miruplay.tv.measure.MicCalibration
 import com.miruplay.tv.measure.RoomMeasurer
+import com.miruplay.tv.measure.MeasurementOps
 import com.miruplay.tv.measure.WavFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -45,6 +46,8 @@ class AudioMeasureController(private val context: Context) {
         private const val ROOM_TAIL_S = 1.0
         /** Play the sweep at −12 dBFS like REW: protects drivers and mic headroom. */
         private const val SWEEP_AMPLITUDE = 0.25
+        /** Pink noise at −20 dBFS: comfortable level for matching TV volume. */
+        private const val NOISE_AMPLITUDE = 0.1
         private const val IR_LENGTH_S = 1.0
     }
 
@@ -133,6 +136,98 @@ class AudioMeasureController(private val context: Context) {
         "id=${device.id} type=${device.type} ${device.productName}"
 
     /**
+     * Name of the output the sweep will play through (HDMI preferred, then
+     * built-in speaker, then the first sink). For the wizard's device-check
+     * step; playback itself always uses the default routing.
+     */
+    fun describeDefaultOutput(): String? {
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val sinks = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).filter { it.isSink }
+        val preferred = sinks.firstOrNull { it.type == AudioDeviceInfo.TYPE_HDMI }
+            ?: sinks.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
+            ?: sinks.firstOrNull()
+        return preferred?.let { describe(it) }
+    }
+
+    private val noiseRunning = AtomicBoolean(false)
+    @Volatile private var noiseTrack: AudioTrack? = null
+
+    /**
+     * Loop pink noise (Paul Kellet approximation) at −20 dBFS for the
+     * wizard's volume-matching step: user raises/lowers TV volume until the
+     * noise matches normal listening loudness. Returns true when playing.
+     */
+    fun startPinkNoise(): Boolean {
+        if (noiseRunning.getAndSet(true)) return true
+        val fs = SAMPLE_RATE_HZ
+        val minBuf = AudioTrack.getMinBufferSize(fs, AudioFormat.CHANNEL_OUT_STEREO, AudioFormat.ENCODING_PCM_16BIT)
+        if (minBuf <= 0) {
+            noiseRunning.set(false)
+            return false
+        }
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(
+                android.media.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build(),
+            )
+            .setAudioFormat(
+                AudioFormat.Builder()
+                    .setSampleRate(fs)
+                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                    .setChannelMask(AudioFormat.CHANNEL_OUT_STEREO)
+                    .build(),
+            )
+            .setTransferMode(AudioTrack.MODE_STREAM)
+            .setBufferSizeInBytes(maxOf(minBuf, 16_384) * 2)
+            .build()
+        if (track.state != AudioTrack.STATE_INITIALIZED) {
+            track.release()
+            noiseRunning.set(false)
+            return false
+        }
+        noiseTrack = track
+        kotlin.concurrent.thread(name = "pink-noise", isDaemon = true) {
+            try {
+                track.play()
+                val rnd = java.util.Random()
+                val chunk = ShortArray(4096)
+                var b0 = 0.0; var b1 = 0.0; var b2 = 0.0
+                var b3 = 0.0; var b4 = 0.0; var b5 = 0.0; var b6 = 0.0
+                while (noiseRunning.get()) {
+                    for (i in chunk.indices step 2) {
+                        val white = rnd.nextDouble() * 2.0 - 1.0
+                        b0 = 0.99886 * b0 + white * 0.0555179
+                        b1 = 0.99332 * b1 + white * 0.0750759
+                        b2 = 0.96900 * b2 + white * 0.1538520
+                        b3 = 0.86650 * b3 + white * 0.3104856
+                        b4 = 0.55000 * b4 + white * 0.5329522
+                        b5 = -0.7616 * b5 - white * 0.0168980
+                        val pink = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11
+                        b6 = white * 0.115926
+                        val v = (pink * NOISE_AMPLITUDE * Short.MAX_VALUE)
+                            .roundToInt().coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                        chunk[i] = v
+                        chunk[i + 1] = v
+                    }
+                    if (track.write(chunk, 0, chunk.size) <= 0) break
+                }
+            } finally {
+                runCatching { track.stop() }
+                track.release()
+                noiseTrack = null
+            }
+        }
+        return true
+    }
+
+    fun stopPinkNoise() {
+        noiseRunning.set(false)
+        noiseTrack?.let { runCatching { it.pause() } }
+    }
+
+    /**
      * Play the dual reference sweep through the default output while capturing
      * the room with the probed microphone, then run the fail-closed pipeline.
      */
@@ -140,6 +235,7 @@ class AudioMeasureController(private val context: Context) {
         calibrationText: String? = null,
         onProgress: (String) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
+        stopPinkNoise() // noise from the volume-check step must not pollute capture
         val capabilities = probe()
         if (!capabilities.available) throw MeasureException(capabilities.reason ?: "microphone unavailable")
         val calibration = calibrationText?.let { MicCalibration.parse(it).calibration }
@@ -163,7 +259,10 @@ class AudioMeasureController(private val context: Context) {
     }
 
     /**
-     * Analyze an imported WAV (16-bit PCM mono, our standard sweep). Only for
+     * Analyze an imported WAV (16-bit PCM mono). The recording is a standard
+     * sweep + room tail; the reference sweep length is unknown from the WAV
+     * alone, so probe our two standard durations and keep the one whose IR is
+     * sharpest (a wrong-length reference shatters the IR peak). Only for
      * captures over a shared clock (loopback); mic captures must use
      * [measureRoom] so the drift gate can run.
      */
@@ -174,17 +273,32 @@ class AudioMeasureController(private val context: Context) {
     ): MeasureOutcome = withContext(Dispatchers.IO) {
         onProgress("解析 WAV…")
         val (samples, fs) = WavFile.read16bitMono(wavBytes)
-        val durationS = samples.size / fs.toDouble()
-        val sweep = LogSweepGenerator.generate(SWEEP_F1_HZ, SWEEP_F2_HZ, durationS, fs)
+        val calibration = calibrationText?.let { MicCalibration.parse(it).calibration }
+        // 录音至少要容纳扫频 + 半秒 IR 余量，否则无法定参考长度。
+        val candidates = SWEEP_DURATIONS_S.filter { samples.size >= (it + 0.5) * fs }
+        if (candidates.isEmpty()) {
+            throw MeasureException("WAV 太短：需要 ≥ ${SWEEP_DURATIONS_S.first().toInt() + 1} 秒的标准扫频录音（含房间尾音）")
+        }
         onProgress("分析房间响应…")
-        val measurement = RoomMeasurer.measure(
-            recordings = listOf(samples),
-            sweeps = listOf(sweep),
-            fs = fs,
-            irLengthS = IR_LENGTH_S,
-            assumeSharedClock = true,
-            calibration = calibrationText?.let { MicCalibration.parse(it).calibration },
-        )
+        var best: RoomMeasurer.Measurement? = null
+        var bestSharpness = -1.0
+        for (durationS in candidates) {
+            val sweep = LogSweepGenerator.generate(SWEEP_F1_HZ, SWEEP_F2_HZ, durationS, fs)
+            val measurement = RoomMeasurer.measure(
+                recordings = listOf(samples),
+                sweeps = listOf(sweep),
+                fs = fs,
+                irLengthS = IR_LENGTH_S,
+                assumeSharedClock = true,
+                calibration = calibration,
+            )
+            val sharpness = MeasurementOps.irSharpness(measurement.ir)
+            if (sharpness > bestSharpness) {
+                bestSharpness = sharpness
+                best = measurement
+            }
+        }
+        val measurement = best ?: throw MeasureException("WAV 分析失败")
         MeasureOutcome(measurement, Capabilities(true, null, "shared-clock import"))
     }
 

@@ -8,8 +8,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -73,7 +73,9 @@ import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WifiTethering
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -90,6 +92,8 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
@@ -465,6 +469,7 @@ fun AddSourceScreen(
     var rssFilterRegex by remember { mutableStateOf("") }
     var rssEnabled by remember { mutableStateOf(true) }
     var pendingDeletedSourceId by remember { mutableStateOf<Long?>(null) }
+    var calibrationWizardOpen by rememberSaveable { mutableStateOf(false) }
 
     val menuFocusRequesters = remember {
         androidTvSettingsSectionOrder.associateWith { FocusRequester() }
@@ -594,6 +599,7 @@ fun AddSourceScreen(
         )
     }
 
+    Box(modifier = Modifier.fillMaxSize()) {
     OverscanContainer {
         Column(modifier = Modifier.fillMaxSize()) {
             SettingsHeader(onNavigateBack = onNavigateBack)
@@ -727,6 +733,7 @@ fun AddSourceScreen(
                     onApplyMeasuredResult = viewModel::applyMeasuredResult,
                     onClearAudioMeasureResult = viewModel::clearAudioMeasureResult,
                     onDownloadCalibration = viewModel::downloadCalibration,
+                    onOpenCalibrationWizard = { calibrationWizardOpen = true },
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
                     savedToken = savedToken,
@@ -958,6 +965,19 @@ fun AddSourceScreen(
                 )
             }
         }
+    }
+
+    if (calibrationWizardOpen) {
+        RoomCalibrationWizard(
+            audioMeasure = audioMeasure,
+            config = audioDspConfig,
+            onProbeAudioMeasure = viewModel::probeAudioMeasure,
+            onStartSweepMeasurement = viewModel::startSweepMeasurement,
+            onApplyMeasuredResult = viewModel::applyMeasuredResult,
+            onSetPinkNoise = viewModel::setPinkNoise,
+            onClose = { calibrationWizardOpen = false },
+        )
+    }
     }
 }
 
@@ -1209,6 +1229,7 @@ private fun SettingsContent(
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
+    onOpenCalibrationWizard: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
     savedToken: String,
@@ -1498,6 +1519,7 @@ private fun SettingsContent(
                 onApplyMeasuredResult = onApplyMeasuredResult,
                 onClearAudioMeasureResult = onClearAudioMeasureResult,
                 onDownloadCalibration = onDownloadCalibration,
+                onOpenCalibrationWizard = onOpenCalibrationWizard,
             )
         }
 
@@ -3492,6 +3514,7 @@ private fun AudioDspPanel(
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
+    onOpenCalibrationWizard: () -> Unit,
 ) {
     SettingsPanel {
         AudioDspTvControls(
@@ -3505,6 +3528,7 @@ private fun AudioDspPanel(
             onApplyMeasuredResult = onApplyMeasuredResult,
             onClearAudioMeasureResult = onClearAudioMeasureResult,
             onDownloadCalibration = onDownloadCalibration,
+            onOpenCalibrationWizard = onOpenCalibrationWizard,
         )
     }
 }
@@ -3521,6 +3545,7 @@ private fun AudioDspTvControls(
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onClearAudioMeasureResult: () -> Unit,
     onDownloadCalibration: (String, String) -> Unit,
+    onOpenCalibrationWizard: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
@@ -3614,6 +3639,14 @@ private fun AudioDspTvControls(
             enabled = !audioMeasure.measuring,
             onClick = startSweepWithPermission,
             modifier = Modifier.width(220.dp),
+        )
+        ScanOptionChip(
+            text = "房间校准向导",
+            icon = Icons.Filled.Settings,
+            selected = false,
+            enabled = true,
+            onClick = onOpenCalibrationWizard,
+            modifier = Modifier.width(190.dp),
         )
         val wavPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             uri?.let(onImportWavMeasurement)
@@ -4747,3 +4780,488 @@ private fun displayNameForLocation(location: String): String =
     } else {
         mediaSourceLocalPathDisplayName(location)
     }
+
+// ---------------------------------------------------------------------------
+// 房间校准向导（全屏，遥控器友好）：检查设备 → 粉红噪音对音量 → 对数扫频 →
+// 频响曲线 + 一键校准 → 保存为自动命名的校准预设。复用 SettingsViewModel 的
+// 测量流（startSweepMeasurement），大规模运算阶段用进行中界面告知等待。
+// ---------------------------------------------------------------------------
+
+private enum class CalibrationStep { DEVICE_CHECK, SWEEPING, RESULT, DONE }
+
+@Composable
+private fun RoomCalibrationWizard(
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    config: AudioDspConfig,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
+    onSetPinkNoise: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    var step by rememberSaveable {
+        // 已有测量结果（如刚在别处导入/测量过）时直接展示结果页。
+        mutableStateOf(
+            if (audioMeasure.result != null) CalibrationStep.RESULT.name else CalibrationStep.DEVICE_CHECK.name,
+        )
+    }
+    val currentStep = CalibrationStep.valueOf(step)
+
+    fun close() {
+        onSetPinkNoise(false)
+        onClose()
+    }
+
+    BackHandler { close() }
+    DisposableEffect(Unit) {
+        onDispose { onSetPinkNoise(false) }
+    }
+
+    // 设备检查页进来自动探测麦克风/输出
+    LaunchedEffect(currentStep) {
+        if (currentStep == CalibrationStep.DEVICE_CHECK) onProbeAudioMeasure()
+    }
+    // 测量结束自动进入结果页
+    LaunchedEffect(audioMeasure.measuring, audioMeasure.result) {
+        if (currentStep == CalibrationStep.SWEEPING &&
+            !audioMeasure.measuring &&
+            audioMeasure.result != null
+        ) {
+            step = CalibrationStep.RESULT.name
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFF0D1016)),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 56.dp, vertical = 40.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.GraphicEq,
+                    contentDescription = null,
+                    tint = AnimeRed,
+                    modifier = Modifier.size(30.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "房间校准向导",
+                    style = TvTypography.title,
+                    color = TextPrimary,
+                )
+            }
+            Spacer(Modifier.height(6.dp))
+            Text(
+                text = when (currentStep) {
+                    CalibrationStep.DEVICE_CHECK -> "第 1 步 · 检查设备并对音量"
+                    CalibrationStep.SWEEPING -> "第 2 步 · 对数扫频测量"
+                    CalibrationStep.RESULT -> "第 3 步 · 频响曲线与一键校准"
+                    CalibrationStep.DONE -> "完成"
+                },
+                style = TvTypography.subtitle,
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(26.dp))
+
+            when (currentStep) {
+                CalibrationStep.DEVICE_CHECK -> DeviceCheckStep(
+                    audioMeasure = audioMeasure,
+                    onProbeAudioMeasure = onProbeAudioMeasure,
+                    onStartSweep = { step = CalibrationStep.SWEEPING.name },
+                    onStartSweepMeasurement = onStartSweepMeasurement,
+                    onSetPinkNoise = onSetPinkNoise,
+                    onClose = { close() },
+                )
+
+                CalibrationStep.SWEEPING -> SweepingStep(
+                    audioMeasure = audioMeasure,
+                )
+
+                CalibrationStep.RESULT -> ResultStep(
+                    audioMeasure = audioMeasure,
+                    onApplyMeasuredResult = {
+                        onApplyMeasuredResult(AudioDspChannelTarget.ALL)
+                        step = CalibrationStep.DONE.name
+                    },
+                    onRestart = { step = CalibrationStep.DEVICE_CHECK.name },
+                    onClose = { close() },
+                )
+
+                CalibrationStep.DONE -> DoneStep(
+                    config = config,
+                    onClose = { close() },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceCheckStep(
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onProbeAudioMeasure: () -> Unit,
+    onStartSweep: () -> Unit,
+    onStartSweepMeasurement: () -> Unit,
+    onSetPinkNoise: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    val caps = audioMeasure.capabilities
+    val micAvailable = caps?.available == true
+    val context = LocalContext.current
+    val micPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            onProbeAudioMeasure()
+            onStartSweep()
+            onStartSweepMeasurement()
+        }
+        // 拒绝：probe 会报告缺少权限原因，用户可重试或改用 WebUI 导入 WAV
+    }
+    val startSweepWithPermission = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            onStartSweep()
+            onStartSweepMeasurement()
+        } else {
+            micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    StatusMessage(
+        icon = if (audioMeasure.outputDeviceName != null) Icons.Filled.CheckCircle else Icons.Filled.Info,
+        text = "输出设备：${audioMeasure.outputDeviceName ?: "未知（扫频将走系统默认输出）"}",
+        color = if (audioMeasure.outputDeviceName != null) ProgressGreen else TextSecondary,
+    )
+    StatusMessage(
+        icon = if (micAvailable) Icons.Filled.CheckCircle else Icons.Filled.Error,
+        text = when {
+            micAvailable -> "麦克风：${caps?.inputDeviceName}"
+            caps?.reason != null -> "麦克风不可用：${caps.reason}"
+            else -> "麦克风：未检测，按下方“重新检测”"
+        },
+        color = if (micAvailable) ProgressGreen else AccentBlue,
+    )
+    StatusMessage(
+        icon = Icons.Filled.Info,
+        text = if (audioMeasure.calibrationName != null) {
+            "麦克风校准：${audioMeasure.calibrationName}"
+        } else {
+            "麦克风校准：未设置（内置麦克风无校准数据，低频精度有限；建议用 WebUI 导入 UMIK 校准文件）"
+        },
+        color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
+    )
+
+    Spacer(Modifier.height(22.dp))
+    Text(
+        text = "音量对齐：播放粉红噪音，把电视音量调到日常听音大小后停止噪音。测量期间不要再动音量。",
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScanOptionChip(
+            text = if (audioMeasure.noisePlaying) "停止噪音" else "播放粉红噪音",
+            icon = if (audioMeasure.noisePlaying) Icons.Filled.Close else Icons.Filled.PlayArrow,
+            selected = audioMeasure.noisePlaying,
+            enabled = true,
+            onClick = { onSetPinkNoise(!audioMeasure.noisePlaying) },
+            modifier = Modifier.width(210.dp),
+        )
+        ScanOptionChip(
+            text = "重新检测",
+            icon = Icons.Filled.Refresh,
+            selected = false,
+            enabled = true,
+            onClick = onProbeAudioMeasure,
+            modifier = Modifier.width(150.dp),
+        )
+    }
+
+    Spacer(Modifier.height(28.dp))
+    Text(
+        text = "把麦克风放到听音位（正常听音高度，朝向电视），关窗关风扇，保持安静约 1–2 分钟。",
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(14.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScanOptionChip(
+            text = "开始扫频测量",
+            icon = Icons.Filled.GraphicEq,
+            selected = false,
+            enabled = micAvailable,
+            onClick = startSweepWithPermission,
+            modifier = Modifier.width(210.dp),
+        )
+        ScanOptionChip(
+            text = "取消",
+            icon = Icons.Filled.Close,
+            selected = false,
+            enabled = true,
+            onClick = onClose,
+            modifier = Modifier.width(130.dp),
+        )
+    }
+    if (!micAvailable && caps?.reason != null) {
+        Spacer(Modifier.height(10.dp))
+        StatusMessage(
+            icon = Icons.Filled.Error,
+            text = "请先解决麦克风问题（USB 麦克风未接/权限未授予），或使用 WebUI 的「导入 WAV」方式测量。",
+            color = AccentBlue,
+        )
+    }
+}
+
+@Composable
+private fun SweepingStep(audioMeasure: SettingsViewModel.AudioMeasureUiState) {
+    // 不用 indeterminate 进度条：每帧重绘在这台设备上会把主线程拉满。
+    // 1 Hz 驱动、与双扫频时间线同步的分段进度，也让“分析阶段”有真实的等待预期。
+    var elapsedS by rememberSaveable { mutableStateOf(0) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1_000)
+            elapsedS += 1
+        }
+    }
+    val e = elapsedS.toFloat()
+    val stage = when {
+        e < 4f -> "播放扫频 1/2（4 秒，请保持安静）…"
+        e < 5f -> "采集房间尾音…"
+        e < 9.2f -> "播放扫频 2/2（4.2 秒）…"
+        e < 10.2f -> "采集房间尾音…"
+        else -> "分析房间响应：估计时钟漂移、拟合 PEQ（这步较慢，请等待）…"
+    }
+    val pct = ((e / 12f * 80f).coerceIn(0f, 80f) + if (e > 10.2f) ((e - 10.2f)).coerceIn(0f, 12f) else 0f)
+        .coerceAtMost(92f).toInt()
+    val serverStage = audioMeasure.progress
+    Text(
+        text = "请保持安静，不要调整音量",
+        style = TvTypography.subtitle,
+        color = TextPrimary,
+    )
+    Spacer(Modifier.height(18.dp))
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(10.dp)
+            .background(DarkSurface, RoundedCornerShape(5.dp)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(pct / 100f)
+                .fillMaxHeight()
+                .background(AnimeRed, RoundedCornerShape(5.dp)),
+        )
+    }
+    Spacer(Modifier.height(18.dp))
+    Text(
+        text = if (e < 10.2f) stage else (serverStage ?: stage),
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(8.dp))
+    Text(
+        text = "分析房间响应为大规模运算，可能需要 1–2 分钟，请等待结果出现。",
+        style = TvTypography.caption,
+        color = TextSecondary,
+    )
+}
+
+@Composable
+private fun ResultStep(
+    audioMeasure: SettingsViewModel.AudioMeasureUiState,
+    onApplyMeasuredResult: () -> Unit,
+    onRestart: () -> Unit,
+    onClose: () -> Unit,
+) {
+    val result = audioMeasure.result
+    if (result == null) {
+        Text("没有测量结果。", style = TvTypography.body, color = TextSecondary)
+        return
+    }
+    if (result.valid) {
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "测量有效：漂移 ${"%.1f".format(result.estimatedPpm)} ppm，" +
+                "${result.bands.size} 个滤波器，匹配 ${"%.0f".format(result.matchLoHz)}–${"%.0f".format(result.matchHiHz)} Hz",
+            color = ProgressGreen,
+        )
+        Spacer(Modifier.height(16.dp))
+        if (result.freqs.isNotEmpty() && result.smoothedDb.size == result.freqs.size) {
+            ResponseCurveChart(
+                freqs = result.freqs,
+                smoothedDb = result.smoothedDb,
+                targetDb = result.targetDb,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp),
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "红线：当前房间频响（平滑后）· 灰线：校准目标曲线",
+                style = TvTypography.caption,
+                color = TextSecondary,
+            )
+        }
+        Spacer(Modifier.height(16.dp))
+        if (result.bands.isNotEmpty()) {
+            Text(
+                text = result.bands.joinToString("  ") {
+                    "${"%.0f".format(it.frequencyHz)}Hz ${if (it.gainDb >= 0) "+" else ""}${"%.1f".format(it.gainDb)}dB Q${"%.1f".format(it.q)}"
+                },
+                style = TvTypography.caption,
+                color = TextSecondary,
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+        Text(
+            text = "一键校准将自动削峰（只切不提），生成校准预设并启用。",
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = "一键校准（全部声道）",
+                icon = Icons.Filled.Save,
+                selected = false,
+                enabled = true,
+                onClick = onApplyMeasuredResult,
+                modifier = Modifier.width(260.dp),
+            )
+            ScanOptionChip(
+                text = "重新测量",
+                icon = Icons.Filled.Refresh,
+                selected = false,
+                enabled = true,
+                onClick = onRestart,
+                modifier = Modifier.width(160.dp),
+            )
+        }
+    } else {
+        StatusMessage(
+            icon = Icons.Filled.Error,
+            text = "测量无效：${measureInvalidReasonHint(result.invalidReason)}（未应用任何 EQ）",
+            color = AnimeRed,
+        )
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ScanOptionChip(
+                text = "重新测量",
+                icon = Icons.Filled.Refresh,
+                selected = false,
+                enabled = true,
+                onClick = onRestart,
+                modifier = Modifier.width(160.dp),
+            )
+            ScanOptionChip(
+                text = "关闭",
+                icon = Icons.Filled.Close,
+                selected = false,
+                enabled = true,
+                onClick = onClose,
+                modifier = Modifier.width(130.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun DoneStep(config: AudioDspConfig, onClose: () -> Unit) {
+    val presetName = config.presets.firstOrNull { it.id == config.selectedPresetId }?.name
+    StatusMessage(
+        icon = Icons.Filled.CheckCircle,
+        text = "校准已保存：${presetName ?: "房间校准"}（已启用）",
+        color = ProgressGreen,
+    )
+    Spacer(Modifier.height(12.dp))
+    Text(
+        text = "播放任意内容即可生效。可在 WebUI「音频 DSP」里查看/微调各频段，或导出 JSON 备份。",
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(20.dp))
+    ScanOptionChip(
+        text = "完成",
+        icon = Icons.Filled.CheckCircle,
+        selected = false,
+        enabled = true,
+        onClick = onClose,
+        modifier = Modifier.width(160.dp),
+    )
+}
+
+/** REW 风格对数频率轴频响曲线：平滑后响应 + 目标曲线。 */
+@Composable
+private fun ResponseCurveChart(
+    freqs: DoubleArray,
+    smoothedDb: DoubleArray,
+    targetDb: DoubleArray,
+    modifier: Modifier = Modifier,
+) {
+    val loF = 20.0
+    val hiF = 20_000.0
+    val loDb = -30.0
+    val hiDb = 30.0
+    val spanLog = kotlin.math.log10(hiF / loF).toFloat()
+    Canvas(modifier = modifier) {
+        fun xOf(f: Double): Float {
+            val t = kotlin.math.log10(f / loF).toFloat() / spanLog
+            return size.width * t.coerceIn(0f, 1f)
+        }
+
+        fun yOf(db: Double): Float {
+            val t = ((db - loDb) / (hiDb - loDb)).toFloat()
+            return size.height * (1f - t.coerceIn(0f, 1f))
+        }
+
+        // 0 dB 基线
+        drawLine(
+            color = Color.White.copy(alpha = 0.18f),
+            start = androidx.compose.ui.geometry.Offset(0f, yOf(0.0)),
+            end = androidx.compose.ui.geometry.Offset(size.width, yOf(0.0)),
+            strokeWidth = 2f,
+        )
+
+        fun polyline(values: DoubleArray, color: Color, strokeWidth: Float) {
+            val path = Path()
+            var started = false
+            freqs.forEachIndexed { i, f ->
+                if (f in loF..hiF) {
+                    val x = xOf(f)
+                    val y = yOf(values[i])
+                    if (started) path.lineTo(x, y) else {
+                        path.moveTo(x, y)
+                        started = true
+                    }
+                }
+            }
+            drawPath(path, color = color, style = Stroke(width = strokeWidth))
+        }
+
+        polyline(targetDb, Color.White.copy(alpha = 0.35f), 3f)
+        polyline(smoothedDb, AnimeRed, 5f)
+    }
+}
+/** 管线内部英文无效原因 → 人话提示（与 WebUI measureInvalidHint 保持一致语义）。 */
+private fun measureInvalidReasonHint(reason: String?): String {
+    if (reason.isNullOrBlank()) return "未知原因"
+    return when {
+        reason.contains("single sweep") -> "单次扫频无法验证时钟漂移（内部错误，需要双扫频）"
+        reason.contains("boundary") ->
+            "输出与麦克风的时钟漂移超出可估计范围（±15 ppm）。内置麦克风通常无法达标，建议使用 USB 校准麦克风（如 UMIK-1），或改用共享时钟环境（环回）录制后导入 WAV"
+        reason.contains("clock-drift") ->
+            "USB 麦克风与电视输出时钟漂移过大或两次估计不一致。请重试 1–2 次；仍失败则改用共享时钟环境（环回）录制后导入 WAV"
+        reason.contains("tails") -> "两次测量的房间尾音不一致，结果不可信。请确认环境安静后重试"
+        reason.contains("sharpness") -> "脉冲响应不锐利：检查麦克风位置是否在听音位、环境噪声是否过大"
+        else -> reason
+    }
+}
