@@ -898,6 +898,10 @@ body {
 }
 
 @media (max-width: 920px) {
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .nav-burger {
     display: inline-flex;
   }
