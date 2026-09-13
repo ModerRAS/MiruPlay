@@ -216,6 +216,10 @@ class SettingsViewModel @Inject constructor(
         val matchHiHz: Double,
         val peakAfterDb: Double,
         val nullResidualDb: Double,
+        /** Log-freq curve points for the wizard's response chart (same length). */
+        val freqs: DoubleArray = DoubleArray(0),
+        val smoothedDb: DoubleArray = DoubleArray(0),
+        val targetDb: DoubleArray = DoubleArray(0),
     )
 
     data class AudioMeasureUiState(
@@ -228,6 +232,8 @@ class SettingsViewModel @Inject constructor(
         val calibrationWarning: String? = null,
         val downloadingCalibration: Boolean = false,
         val calibrationCount: Int = 0,
+        val outputDeviceName: String? = null,
+        val noisePlaying: Boolean = false,
     )
 
     private val _audioMeasure = MutableStateFlow(AudioMeasureUiState())
@@ -289,7 +295,10 @@ class SettingsViewModel @Inject constructor(
 
     fun probeAudioMeasure() {
         viewModelScope.launch {
-            _audioMeasure.update { it.copy(capabilities = audioMeasureController.probe()) }
+            val output = runCatching { audioMeasureController.describeDefaultOutput() }.getOrNull()
+            _audioMeasure.update {
+                it.copy(capabilities = audioMeasureController.probe(), outputDeviceName = output)
+            }
         }
     }
 
@@ -302,6 +311,7 @@ class SettingsViewModel @Inject constructor(
 
     fun startSweepMeasurement() {
         if (_audioMeasure.value.measuring) return
+        setPinkNoise(false)
         viewModelScope.launch {
             _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
             try {
@@ -347,6 +357,16 @@ class SettingsViewModel @Inject constructor(
         _audioMeasure.update { it.copy(error = null) }
     }
 
+    fun setPinkNoise(on: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val playing = if (on) audioMeasureController.startPinkNoise() else {
+                audioMeasureController.stopPinkNoise()
+                false
+            }
+            _audioMeasure.update { it.copy(noisePlaying = playing) }
+        }
+    }
+
     fun clearAudioMeasureResult() {
         _audioMeasure.update { it.copy(result = null) }
     }
@@ -380,6 +400,9 @@ class SettingsViewModel @Inject constructor(
             matchHiHz = m.fit.matchHiHz,
             peakAfterDb = peakAfter,
             nullResidualDb = nullResidual,
+            freqs = m.freqs,
+            smoothedDb = m.smoothedDb,
+            targetDb = m.targetDb,
         )
     }
 

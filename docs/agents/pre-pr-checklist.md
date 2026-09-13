@@ -91,6 +91,9 @@ Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure 
 - ✦ **扫频全流程**：开始 → 播放双扫频（~10 s，无起播/结尾爆音）→ 分阶段进度文案 → 分析阶段提示 → 结果滚动可见；有效结果提示「应用为预设」，无效显示人话原因（时钟漂移边界/不一致/输入过载/IR 不锐利）
 - ✦ **漂移边界 fail-closed**：估计到达 ±15 ppm 搜索边界时测量无效（不再产出 0 滤波器的"有效"退化结果）
 - ✦ 交叉检查：测量用的 AudioTrack 独立于播放器 DSP 链；扫频前后正常播放、PEQ 预设应用不受影响
+- ✦ **TV 房间校准向导**（音频 DSP →「房间校准向导」）：全屏向导 ① 检查设备页显示输出设备/麦克风/校准状态 + 粉红噪音开/停（停止后无残留音）→ ② 开始扫频（含 RECORD_AUDIO 权限门）→ 分段进度（无逐帧动画，主线程不占满）→ ③ 结果页显示人话原因（漂移边界/不一致等）或频响曲线 + 滤波器列表 + 「一键校准（全部声道）」→ 完成页显示自动命名的校准预设（房间校准 MM-dd HH:mm）
+- ✦ 向导重开时若有上次测量结果直接落在结果页；Back 键关向导且噪音自动停止
+- ✦ 交叉检查：向导用的测量流与旧「播放扫频并测量」chip、WebAPI measure/run 同源（AudioMeasureController）；改动后两条路径都仍能跑完并正确报告无效原因
 
 ### 5.3 Music mode (`ui-tv` music screens, `data`, player-core)
 Re-verify when: music screens, music metadata, DSP chain, audio source handling.
