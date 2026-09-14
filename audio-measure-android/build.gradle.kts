@@ -17,6 +17,7 @@ android {
 dependencies {
     api(project(":audio-measure-core"))
     implementation(project(":repository-api"))
+    implementation(project(":core:common"))
     implementation(libs.kotlinx.coroutines.core)
     testImplementation(libs.junit)
     testImplementation(libs.mockk)

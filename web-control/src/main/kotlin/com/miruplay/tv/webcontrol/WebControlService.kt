@@ -960,6 +960,32 @@ class WebControlService @Inject constructor(
         )
     }
 
+    override suspend fun getAudioDspMeasureDebug(): AudioDspMeasureDebugDto = runOnIo {
+        val report = audioMeasureController.debugInfo(playbackPreferencesRepository.getAudioMeasureMicId())
+        AudioDspMeasureDebugDto(
+            usbDevices = report.usbDevices.map { d ->
+                buildString {
+                    append("vid=").append(d.vendorId)
+                    append(" pid=").append(d.productId)
+                    append(" name=").append(d.productName ?: "?")
+                    append(" mfr=").append(d.manufacturer ?: "?")
+                    append(" classes=").append(d.interfaceClasses.joinToString(","))
+                }
+            },
+            sndCards = report.sndCards,
+            sndCardsError = report.sndCardsError,
+            inputDevices = report.inputDevices.map {
+                AudioDspMeasureDebugDeviceDto(it.id, it.type, it.name, it.isSource)
+            },
+            outputDevices = report.outputDevices.map {
+                AudioDspMeasureDebugDeviceDto(it.id, it.type, it.name, it.isSource)
+            },
+            micPermissionGranted = report.micPermissionGranted,
+            probeAvailable = report.probeAvailable,
+            probeReason = report.probeReason,
+            selectedMicId = report.selectedMicId,
+        )
+    }
     override suspend fun runAudioDspMeasure(request: AudioDspMeasureRunRequest): AudioDspMeasureResultDto = runOnIo {
         val outcome = audioMeasureController.measureRoom(
             calibrationText = audioDspMeasureCalibration()?.data,

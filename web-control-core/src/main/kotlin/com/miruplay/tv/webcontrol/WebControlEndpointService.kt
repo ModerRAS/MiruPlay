@@ -90,6 +90,8 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("REW audio DSP import not supported")
     suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto =
         AudioDspMeasureCapabilitiesDto(available = false, reason = "measurement not supported by this host")
+    suspend fun getAudioDspMeasureDebug(): AudioDspMeasureDebugDto =
+        AudioDspMeasureDebugDto(sndCardsError = "measurement debug not supported by this host")
     suspend fun runAudioDspMeasure(request: AudioDspMeasureRunRequest): AudioDspMeasureResultDto =
         AudioDspMeasureResultDto(valid = false, invalidReason = "measurement not supported by this host")
     suspend fun getToppingStatus(): ToppingStatusDto =

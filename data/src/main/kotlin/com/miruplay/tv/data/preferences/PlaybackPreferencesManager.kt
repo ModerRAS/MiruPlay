@@ -157,6 +157,8 @@ class PlaybackPreferencesManager @Inject constructor(
             .apply()
     }
 
+    override suspend fun getAudioMeasureMicId(): Int? = audioMeasureMicId
+    override suspend fun setAudioMeasureMicId(id: Int?) { audioMeasureMicId = id }
     override suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = musicSrcBypassMode
 
     override suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) {

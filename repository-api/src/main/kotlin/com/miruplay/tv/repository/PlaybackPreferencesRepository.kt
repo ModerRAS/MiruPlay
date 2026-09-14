@@ -25,6 +25,9 @@ interface PlaybackPreferencesRepository {
     suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = MusicSrcBypassMode.SOFTWARE
     suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) = Unit
     /** All saved mic calibrations plus the id of the active one (null = none). */
+    /** User-picked sweep-measurement microphone (AudioDeviceInfo.id); null = default. */
+    suspend fun getAudioMeasureMicId(): Int? = null
+    suspend fun setAudioMeasureMicId(id: Int?) = Unit
     suspend fun getAudioMeasureCalibrations(): List<MicCalibrationSettings> = emptyList()
     suspend fun getAudioMeasureCalibrationActiveId(): String? = null
     suspend fun saveAudioMeasureCalibrations(calibrations: List<MicCalibrationSettings>, activeId: String?) = Unit

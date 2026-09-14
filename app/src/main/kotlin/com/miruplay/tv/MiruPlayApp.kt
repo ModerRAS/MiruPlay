@@ -6,6 +6,12 @@ import android.os.Bundle
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.logging.AppCrashDiagnostics
 import com.miruplay.tv.data.logging.EarlyStartupDiagnosticsRecorder
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
 import com.miruplay.tv.data.logging.LogUploadScheduler
 import com.miruplay.tv.repository.WebControlAccessManager
 import com.miruplay.tv.sync.archive.BangumiArchiveScheduler
@@ -69,6 +75,7 @@ class MiruPlayApp : Application() {
             crashDiagnostics.markStartupCheckpoint("app_on_create")
             earlyDiagnostics.checkpoint("application_on_create_complete")
             MiruLog.i("MiruPlayApp", "Application started", crashDiagnostics.sessionAttributes())
+            registerUsbAudioDeviceLogging()
         } catch (error: Throwable) {
             earlyDiagnostics.fatal(
                 checkpoint = "application_on_create_failed",
@@ -78,7 +85,38 @@ class MiruPlayApp : Application() {
         }
     }
 
+    /** USB 插拔日志：UMIK 等音频外设"没识别到"时，插拔瞬间的 VID/PID 是关键证据。 */
+    private var usbDeviceLogger: BroadcastReceiver? = null
+
+    private fun registerUsbAudioDeviceLogging() {
+        val filter = IntentFilter().apply {
+            addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+            addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+        }
+        usbDeviceLogger = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val device = intent.getParcelableExtra<UsbDevice>(UsbManager.EXTRA_DEVICE) ?: return
+                val action = if (intent.action == UsbManager.ACTION_USB_DEVICE_ATTACHED) "attached" else "detached"
+                val interfaces = (0 until device.interfaceCount).map { device.getInterface(it).interfaceClass }
+                MiruLog.i(
+                    "MiruPlayMeasure",
+                    "usb device $action",
+                    attributes = mapOf(
+                        "vid" to "0x%04x".format(device.vendorId),
+                        "pid" to "0x%04x".format(device.productId),
+                        "product" to (device.productName ?: "?"),
+                        "manufacturer" to (device.manufacturerName ?: "?"),
+                        "interfaceClasses" to interfaces.joinToString(","),
+                    ),
+                )
+            }
+        }
+        registerReceiver(usbDeviceLogger, filter)
+    }
+
     override fun onTerminate() {
+        usbDeviceLogger?.let { runCatching { unregisterReceiver(it) } }
+        usbDeviceLogger = null
         webControlPreferenceListener?.close()
         webControlPreferenceListener = null
         MiruLog.i("MiruPlayApp", "Application terminating", crashDiagnostics.sessionAttributes())
