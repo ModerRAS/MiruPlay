@@ -10,9 +10,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -30,6 +36,7 @@ fun TvTextField(
     isPassword: Boolean = false,
     requestInitialFocus: Boolean = false,
 ) {
+    val focusManager = LocalFocusManager.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(requestInitialFocus) {
@@ -61,7 +68,22 @@ fun TvTextField(
                     color = if (isFocused) FocusBorder else Color.White.copy(alpha = 0.3f),
                     shape = RoundedCornerShape(8.dp)
                 )
-                .padding(horizontal = 12.dp),
+                .padding(horizontal = 12.dp)
+                // 遥控器修复：聚焦后的 BasicTextField 会吞掉 DPAD 上下（caret 处理），
+                // 焦点永远出不去。在 preview 阶段拦截上下键强制走焦点搜索；
+                // 左右仍留给 caret 移动，OK 键仍交给输入法。
+                .onPreviewKeyEvent { e ->
+                    if (e.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                    when (e.nativeKeyEvent.keyCode) {
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN -> {
+                            focusManager.moveFocus(FocusDirection.Down); true
+                        }
+                        android.view.KeyEvent.KEYCODE_DPAD_UP -> {
+                            focusManager.moveFocus(FocusDirection.Up); true
+                        }
+                        else -> false
+                    }
+                },
             contentAlignment = Alignment.CenterStart
         ) {
             BasicTextField(

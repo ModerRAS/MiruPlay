@@ -93,6 +93,14 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_MUSIC_SRC_BYPASS_MODE, value.storageValue).apply()
         }
 
+    /** User-picked sweep-measurement microphone (AudioDeviceInfo.id), or null for the default. */
+    var audioMeasureMicId: Int?
+        get() = prefs.getInt(KEY_AUDIO_MEASURE_MIC_ID, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
+        set(value) {
+            if (value == null) prefs.edit().remove(KEY_AUDIO_MEASURE_MIC_ID).apply()
+            else prefs.edit().putInt(KEY_AUDIO_MEASURE_MIC_ID, value).apply()
+        }
+
     override suspend fun getEndAction(): PlaybackEndAction =
         endAction
 
@@ -165,6 +173,7 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_AUDIO_MEASURE_CALIBRATIONS = "audio_measure_calibrations"
         private const val KEY_AUDIO_MEASURE_CALIBRATION_ACTIVE = "audio_measure_calibration_active"
         private const val KEY_MUSIC_SRC_BYPASS_MODE = "music_src_bypass_mode"
+    private const val KEY_AUDIO_MEASURE_MIC_ID = "audio_measure_mic_id"
     }
 }
 

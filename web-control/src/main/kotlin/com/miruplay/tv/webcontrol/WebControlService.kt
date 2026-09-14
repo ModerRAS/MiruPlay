@@ -950,6 +950,7 @@ class WebControlService @Inject constructor(
             available = caps.available,
             reason = caps.reason,
             inputDeviceName = caps.inputDeviceName,
+            mics = caps.mics.map { AudioDspMeasureMicDto(it.id, it.name) },
             calibrationName = calibration?.name,
             calibrationWarning = calibration?.let {
                 runCatching {
@@ -959,8 +960,11 @@ class WebControlService @Inject constructor(
         )
     }
 
-    override suspend fun runAudioDspMeasure(): AudioDspMeasureResultDto = runOnIo {
-        val outcome = audioMeasureController.measureRoom(audioDspMeasureCalibration()?.data)
+    override suspend fun runAudioDspMeasure(request: AudioDspMeasureRunRequest): AudioDspMeasureResultDto = runOnIo {
+        val outcome = audioMeasureController.measureRoom(
+            calibrationText = audioDspMeasureCalibration()?.data,
+            preferredMicId = request.micId,
+        )
         outcome.toMeasureResultDto()
     }
 

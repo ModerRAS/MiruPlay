@@ -6,6 +6,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
+import android.util.Log
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import com.miruplay.tv.measure.LogSweep
@@ -31,6 +32,8 @@ import kotlin.math.roundToInt
  */
 class AudioMeasureController(private val context: Context) {
 
+    private val TAG = "MiruPlayMeasure"
+
     companion object {
         const val SAMPLE_RATE_HZ = 48_000
         private const val SWEEP_F1_HZ = 20.0
@@ -51,10 +54,14 @@ class AudioMeasureController(private val context: Context) {
         private const val IR_LENGTH_S = 1.0
     }
 
+    data class MicOption(val id: Int, val name: String)
+
     data class Capabilities(
         val available: Boolean,
         val reason: String?,
         val inputDeviceName: String?,
+        /** All source-capable input devices; the UI lets the user pick one. */
+        val mics: List<MicOption> = emptyList(),
     )
 
     data class MeasureOutcome(
@@ -124,16 +131,35 @@ class AudioMeasureController(private val context: Context) {
             android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
             val name = mics.firstOrNull()?.let { describe(it) }
-            return Capabilities(false, "缺少 RECORD_AUDIO 运行时权限", name)
+            return Capabilities(false, "缺少 RECORD_AUDIO 运行时权限", name, mics.map { it.toOption() })
         }
         val preferred = mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_DEVICE }
             ?: mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
             ?: mics.first()
-        return Capabilities(true, null, describe(preferred))
+        return Capabilities(true, null, describe(preferred), mics.map { it.toOption() })
     }
 
-    private fun describe(device: AudioDeviceInfo): String =
-        "id=${device.id} type=${device.type} ${device.productName}"
+    private fun AudioDeviceInfo.toOption() = MicOption(id = id, name = describe(this))
+
+    /** Resolve a user-picked mic id to the live device, for [AudioRecord.setPreferredDevice]. */
+    private fun resolveMic(id: Int?): AudioDeviceInfo? {
+        if (id == null) return null
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id == id }
+    }
+
+    private fun describe(device: AudioDeviceInfo): String {
+        val kind = when (device.type) {
+            AudioDeviceInfo.TYPE_BUILTIN_MIC -> "机身麦克风"
+            AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_ACCESSORY,
+            -> "USB ${device.productName}".trim()
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "有线耳机麦"
+            AudioDeviceInfo.TYPE_HDMI -> "HDMI"
+            else -> "type=${device.type} ${device.productName}".trim()
+        }
+        return "$kind #${device.id}"
+    }
 
     /**
      * Name of the output the sweep will play through (HDMI preferred, then
@@ -233,6 +259,7 @@ class AudioMeasureController(private val context: Context) {
      */
     suspend fun measureRoom(
         calibrationText: String? = null,
+        preferredMicId: Int? = null,
         onProgress: (String) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
         stopPinkNoise() // noise from the volume-check step must not pollute capture
@@ -245,9 +272,12 @@ class AudioMeasureController(private val context: Context) {
         val recordings = mutableListOf<DoubleArray>()
         sweeps.forEachIndexed { index, sweep ->
             onProgress("播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…")
-            recordings += playAndCapture(sweep)
+            val tPlay = System.currentTimeMillis()
+            recordings += playAndCapture(sweep, preferredMicId)
+            Log.d(TAG, "sweep ${index + 1}/${sweeps.size} play+capture wall=${System.currentTimeMillis() - tPlay}ms (audio=${SWEEP_DURATIONS_S[index]}s)")
         }
         onProgress("分析房间响应…")
+        val tAnalysis = System.currentTimeMillis()
         val measurement = RoomMeasurer.measure(
             recordings = recordings,
             sweeps = sweeps,
@@ -255,6 +285,7 @@ class AudioMeasureController(private val context: Context) {
             irLengthS = IR_LENGTH_S,
             calibration = calibration,
         )
+        Log.d(TAG, "analysis wall=${System.currentTimeMillis() - tAnalysis}ms")
         MeasureOutcome(measurement, capabilities)
     }
 
@@ -304,7 +335,7 @@ class AudioMeasureController(private val context: Context) {
 
     /** Concurrent play + record for one sweep; returns the captured mono samples. */
     @SuppressLint("MissingPermission")
-    private fun playAndCapture(sweep: LogSweep): DoubleArray {
+    private fun playAndCapture(sweep: LogSweep, preferredMicId: Int? = null): DoubleArray {
         val fs = SAMPLE_RATE_HZ
         val tailSamples = (ROOM_TAIL_S * fs).toInt()
         val expectedSamples = sweep.sweep.size + tailSamples
@@ -322,6 +353,10 @@ class AudioMeasureController(private val context: Context) {
         if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
             audioRecord.release()
             throw MeasureException("AudioRecord 初始化失败（检查 RECORD_AUDIO 权限与 USB 麦克风路由）")
+        }
+        val mic = resolveMic(preferredMicId)
+        if (mic != null) {
+            audioRecord.setPreferredDevice(mic)
         }
 
         val track = AudioTrack.Builder()
@@ -380,11 +415,13 @@ class AudioMeasureController(private val context: Context) {
                 16_384,
             ) * 2 / 2
             var written = track.write(stereo, 0, minOf(trackBufferShorts, stereo.size))
+            val tPlay = System.nanoTime()
             track.play()
             while (written < stereo.size) {
                 written += track.write(stereo, written, stereo.size - written)
             }
             track.stop()
+            Log.d(TAG, "track play->drained wall=${(System.nanoTime() - tPlay) / 1_000_000}ms (audio=${sweep.sweep.size / fs}s)")
             // Room tail continues after the sweep; capture it.
             val deadline = System.nanoTime() + (ROOM_TAIL_S * 2).toLong() * 1_000_000_000L
             while (running.get() && collected.get() < expectedSamples && System.nanoTime() < deadline) {

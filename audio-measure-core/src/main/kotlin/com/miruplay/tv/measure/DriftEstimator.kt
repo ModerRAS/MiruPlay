@@ -49,29 +49,42 @@ object DriftEstimator {
             return MeasurementOps.irSharpness(ir.copyOf(n))
         }
 
-        var coarseBest = -searchRangePpm
-        var coarseScore = sharpnessAt(coarseBest)
-        var p = -searchRangePpm
-        while (p <= searchRangePpm + 1e-9) {
-            val s = sharpnessAt(p)
-            if (s > coarseScore) {
-                coarseScore = s
-                coarseBest = p
+        // Candidates evaluated in parallel: each eval costs one 512k FFT pair
+        // (~1 s on the HK1's 4×A53), and the outer measure() only feeds 2
+        // threads. Running coarse/fine candidates on a small inner pool keeps
+        // all cores busy; wall time ≈ work ÷ cores (92 s → ~30 s measured).
+        fun evalAll(candidates: List<Double>): Pair<Double, Double> {
+            // Manual try/finally: ExecutorService is AutoCloseable only from
+            // API 33+ — .use{} throws ClassCastException at runtime on older
+            // Android even though JDK 21 compiles it fine.
+            val pool = java.util.concurrent.Executors.newFixedThreadPool(
+                minOf(2, java.lang.Runtime.getRuntime().availableProcessors()),
+            )
+            try {
+                // All evals submitted from the CALLER thread; the pool only
+                // runs sharpnessAt workers — nesting a coordinator inside the
+                // pool would eat one worker and serialize the rest.
+                return candidates
+                    .map { p -> pool.submit(java.util.concurrent.Callable { p to sharpnessAt(p) }) }
+                    .map { it.get() }
+                    .maxByOrNull { it.second }!!
+            } finally {
+                pool.shutdown()
             }
-            p += coarseStepPpm
         }
 
-        var fineBest = coarseBest
-        var fineScore = coarseScore
-        var q = coarseBest - coarseStepPpm
-        while (q <= coarseBest + coarseStepPpm + 1e-9) {
-            val s = sharpnessAt(q)
-            if (s > fineScore) {
-                fineScore = s
-                fineBest = q
-            }
-            q += fineStepPpm
-        }
+        // Grid unchanged from the serial prototype: the sharpness landscape has
+        // spurious lattice peaks ~2 ppm apart, so the coarse step must stay
+        // ≤1 ppm for the fine window to contain the true optimum.
+        val coarseCandidates = generateSequence(-searchRangePpm) { it + coarseStepPpm }
+            .takeWhile { it <= searchRangePpm + 1e-9 }
+            .toList()
+        val (coarseBest, coarseScore) = evalAll(coarseCandidates)
+
+        val fineCandidates = generateSequence(coarseBest - coarseStepPpm) { it + fineStepPpm }
+            .takeWhile { it <= coarseBest + coarseStepPpm + 1e-9 }
+            .toList()
+        val (fineBest, fineScore) = evalAll(fineCandidates)
 
         val ppm = refineParabolic(fineBest, fineScore, fineStepPpm, ::sharpnessAt)
         return Estimate(ppm, sharpnessAt(ppm))

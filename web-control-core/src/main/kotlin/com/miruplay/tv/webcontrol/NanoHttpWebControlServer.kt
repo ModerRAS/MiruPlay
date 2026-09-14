@@ -301,7 +301,8 @@ open class NanoHttpWebControlServer(
                 jsonResponse(ToppingStatusDto.serializer(), webControlService.requestToppingUsbPermission())
             }
             session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
-                jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.runAudioDspMeasure())
+                val request = parseBody(session, AudioDspMeasureRunRequest.serializer())
+                jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.runAudioDspMeasure(request))
             }
             session.method == Method.POST && route == "/api/audio-dsp/measure/import-wav" -> {
                 val request = parseBody(session, AudioDspMeasureImportRequest.serializer())

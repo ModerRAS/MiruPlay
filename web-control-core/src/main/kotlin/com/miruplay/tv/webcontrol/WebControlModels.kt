@@ -413,12 +413,26 @@ data class AudioDspRewImportDto(
 )
 
 @Serializable
+data class AudioDspMeasureMicDto(
+    val id: Int,
+    val name: String,
+)
+
+@Serializable
 data class AudioDspMeasureCapabilitiesDto(
     val available: Boolean = false,
     val reason: String? = null,
     val inputDeviceName: String? = null,
+    /** All source-capable input devices; the user picks one (DAC mic-in vs UMIK etc.). */
+    val mics: List<AudioDspMeasureMicDto> = emptyList(),
     val calibrationName: String? = null,
     val calibrationWarning: String? = null,
+)
+
+@Serializable
+data class AudioDspMeasureRunRequest(
+    /** Input device id from capabilities.mics; null = controller default. */
+    val micId: Int? = null,
 )
 
 @Serializable
