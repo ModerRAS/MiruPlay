@@ -6,6 +6,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
+import android.util.Log
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import com.miruplay.tv.measure.LogSweep
@@ -30,6 +31,8 @@ import kotlin.math.roundToInt
  * and never touches the playback DSP path.
  */
 class AudioMeasureController(private val context: Context) {
+
+    private val TAG = "MiruPlayMeasure"
 
     companion object {
         const val SAMPLE_RATE_HZ = 48_000
@@ -269,9 +272,12 @@ class AudioMeasureController(private val context: Context) {
         val recordings = mutableListOf<DoubleArray>()
         sweeps.forEachIndexed { index, sweep ->
             onProgress("播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…")
+            val tPlay = System.currentTimeMillis()
             recordings += playAndCapture(sweep, preferredMicId)
+            Log.d(TAG, "sweep ${index + 1}/${sweeps.size} play+capture wall=${System.currentTimeMillis() - tPlay}ms (audio=${SWEEP_DURATIONS_S[index]}s)")
         }
         onProgress("分析房间响应…")
+        val tAnalysis = System.currentTimeMillis()
         val measurement = RoomMeasurer.measure(
             recordings = recordings,
             sweeps = sweeps,
@@ -279,6 +285,7 @@ class AudioMeasureController(private val context: Context) {
             irLengthS = IR_LENGTH_S,
             calibration = calibration,
         )
+        Log.d(TAG, "analysis wall=${System.currentTimeMillis() - tAnalysis}ms")
         MeasureOutcome(measurement, capabilities)
     }
 
@@ -408,11 +415,13 @@ class AudioMeasureController(private val context: Context) {
                 16_384,
             ) * 2 / 2
             var written = track.write(stereo, 0, minOf(trackBufferShorts, stereo.size))
+            val tPlay = System.nanoTime()
             track.play()
             while (written < stereo.size) {
                 written += track.write(stereo, written, stereo.size - written)
             }
             track.stop()
+            Log.d(TAG, "track play->drained wall=${(System.nanoTime() - tPlay) / 1_000_000}ms (audio=${sweep.sweep.size / fs}s)")
             // Room tail continues after the sweep; capture it.
             val deadline = System.nanoTime() + (ROOM_TAIL_S * 2).toLong() * 1_000_000_000L
             while (running.get() && collected.get() < expectedSamples && System.nanoTime() < deadline) {
