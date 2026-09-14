@@ -90,6 +90,8 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("REW audio DSP import not supported")
     suspend fun getAudioDspMeasureCapabilities(): AudioDspMeasureCapabilitiesDto =
         AudioDspMeasureCapabilitiesDto(available = false, reason = "measurement not supported by this host")
+    suspend fun runAudioDspMeasure(request: AudioDspMeasureRunRequest): AudioDspMeasureResultDto =
+        AudioDspMeasureResultDto(valid = false, invalidReason = "measurement not supported by this host")
     suspend fun getToppingStatus(): ToppingStatusDto =
         ToppingStatusDto(attached = false, reason = "Topping DAC control not supported by this host")
     suspend fun setToppingVolume(request: ToppingVolumeRequest): ToppingStatusDto =
@@ -106,8 +108,6 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("Topping DAC control not supported")
     suspend fun requestToppingUsbPermission(): ToppingStatusDto =
         throw UnsupportedOperationException("Topping DAC control not supported")
-    suspend fun runAudioDspMeasure(): AudioDspMeasureResultDto =
-        AudioDspMeasureResultDto(valid = false, invalidReason = "measurement not supported by this host")
     suspend fun importAudioDspMeasureWav(request: AudioDspMeasureImportRequest): AudioDspMeasureResultDto =
         AudioDspMeasureResultDto(valid = false, invalidReason = "measurement not supported by this host")
     suspend fun applyAudioDspMeasure(request: AudioDspMeasureApplyRequest): AudioDspDto =

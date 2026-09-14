@@ -225,6 +225,8 @@ class SettingsViewModel @Inject constructor(
 
     data class AudioMeasureUiState(
         val capabilities: AudioMeasureController.Capabilities? = null,
+        /** User-picked input device; persisted across restarts. null = controller default. */
+        val selectedMicId: Int? = null,
         val measuring: Boolean = false,
         val progress: String? = null,
         val error: String? = null,
@@ -373,6 +375,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    /** Persist the user's mic choice; re-probe so the UI reflects it immediately. */
+    fun selectAudioMeasureMic(micId: Int) {
+        playbackPreferences.audioMeasureMicId = micId
+        _audioMeasure.update { it.copy(selectedMicId = micId) }
+        probeAudioMeasure()
+    }
+
 
     private suspend fun activeCalibrationText(): String? {
         val all = runCatching { playbackPreferences.getAudioMeasureCalibrations() }.getOrDefault(emptyList())
@@ -386,7 +395,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
             try {
-                val outcome = audioMeasureController.measureRoom(activeCalibrationText()) { progress ->
+                val outcome = audioMeasureController.measureRoom(
+                    calibrationText = activeCalibrationText(),
+                    preferredMicId = _audioMeasure.value.selectedMicId,
+                ) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
                 }
                 _audioMeasure.update {

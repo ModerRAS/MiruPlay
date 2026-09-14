@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -89,6 +90,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
@@ -973,6 +975,7 @@ fun AddSourceScreen(
             config = audioDspConfig,
             onProbeAudioMeasure = viewModel::probeAudioMeasure,
             onStartSweepMeasurement = viewModel::startSweepMeasurement,
+            onSelectMic = viewModel::selectAudioMeasureMic,
             onApplyMeasuredResult = viewModel::applyMeasuredResult,
             onSetPinkNoise = viewModel::setPinkNoise,
             onClose = { calibrationWizardOpen = false },
@@ -4795,10 +4798,13 @@ private fun RoomCalibrationWizard(
     config: AudioDspConfig,
     onProbeAudioMeasure: () -> Unit,
     onStartSweepMeasurement: () -> Unit,
+    onSelectMic: (Int) -> Unit,
     onApplyMeasuredResult: (AudioDspChannelTarget) -> Unit,
     onSetPinkNoise: (Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
+    // 遥控器焦点修复：overlay 打开时把焦点抓进向导（否则 D-pad 仍操作被遮挡的旧界面）
+    val wizardFocusRequester = remember { FocusRequester() }
     var step by rememberSaveable {
         // 已有测量结果（如刚在别处导入/测量过）时直接展示结果页。
         mutableStateOf(
@@ -4821,6 +4827,9 @@ private fun RoomCalibrationWizard(
     LaunchedEffect(currentStep) {
         if (currentStep == CalibrationStep.DEVICE_CHECK) onProbeAudioMeasure()
     }
+    LaunchedEffect(Unit) {
+        kotlin.runCatching { wizardFocusRequester.requestFocus() }
+    }
     // 测量结束自动进入结果页
     LaunchedEffect(audioMeasure.measuring, audioMeasure.result) {
         if (currentStep == CalibrationStep.SWEEPING &&
@@ -4834,7 +4843,9 @@ private fun RoomCalibrationWizard(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0D1016)),
+            .background(Color(0xFF0D1016))
+            .focusRequester(wizardFocusRequester)
+            .focusable(),
     ) {
         Column(
             modifier = Modifier
@@ -4875,6 +4886,7 @@ private fun RoomCalibrationWizard(
                     onProbeAudioMeasure = onProbeAudioMeasure,
                     onStartSweep = { step = CalibrationStep.SWEEPING.name },
                     onStartSweepMeasurement = onStartSweepMeasurement,
+                    onSelectMic = onSelectMic,
                     onSetPinkNoise = onSetPinkNoise,
                     onClose = { close() },
                 )
@@ -4908,11 +4920,16 @@ private fun DeviceCheckStep(
     onProbeAudioMeasure: () -> Unit,
     onStartSweep: () -> Unit,
     onStartSweepMeasurement: () -> Unit,
+    onSelectMic: (Int) -> Unit,
     onSetPinkNoise: (Boolean) -> Unit,
     onClose: () -> Unit,
 ) {
     val caps = audioMeasure.capabilities
     val micAvailable = caps?.available == true
+    // 状态行优先显示用户手选的麦克风（caps.inputDeviceName 只是控制器默认）
+    val shownMicName = audioMeasure.selectedMicId
+        ?.let { sel -> caps?.mics?.firstOrNull { it.id == sel }?.name }
+        ?: caps?.inputDeviceName
     val context = LocalContext.current
     val micPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -4943,12 +4960,38 @@ private fun DeviceCheckStep(
     StatusMessage(
         icon = if (micAvailable) Icons.Filled.CheckCircle else Icons.Filled.Error,
         text = when {
-            micAvailable -> "麦克风：${caps?.inputDeviceName}"
+            micAvailable -> "麦克风：$shownMicName（可在下方更换）"
             caps?.reason != null -> "麦克风不可用：${caps.reason}"
             else -> "麦克风：未检测，按下方“重新检测”"
         },
         color = if (micAvailable) ProgressGreen else AccentBlue,
     )
+    // 麦克风选择：DAC 自带 mic-in 与 UMIK 等同时在线时，默认枚举顺序可能选错，让用户直接改
+    if (caps?.mics?.isNotEmpty() == true && micAvailable) {
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "测量麦克风（点选切换，选择会记住）",
+            style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
+            color = TextSecondary,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+        ) {
+            caps.mics.forEach { mic ->
+                val isChosen = audioMeasure.selectedMicId == mic.id
+                ScanOptionChip(
+                    text = (if (isChosen) "✓ " else "") + mic.name,
+                    icon = Icons.Filled.Audiotrack,
+                    selected = isChosen,
+                    enabled = true,
+                    onClick = { onSelectMic(mic.id) },
+                    modifier = Modifier.width(210.dp),
+                )
+            }
+        }
+    }
     StatusMessage(
         icon = Icons.Filled.Info,
         text = if (audioMeasure.calibrationName != null) {

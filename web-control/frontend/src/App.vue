@@ -1363,6 +1363,13 @@
                   <li>开始后听到的扫频声是正常的，等结果出来再操作</li>
                 </ol>
               </div>
+              <div v-if="audioDspMeasure.mics.length > 1" style="margin-top: 10px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap">
+                <span class="chart-label">测量麦克风：</span>
+                <el-select v-model="audioDspMeasure.micId" style="width: 300px" placeholder="默认（枚举顺序第一个）" clearable @change="onMicSelected">
+                  <el-option v-for="mic in audioDspMeasure.mics" :key="mic.id" :label="mic.name" :value="mic.id" />
+                </el-select>
+                <span class="muted" style="font-size: 12px">DAC 自带 mic-in 与 UMIK 同接时注意选对（选择会记住）</span>
+              </div>
               <div class="form-actions audio-dsp-actions" style="margin-top: 12px">
                 <el-button type="primary" :loading="audioDspMeasure.running" :disabled="audioDspMeasure.caps && !audioDspMeasure.caps.available" @click="runAudioDspMeasure">在设备上测量（约 15–25 秒）</el-button>
                 <el-button :loading="loading.audioDspMeasureWav" @click="audioDspMeasureFileInput?.click()">导入 WAV</el-button>
@@ -2139,6 +2146,8 @@ const audioDspMeasure = reactive({
   serial: '',
   downloading: false,
   caps: null,
+  mics: [],
+  micId: null,
   stageText: '',
   stagePercent: 0,
   calibrationList: { items: [], activeId: null }
@@ -3783,11 +3792,24 @@ async function loadAudioDspMeasureCapabilities() {
   try {
     const caps = await api('/api/audio-dsp/measure/capabilities')
     audioDspMeasure.caps = caps
+    audioDspMeasure.mics = caps.mics || []
+    if (audioDspMeasure.micId == null) {
+      const saved = Number(localStorage.getItem('miruplay_measure_mic_id'))
+      audioDspMeasure.micId = Number.isFinite(saved) && audioDspMeasure.mics.some((m) => m.id === saved) ? saved : null
+    } else if (!audioDspMeasure.mics.some((m) => m.id === audioDspMeasure.micId)) {
+      audioDspMeasure.micId = null // 上次选的设备已不在
+    }
     audioDspMeasure.calibrationName = caps.calibrationName || null
     audioDspMeasure.calibrationWarning = caps.calibrationWarning || null
   } catch {
     // capabilities 不影响主流程
   }
+}
+
+function onMicSelected(id) {
+  audioDspMeasure.micId = id
+  if (id == null) localStorage.removeItem('miruplay_measure_mic_id')
+  else localStorage.setItem('miruplay_measure_mic_id', String(id))
 }
 
 async function downloadAudioDspCalibration() {
@@ -3939,7 +3961,7 @@ async function runAudioDspMeasure() {
   audioDspMeasure.result = null
   startMeasureStages()
   try {
-    audioDspMeasure.result = await api('/api/audio-dsp/measure/run', { method: 'POST', body: '{}' })
+    audioDspMeasure.result = await api('/api/audio-dsp/measure/run', { method: 'POST', body: JSON.stringify({ micId: audioDspMeasure.micId }) })
     if (audioDspMeasure.result?.valid) ElMessage.success('扫频测量完成')
     else ElMessage.warning('测量被拒绝，未应用任何 EQ')
     await nextTick()

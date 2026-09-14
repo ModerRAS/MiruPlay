@@ -51,10 +51,14 @@ class AudioMeasureController(private val context: Context) {
         private const val IR_LENGTH_S = 1.0
     }
 
+    data class MicOption(val id: Int, val name: String)
+
     data class Capabilities(
         val available: Boolean,
         val reason: String?,
         val inputDeviceName: String?,
+        /** All source-capable input devices; the UI lets the user pick one. */
+        val mics: List<MicOption> = emptyList(),
     )
 
     data class MeasureOutcome(
@@ -124,16 +128,35 @@ class AudioMeasureController(private val context: Context) {
             android.content.pm.PackageManager.PERMISSION_GRANTED
         ) {
             val name = mics.firstOrNull()?.let { describe(it) }
-            return Capabilities(false, "缺少 RECORD_AUDIO 运行时权限", name)
+            return Capabilities(false, "缺少 RECORD_AUDIO 运行时权限", name, mics.map { it.toOption() })
         }
         val preferred = mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_DEVICE }
             ?: mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
             ?: mics.first()
-        return Capabilities(true, null, describe(preferred))
+        return Capabilities(true, null, describe(preferred), mics.map { it.toOption() })
     }
 
-    private fun describe(device: AudioDeviceInfo): String =
-        "id=${device.id} type=${device.type} ${device.productName}"
+    private fun AudioDeviceInfo.toOption() = MicOption(id = id, name = describe(this))
+
+    /** Resolve a user-picked mic id to the live device, for [AudioRecord.setPreferredDevice]. */
+    private fun resolveMic(id: Int?): AudioDeviceInfo? {
+        if (id == null) return null
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        return audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).firstOrNull { it.id == id }
+    }
+
+    private fun describe(device: AudioDeviceInfo): String {
+        val kind = when (device.type) {
+            AudioDeviceInfo.TYPE_BUILTIN_MIC -> "机身麦克风"
+            AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET,
+            AudioDeviceInfo.TYPE_USB_ACCESSORY,
+            -> "USB ${device.productName}".trim()
+            AudioDeviceInfo.TYPE_WIRED_HEADSET -> "有线耳机麦"
+            AudioDeviceInfo.TYPE_HDMI -> "HDMI"
+            else -> "type=${device.type} ${device.productName}".trim()
+        }
+        return "$kind #${device.id}"
+    }
 
     /**
      * Name of the output the sweep will play through (HDMI preferred, then
@@ -233,6 +256,7 @@ class AudioMeasureController(private val context: Context) {
      */
     suspend fun measureRoom(
         calibrationText: String? = null,
+        preferredMicId: Int? = null,
         onProgress: (String) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
         stopPinkNoise() // noise from the volume-check step must not pollute capture
@@ -245,7 +269,7 @@ class AudioMeasureController(private val context: Context) {
         val recordings = mutableListOf<DoubleArray>()
         sweeps.forEachIndexed { index, sweep ->
             onProgress("播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…")
-            recordings += playAndCapture(sweep)
+            recordings += playAndCapture(sweep, preferredMicId)
         }
         onProgress("分析房间响应…")
         val measurement = RoomMeasurer.measure(
@@ -304,7 +328,7 @@ class AudioMeasureController(private val context: Context) {
 
     /** Concurrent play + record for one sweep; returns the captured mono samples. */
     @SuppressLint("MissingPermission")
-    private fun playAndCapture(sweep: LogSweep): DoubleArray {
+    private fun playAndCapture(sweep: LogSweep, preferredMicId: Int? = null): DoubleArray {
         val fs = SAMPLE_RATE_HZ
         val tailSamples = (ROOM_TAIL_S * fs).toInt()
         val expectedSamples = sweep.sweep.size + tailSamples
@@ -322,6 +346,10 @@ class AudioMeasureController(private val context: Context) {
         if (audioRecord.state != AudioRecord.STATE_INITIALIZED) {
             audioRecord.release()
             throw MeasureException("AudioRecord 初始化失败（检查 RECORD_AUDIO 权限与 USB 麦克风路由）")
+        }
+        val mic = resolveMic(preferredMicId)
+        if (mic != null) {
+            audioRecord.setPreferredDevice(mic)
         }
 
         val track = AudioTrack.Builder()
