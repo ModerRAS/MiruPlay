@@ -23,13 +23,32 @@ class SweepEssDumpTest {
         val amplitude = 0.25
         val int16 = sweep.sweep.map { (it * amplitude * Short.MAX_VALUE).toInt().toShort() }
 
+        // write16bitMono expects [-1,1] doubles — feed the double domain (sweep × amplitude),
+        // NOT the int16 domain: the writer clamps to ±1 before ×32767, so int16-domain values
+        // collapse to a square wave (all intermediate levels flattened → constant crackle).
+        val doubleDomain = sweep.sweep.map { it * amplitude }.toDoubleArray()
+
         val out = java.io.File("..", "output").resolve("sweep-20hz-20khz-48k.wav")
         out.parentFile?.mkdirs()
-        WavFile.write16bitMono(out.absolutePath, int16.map { it.toDouble() }.toDoubleArray(), 48000)
+        WavFile.write16bitMono(out.absolutePath, doubleDomain, 48000)
         println("WAV dumped to: ${out.absolutePath} (${out.length()} bytes)")
 
         // duration
         assertEquals(durationS * 48000.0, sweep.sweep.size.toDouble(), 0.5)
+
+        // amplitude domain: dumped WAV must be a −12 dBFS sine, not a clipped square.
+        // RMS ≈ A/√2 = 0.177; a square (sign) collapse has RMS ≈ A — this assert makes
+        // the int16-vs-double domain mix-up fail loudly instead of silently passing.
+        var peak = 0.0
+        var sumSq = 0.0
+        for (v in doubleDomain) {
+            val a = kotlin.math.abs(v)
+            if (a > peak) peak = a
+            sumSq += v * v
+        }
+        val rms = kotlin.math.sqrt(sumSq / doubleDomain.size)
+        assertEquals(0.25, peak, 0.01)
+        assertEquals(0.25 / Math.sqrt(2.0), rms, 0.02)
 
         // ESS identity: analytic phase must equal accumulated phase of f(t)
         val L = Math.log(f2 / f1)
