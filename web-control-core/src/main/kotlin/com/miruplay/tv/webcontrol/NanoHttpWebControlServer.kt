@@ -300,7 +300,10 @@ open class NanoHttpWebControlServer(
             session.method == Method.POST && route == "/api/topping/usb-permission" -> {
                 jsonResponse(ToppingStatusDto.serializer(), webControlService.requestToppingUsbPermission())
             }
-            session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
+                        session.method == Method.GET && route == "/api/audio-dsp/measure/debug" -> {
+                jsonResponse(AudioDspMeasureDebugDto.serializer(), webControlService.getAudioDspMeasureDebug())
+            }
+session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
                 val request = parseBody(session, AudioDspMeasureRunRequest.serializer())
                 jsonResponse(AudioDspMeasureResultDto.serializer(), webControlService.runAudioDspMeasure(request))
             }

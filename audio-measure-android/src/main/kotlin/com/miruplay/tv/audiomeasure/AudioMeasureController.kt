@@ -6,9 +6,10 @@ import android.media.AudioDeviceInfo
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
-import android.util.Log
 import android.media.AudioTrack
 import android.media.MediaRecorder
+import android.hardware.usb.UsbManager
+import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.measure.LogSweep
 import com.miruplay.tv.measure.LogSweepGenerator
 import com.miruplay.tv.measure.MicCalibration
@@ -32,7 +33,7 @@ import kotlin.math.roundToInt
  */
 class AudioMeasureController(private val context: Context) {
 
-    private val TAG = "MiruPlayMeasure"
+    private val tag = "MiruPlayMeasure"
 
     companion object {
         const val SAMPLE_RATE_HZ = 48_000
@@ -112,6 +113,122 @@ class AudioMeasureController(private val context: Context) {
     }
 
     /** Enumerate usable microphone inputs and gate on the RECORD_AUDIO permission. */
+
+    /**
+     * Remote-diagnosable snapshot for "USB mic not recognized" reports: what the
+     * USB bus actually enumerates (incl. VID/PID), what Android sees as audio
+     * inputs, and the kernel ALSA card list. Logged via MiruLog (→ OpenObserve)
+     * and exposed over WebAPI GET /api/audio-dsp/measure/debug so the user can
+     * pull it without adb access.
+     */
+    data class UsbDeviceReport(
+        val vendorId: Int,
+        val productId: Int,
+        val productName: String?,
+        val manufacturer: String?,
+        val deviceClass: Int,
+        val interfaceClasses: List<Int>,
+        val speedString: String?,
+    )
+
+    data class InputDeviceReport(
+        val id: Int,
+        val type: Int,
+        val name: String,
+        val isSource: Boolean,
+        val maxChannelCount: Int,
+    )
+
+    data class DebugReport(
+        val usbDevices: List<UsbDeviceReport>,
+        val inputDevices: List<InputDeviceReport>,
+        val outputDevices: List<InputDeviceReport>,
+        val sndCards: String?,
+        val sndCardsError: String?,
+        val micPermissionGranted: Boolean,
+        val probeAvailable: Boolean,
+        val probeReason: String?,
+        val selectedMicId: Int?,
+    )
+
+    fun debugInfo(selectedMicId: Int? = null): DebugReport {
+        val usb = runCatching {
+            (context.getSystemService(Context.USB_SERVICE) as UsbManager)
+                .deviceList.values
+                .map { d ->
+                    UsbDeviceReport(
+                        vendorId = d.vendorId,
+                        productId = d.productId,
+                        productName = d.productName,
+                        manufacturer = d.manufacturerName,
+                        deviceClass = d.deviceClass,
+                        interfaceClasses = (0 until d.interfaceCount).map { d.getInterface(it).interfaceClass },
+                        speedString = d.deviceName,
+                    )
+                }
+        }.getOrElse {
+            MiruLog.w(tag, "usb device list failed", it)
+            emptyList()
+        }
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS).map {
+            InputDeviceReport(
+                id = it.id,
+                type = it.type,
+                name = describe(it),
+                isSource = it.isSource,
+                maxChannelCount = try {
+                    it.channelCounts.size
+                } catch (_: Exception) {
+                    0
+                },
+            )
+        }
+        val outputs = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map {
+            InputDeviceReport(
+                id = it.id,
+                type = it.type,
+                name = describe(it),
+                isSource = false,
+                maxChannelCount = 0,
+            )
+        }
+        var sndCards: String? = null
+        var sndErr: String? = null
+        runCatching {
+            val text = java.io.File("/proc/asound/cards").readText().trim()
+            sndCards = text.ifEmpty { null }
+        }.onFailure { sndErr = "${it.javaClass.simpleName}: ${it.message}" }
+        val probe = runCatching { probe() }.getOrElse { cap ->
+            MiruLog.w(tag, "probe failed", cap)
+            Capabilities(false, "probe threw: ${cap.message ?: cap.javaClass.simpleName}", null)
+        }
+        val report = DebugReport(
+            usbDevices = usb,
+            inputDevices = inputs,
+            outputDevices = outputs,
+            sndCards = sndCards,
+            sndCardsError = sndErr,
+            micPermissionGranted = context.checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED,
+            probeAvailable = probe.available,
+            probeReason = probe.reason,
+            selectedMicId = selectedMicId,
+        )
+        MiruLog.i(
+            tag,
+            "measure debug report",
+            attributes = mapOf(
+                "usb" to usb.joinToString { "${it.vendorId}:${it.productId}/${it.productName}" },
+                "inputs" to inputs.joinToString { "#${it.id} type=${it.type} src=${it.isSource}" },
+                "sndCards" to (sndCards?.replace("\n", " | ") ?: (sndErr ?: "empty")),
+                "available" to probe.available.toString(),
+                "reason" to (probe.reason ?: ""),
+            ),
+        )
+        return report
+    }
+
     fun probe(): Capabilities {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val inputs = audioManager.getDevices(AudioManager.GET_DEVICES_INPUTS)
@@ -136,6 +253,15 @@ class AudioMeasureController(private val context: Context) {
         val preferred = mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_DEVICE }
             ?: mics.firstOrNull { it.type == AudioDeviceInfo.TYPE_USB_HEADSET }
             ?: mics.first()
+        MiruLog.i(
+            tag,
+            "probe: mic candidates",
+            attributes = mapOf(
+                "count" to mics.size.toString(),
+                "devices" to mics.joinToString { describe(it) },
+                "preferred" to describe(preferred),
+            ),
+        )
         return Capabilities(true, null, describe(preferred), mics.map { it.toOption() })
     }
 
@@ -274,7 +400,10 @@ class AudioMeasureController(private val context: Context) {
             onProgress("播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…")
             val tPlay = System.currentTimeMillis()
             recordings += playAndCapture(sweep, preferredMicId)
-            Log.d(TAG, "sweep ${index + 1}/${sweeps.size} play+capture wall=${System.currentTimeMillis() - tPlay}ms (audio=${SWEEP_DURATIONS_S[index]}s)")
+            MiruLog.i(tag, "sweep ${index + 1}/${sweeps.size} play+capture", attributes = mapOf(
+                "wallMs" to (System.currentTimeMillis() - tPlay).toString(),
+                "audioS" to SWEEP_DURATIONS_S[index].toString(),
+            ))
         }
         onProgress("分析房间响应…")
         val tAnalysis = System.currentTimeMillis()
@@ -285,7 +414,7 @@ class AudioMeasureController(private val context: Context) {
             irLengthS = IR_LENGTH_S,
             calibration = calibration,
         )
-        Log.d(TAG, "analysis wall=${System.currentTimeMillis() - tAnalysis}ms")
+        MiruLog.i(tag, "analysis done", attributes = mapOf("wallMs" to (System.currentTimeMillis() - tAnalysis).toString()))
         MeasureOutcome(measurement, capabilities)
     }
 
@@ -421,7 +550,10 @@ class AudioMeasureController(private val context: Context) {
                 written += track.write(stereo, written, stereo.size - written)
             }
             track.stop()
-            Log.d(TAG, "track play->drained wall=${(System.nanoTime() - tPlay) / 1_000_000}ms (audio=${sweep.sweep.size / fs}s)")
+            MiruLog.i(tag, "track play->drained", attributes = mapOf(
+                "wallMs" to ((System.nanoTime() - tPlay) / 1_000_000).toString(),
+                "audioS" to (sweep.sweep.size / fs).toString(),
+            ))
             // Room tail continues after the sweep; capture it.
             val deadline = System.nanoTime() + (ROOM_TAIL_S * 2).toLong() * 1_000_000_000L
             while (running.get() && collected.get() < expectedSamples && System.nanoTime() < deadline) {

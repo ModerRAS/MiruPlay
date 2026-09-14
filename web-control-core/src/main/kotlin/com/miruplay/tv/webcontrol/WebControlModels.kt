@@ -430,6 +430,29 @@ data class AudioDspMeasureCapabilitiesDto(
 )
 
 @Serializable
+data class AudioDspMeasureDebugDeviceDto(
+    val id: Int,
+    val type: Int,
+    val name: String,
+    val isSource: Boolean,
+)
+
+@Serializable
+data class AudioDspMeasureDebugDto(
+    /** Everything the USB bus currently enumerates (incl. non-audio: NanoKVM, DAC...). */
+    val usbDevices: List<String> = emptyList(),
+    /** ALSA cards straight from /proc/asound/cards; null if unreadable. */
+    val sndCards: String? = null,
+    val sndCardsError: String? = null,
+    val inputDevices: List<AudioDspMeasureDebugDeviceDto> = emptyList(),
+    val outputDevices: List<AudioDspMeasureDebugDeviceDto> = emptyList(),
+    val micPermissionGranted: Boolean = false,
+    val probeAvailable: Boolean = false,
+    val probeReason: String? = null,
+    val selectedMicId: Int? = null,
+)
+
+@Serializable
 data class AudioDspMeasureRunRequest(
     /** Input device id from capabilities.mics; null = controller default. */
     val micId: Int? = null,
