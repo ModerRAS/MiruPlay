@@ -366,7 +366,11 @@ class MiruMpvSurfaceView @JvmOverloads constructor(
 
     private fun applyRuntimeOptions(options: SessionOptions) {
         updateVoInUse(options.vo)
-        MPVLib.setPropertyString("vo", options.vo)
+        // 记住 voInUse 即可：surface 不在时重建窗口型 vo 会让 mpv 直接 assert，
+        // 等 surfaceCreated() 附着新 surface 后再恢复。
+        if (shouldApplyRuntimeVo(isPlaybackSurfaceAttached())) {
+            MPVLib.setPropertyString("vo", options.vo)
+        }
         MPVLib.setPropertyString("hwdec", options.hwdec)
         applyColorPipelineProperties(options)
         applyShaderProperties(options.shaderPaths)
