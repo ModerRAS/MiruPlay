@@ -15,7 +15,11 @@ android {
         externalNativeBuild {
             cmake {
                 cppFlags += "-std=c++17"
-                arguments += "-DANDROID_STL=c++_shared"
+                // Static libc++ on purpose: the app ships exactly one libc++_shared.so,
+                // the one matching player-mpv-android's prebuilt libmpv.so (libass host).
+                // Shipping this module's NDK libc++_shared.so as well let the app-level
+                // native lib merge silently pick the wrong copy and libmpv stopped loading.
+                arguments += "-DANDROID_STL=c++_static"
             }
         }
         ndk {
