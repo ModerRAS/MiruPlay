@@ -47,6 +47,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google 已从 SDK 仓库移除 legacy 'tools' 包，而 setup-android@v3 的默认
+          # packages 仍是 'tools platform-tools'，会让这步直接失败。
+          packages: 'platform-tools'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -120,6 +124,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google 已从 SDK 仓库移除 legacy 'tools' 包，而 setup-android@v3 的默认
+          # packages 仍是 'tools platform-tools'，会让这步直接失败。
+          packages: 'platform-tools'
 
       - name: Cache Gradle packages
         uses: actions/cache@v4
@@ -386,6 +394,10 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # Google 已从 SDK 仓库移除 legacy 'tools' 包，而 setup-android@v3 的默认
+          # packages 仍是 'tools platform-tools'，会让这步直接失败。
+          packages: 'platform-tools'
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew

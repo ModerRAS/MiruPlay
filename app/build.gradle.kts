@@ -71,7 +71,9 @@ android {
         }
         jniLibs {
             useLegacyPackaging = true
-            pickFirsts += "**/libc++_shared.so"
+            // No pickFirst for libc++_shared.so: only player-mpv-android may contribute it
+            // (its prebuilt libmpv.so needs that exact libc++). A duplicate here would be
+            // silently resolved to the wrong copy; failing the merge loudly is intentional.
         }
     }
     lint {

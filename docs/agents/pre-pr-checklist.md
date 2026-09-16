@@ -17,6 +17,7 @@ Unit tests run components in isolation, with tidy inputs, in a JVM. The bugs tha
 | **Real data shapes** — real files/feeds the tests don't model | Episode-count inflation regression; CUE/整轨 music files | Test with real library content on the device |
 | **Real transport quirks** — URL encoding, redirects, timeouts | WebDAV URL encoding (`+`→`%20`, per-segment) | Play through the actual remote source, not a local fixture |
 | **Runtime state transitions** — toggling settings mid-play, restart mid-flow | DSP enable/disable while playing; scheduler double-run after restart | Toggle the setting ON DEVICE while the feature is running |
+| **Native runtime packaging** — two copies of a shared C++ runtime get merged and the wrong one wins | #71 added `audio-dsp-native` + `pickFirsts += "**/libc++_shared.so"`; the app then packaged the NDK `libc++_shared.so` instead of `player-mpv-android`'s prebuilt one. `libmpv.so` (the libass host) failed to dlopen and every embedded ASS sample fell back to Media3's `SsaParser`, which drops zlib-escaped dialogue → subtitles silently stopped rendering | Inspect the built APK: `lib/*/libc++_shared.so` must be the player-mpv prebuilt copy (it exports `__from_chars_floating_point`), and there must be exactly one. On device, play an embedded-ASS episode and confirm `MiruLibass: Resolved libass API from packaged libmpv.so` + a visible subtitle |
 | **Cross-surface state** — TV settings ↔ WebAPI ↔ WebUI drift | Settings parity incidents | Change from both surfaces and re-check the other |
 
 ## 2. Real-device verification (mandatory)
@@ -75,6 +76,7 @@ Re-verify when: player-core change, new AudioProcessor/renderer, `DspRenderersFa
 - ✦ **Audio DSP chain**: enabled / disabled / toggled at runtime; PEQ presets incl. surround downmix + limiter; format change mid-play (48k ↔ 44.1k, gapless next episode)
 - ✦ **Music SRC bypass**: SYSTEM / SOFTWARE modes with 48kHz and 44.1kHz sources
 - ✦ **Subtitles**: libass render (embedded + external .ass/.srt); an episode WITHOUT subtitle tracks still plays
+- ✦ **libass native host**: the APK ships exactly one `libc++_shared.so` (the `player-mpv-android` prebuilt one) and `libmpv.so` dlopens — `MiruLibass: Resolved libass API from packaged libmpv.so` in logcat; if it is missing, ASS subtitles render as nothing (SsaParser drops every line)
 - ✦ **Playback progress**: resume position, save on stop, shown in library UI
 - ✦ **MediaSession**: background playback, `/api/playback/command`, status reporting
 
@@ -86,6 +88,7 @@ Re-verify when: DSP plan compiler, FIR/biquad designers, native bridge, measure 
 - ✦ **Mic calibration** (.cal import/activate/list/download) doesn't disturb existing presets
 - ✦ **REW EQ import** (`RewEqParser`)
 - ✦ DSP off ⇒ bit-transparent passthrough (hear no difference, no resample)
+- ✦ **Native DSP ABI**: `audio-dsp-native` links libc++ statically on purpose, so it must never contribute a second `libc++_shared.so` to the app merge; after touching its CMake/STL args or the app `packaging.jniLibs` block, rebuild the APK and run `:audio-dsp-native:connectedDebugAndroidTest` (`NativeDspBridge.isAvailable()=true`)
 - ✦ **DSP section relocation**: TV 设置「音频 DSP」分区与 WebUI「音频 DSP」视图独立于播放设置；两侧入口都能打开 DSP 开关/预设/测量/校准，播放设置不再包含 DSP
 - ✦ **RECORD_AUDIO runtime permission**: 首次扫频测量触发系统权限弹窗；授权后自动开始测量；拒绝后显示引导文案且不崩溃
 - ✦ **扫频测量预检**（WebUI）：进入「音频 DSP」后显示麦克风检测结果（检测到/不可用 + 原因）与 4 步操作清单；不可用时「在设备上测量」按钮置灰
