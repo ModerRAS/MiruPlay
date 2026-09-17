@@ -18,6 +18,7 @@ Unit tests run components in isolation, with tidy inputs, in a JVM. The bugs tha
 | **Real transport quirks** — URL encoding, redirects, timeouts | WebDAV URL encoding (`+`→`%20`, per-segment) | Play through the actual remote source, not a local fixture |
 | **Runtime state transitions** — toggling settings mid-play, restart mid-flow | DSP enable/disable while playing; scheduler double-run after restart | Toggle the setting ON DEVICE while the feature is running |
 | **Native runtime packaging** — two copies of a shared C++ runtime get merged and the wrong one wins | #71 added `audio-dsp-native` + `pickFirsts += "**/libc++_shared.so"`; the app then packaged the NDK `libc++_shared.so` instead of `player-mpv-android`'s prebuilt one. `libmpv.so` (the libass host) failed to dlopen and every embedded ASS sample fell back to Media3's `SsaParser`, which drops zlib-escaped dialogue → subtitles silently stopped rendering | Inspect the built APK: `lib/*/libc++_shared.so` must be the player-mpv prebuilt copy (it exports `__from_chars_floating_point`), and there must be exactly one. On device, play an embedded-ASS episode and confirm `MiruLibass: Resolved libass API from packaged libmpv.so` + a visible subtitle |
+| **Native lifecycle races** — a native player aborts when its window is invalidated outside the lifecycle it expects; JVM tests cannot see it | Embedded mpv's `mediacodec_embed` VO asserts (`vo_mediacodec_embed.c: WinID != 0 && WinID != -1`) when the surface is detached/EOF tears down while the VO is still active → SIGABRT in the mpv `vo` thread, most easily after EOF or when the next source starts during teardown | On the device with the mpv backend: play a short file to EOF and press BACK mid-play; logcat must contain no `Fatal signal 6` / `vo_mediacodec_embed` assertion and the app process must survive |
 | **Cross-surface state** — TV settings ↔ WebAPI ↔ WebUI drift | Settings parity incidents | Change from both surfaces and re-check the other |
 
 ## 2. Real-device verification (mandatory)
@@ -77,6 +78,7 @@ Re-verify when: player-core change, new AudioProcessor/renderer, `DspRenderersFa
 - ✦ **Music SRC bypass**: SYSTEM / SOFTWARE modes with 48kHz and 44.1kHz sources
 - ✦ **Subtitles**: libass render (embedded + external .ass/.srt); an episode WITHOUT subtitle tracks still plays
 - ✦ **libass native host**: the APK ships exactly one `libc++_shared.so` (the `player-mpv-android` prebuilt one) and `libmpv.so` dlopens — `MiruLibass: Resolved libass API from packaged libmpv.so` in logcat; if it is missing, ASS subtitles render as nothing (SsaParser drops every line)
+- ✦ **Embedded mpv backend** (`EXPERIMENTAL_MPV_EMBEDDED`): fresh play renders picture; playing a short file to EOF AND pressing BACK mid-play both leave the app alive (no `Fatal signal 6` / `vo_mediacodec_embed.c` assertion); the picture must still render after re-entering playback
 - ✦ **Playback progress**: resume position, save on stop, shown in library UI
 - ✦ **MediaSession**: background playback, `/api/playback/command`, status reporting
 

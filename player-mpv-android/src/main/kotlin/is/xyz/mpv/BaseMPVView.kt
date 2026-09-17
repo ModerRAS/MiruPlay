@@ -36,6 +36,9 @@ abstract class BaseMPVView @JvmOverloads constructor(
     protected fun releasePlayerAfterBegin() {
         holder.removeCallback(this)
         lifecycleGate.finishRelease {
+            // 同上：窗口型 vo 在 surface 已消失时被（重）初始化会 assert，
+            // release 路径的 detachSurface/destroy 之前也要先关掉视频输出。
+            MPVLib.setPropertyString("vo", VIDEO_OUTPUT_DISABLED)
             if (surfaceAttached) {
                 surfaceAttached = false
                 MPVLib.detachSurface()
@@ -95,6 +98,8 @@ abstract class BaseMPVView @JvmOverloads constructor(
             surfaceAttached = false
             surfaceDestroyActions().forEach { action ->
                 when (action) {
+                    MpvSurfaceDestroyAction.DISABLE_VIDEO_OUTPUT ->
+                        MPVLib.setPropertyString("vo", VIDEO_OUTPUT_DISABLED)
                     MpvSurfaceDestroyAction.DETACH -> MPVLib.detachSurface()
                 }
             }
@@ -144,10 +149,21 @@ internal class MpvReleaseGate {
     fun isActive(): Boolean = state == State.ACTIVE
 }
 
-internal enum class MpvSurfaceDestroyAction { DETACH }
+/**
+ * mpv 的窗口型 VO（mediacodec_embed / gpu*）在没有 Android window 时被（重）初始化会直接
+ * assert 崩溃（vo_mediacodec_embed.c: WinID != 0 && WinID != -1），EOF/退场时先 detach
+ * surface 就会命中。因此 detach 之前先把视频输出切到 null（音频继续播），
+ * surfaceCreated() 再按 voInUse 恢复真实 vo。
+ */
+internal enum class MpvSurfaceDestroyAction { DISABLE_VIDEO_OUTPUT, DETACH }
+
+internal const val VIDEO_OUTPUT_DISABLED = "null"
 
 internal fun surfaceDestroyActions(): List<MpvSurfaceDestroyAction> =
-    listOf(MpvSurfaceDestroyAction.DETACH)
+    listOf(MpvSurfaceDestroyAction.DISABLE_VIDEO_OUTPUT, MpvSurfaceDestroyAction.DETACH)
+
+/** 窗口型 vo 只能在 surface 已附着时重建，否则 mpv vo 线程会 assert。 */
+internal fun shouldApplyRuntimeVo(surfaceAttached: Boolean): Boolean = surfaceAttached
 
 internal fun shouldLoadMpvFileImmediately(surfaceAttached: Boolean): Boolean = surfaceAttached
 

@@ -129,8 +129,17 @@ class BaseMPVViewTest {
     }
 
     @Test
-    fun `surface destroy policy only detaches and never reconfigures mpv`() {
-        assertEquals(listOf(MpvSurfaceDestroyAction.DETACH), surfaceDestroyActions())
+    fun `surface destroy disables the windowed video output before detaching`() {
+        assertEquals(
+            listOf(MpvSurfaceDestroyAction.DISABLE_VIDEO_OUTPUT, MpvSurfaceDestroyAction.DETACH),
+            surfaceDestroyActions(),
+        )
+    }
+
+    @Test
+    fun `runtime vo is only applied while a surface is attached`() {
+        assertFalse(shouldApplyRuntimeVo(surfaceAttached = false))
+        assertTrue(shouldApplyRuntimeVo(surfaceAttached = true))
     }
 
     @Test
