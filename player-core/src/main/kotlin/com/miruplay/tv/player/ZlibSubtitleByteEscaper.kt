@@ -6,6 +6,10 @@ import java.util.zip.Inflater
 
 private const val MAX_CANDIDATE_BYTES = 256 * 1024
 private const val MAX_CANDIDATE_TEXT_BYTES = 1024 * 1024
+// Valid second bytes for a 0x78 zlib header with FDICT=0 (FCHECK-adjusted). Only four
+// exist, each mapping to a sentinel used to stand in for NUL. A stream already holding all
+// four sentinels (seen once: LV999 S01E02 @56.41s CN wipe) cannot be protected by this
+// equal-length scheme and is left for the malformed-sample path (documented, ~1% residual).
 internal val ZLIB_FLAG_VALUES = intArrayOf(0x01, 0x5E, 0x9C, 0xDA)
 internal val ESCAPE_SENTINELS = intArrayOf(0xFF, 0xFE, 0xFD, 0xFC)
 
@@ -152,8 +156,13 @@ internal class ZlibSubtitleByteEscaper {
         fun looksLikeSubtitlePayload(text: String): Boolean {
             if (text.contains('\uFFFD')) return false
             val firstLine = text.lineSequence().firstOrNull() ?: return false
+            // Head columns (ReadOrder, Layer, Style, ...) are stable under the split
+            // limit; the tail varies because karaoke/styled bodies carry commas inside
+            // override tags (\pos, \clip, \fad) and Text. Requiring exactly 9 fields
+            // silently skipped every styled line (e.g. LV999 OP wipes), leaving their
+            // NUL bytes for Media3 to truncate. ponytail: still head-anchored, tail free.
             val fields = firstLine.split(',', limit = 10)
-            return fields.size == 9 &&
+            return fields.size >= 9 &&
                 fields[0].toIntOrNull() != null &&
                 fields[1].toIntOrNull() != null &&
                 fields[2].isNotBlank()

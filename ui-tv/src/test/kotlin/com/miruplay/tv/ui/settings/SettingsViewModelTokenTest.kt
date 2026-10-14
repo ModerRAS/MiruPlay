@@ -101,6 +101,7 @@ class SettingsViewModelTokenTest {
         every { playbackPreferences.episodeVersionSelectionPolicy } returns EpisodeVersionSelectionPolicy.AUTO_NEAREST
         every { playbackPreferences.preferredSubtitleLanguage } returns SubtitleLanguagePreference.AUTO
         every { playbackPreferences.subtitleBackgroundTransparent } returns false
+        every { playbackPreferences.perfMonitorEnabled } returns false
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
         every { playbackPreferences.audioDspConfig } returns AudioDspConfig.neutral()
         every { playbackPreferences.musicSrcBypassMode } returns MusicSrcBypassMode.SOFTWARE
@@ -174,6 +175,19 @@ class SettingsViewModelTokenTest {
         assertEquals(EpisodeVersionSelectionPolicy.AUTO_NEAREST, viewModel.episodeVersionSelectionPolicy.value)
     }
 
+    @Test
+    fun `setPerfMonitorEnabled persists toggle and flips live override`() = runTest {
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+        assertEquals(false, viewModel.perfMonitorEnabled.value)
+
+        viewModel.setPerfMonitorEnabled(true)
+        advanceUntilIdle()
+
+        io.mockk.verify(exactly = 1) { playbackPreferences.perfMonitorEnabled = true }
+        assertEquals(true, viewModel.perfMonitorEnabled.value)
+    }
+
     private fun createViewModel(): SettingsViewModel =
         SettingsViewModel(
             mediaRepository = mediaRepository,
@@ -197,6 +211,7 @@ class SettingsViewModelTokenTest {
             audioMeasureController = audioMeasureController,
             audioDspRuntimeConfig = com.miruplay.tv.player.AudioDspRuntimeConfig(),
             toppingController = mockk(relaxed = true),
+            playbackDebugOverrides = com.miruplay.tv.player.PlaybackDebugOverrides(),
         )
 }
 

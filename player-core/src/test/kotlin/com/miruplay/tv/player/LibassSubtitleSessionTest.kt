@@ -199,9 +199,29 @@ class LibassSubtitleSessionTest {
         }
     }
 
-    private class FakeRenderTarget : LibassRenderTarget {
-        val renderedPresentationTimesUs = mutableListOf<Long>()
-        var clearCount = 0
+    @Test
+    fun `rebinding equivalent target does not clear or repost`() {
+        val fixture = Fixture()
+        val generation = fixture.session.beginMedia()
+        fixture.session.startTrack(generation, HEADER)
+        val first = FakeRenderTarget()
+        fixture.session.bindTarget(first)
+        assertEquals(0, first.clearCount)
+
+        // New instance, same surface+size semantics: must be a no-op.
+        fixture.session.bindTarget(FakeRenderTarget())
+        assertEquals(0, first.clearCount)
+
+        // Different target: old one is cleared exactly once.
+        fixture.session.bindTarget(FakeRenderTarget(tag = 1))
+        assertEquals(1, first.clearCount)
+    }
+
+    private data class FakeRenderTarget(
+        val tag: Int = 0,
+        val renderedPresentationTimesUs: MutableList<Long> = mutableListOf(),
+        var clearCount: Int = 0,
+    ) : LibassRenderTarget {
 
         override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame): Int {
             renderedPresentationTimesUs += frame.presentationTimeUs

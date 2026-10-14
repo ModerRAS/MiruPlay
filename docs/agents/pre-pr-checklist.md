@@ -20,6 +20,8 @@ Unit tests run components in isolation, with tidy inputs, in a JVM. The bugs tha
 | **Native runtime packaging** — two copies of a shared C++ runtime get merged and the wrong one wins | #71 added `audio-dsp-native` + `pickFirsts += "**/libc++_shared.so"`; the app then packaged the NDK `libc++_shared.so` instead of `player-mpv-android`'s prebuilt one. `libmpv.so` (the libass host) failed to dlopen and every embedded ASS sample fell back to Media3's `SsaParser`, which drops zlib-escaped dialogue → subtitles silently stopped rendering | Inspect the built APK: `lib/*/libc++_shared.so` must be the player-mpv prebuilt copy (it exports `__from_chars_floating_point`), and there must be exactly one. On device, play an embedded-ASS episode and confirm `MiruLibass: Resolved libass API from packaged libmpv.so` + a visible subtitle |
 | **Native lifecycle races** — a native player aborts when its window is invalidated outside the lifecycle it expects; JVM tests cannot see it | Embedded mpv's `mediacodec_embed` VO asserts (`vo_mediacodec_embed.c: WinID != 0 && WinID != -1`) when the surface is detached/EOF tears down while the VO is still active → SIGABRT in the mpv `vo` thread, most easily after EOF or when the next source starts during teardown | On the device with the mpv backend: play a short file to EOF and press BACK mid-play; logcat must contain no `Fatal signal 6` / `vo_mediacodec_embed` assertion and the app process must survive |
 | **Cross-surface state** — TV settings ↔ WebAPI ↔ WebUI drift | Settings parity incidents | Change from both surfaces and re-check the other |
+| **Container sample mangling** — the extractor (or its version) silently alters sample bytes before the app sees them | Media3 truncates SSA blocks at the first NUL (HandBrake legacy); zlib-compressed ASS bodies legitimately contain NULs, so whole karaoke lines vanished while unit tests (synthetic plaintext) stayed green | Play a real zlib-compressed ASS file on device; `Skipped malformed ASS sample` must stay ~0 and every styled line must render |
+| **Priority-list gaps** — a codec/backend priority table covers only the codecs it was written for; the rest fall through to a catch-all ordered by something meaningless | AVC decoders all scored 4 in the default branch, alphabetical tiebreak put software ahead of vendor hardware → all H.264 software-decoded | Play one H.264 + one HEVC file on device; HUD/`MiruHealth` must show vendor `[HW]` decoders with ~0 drops for both |
 
 ## 2. Real-device verification (mandatory)
 
@@ -173,3 +175,20 @@ Every feature PR appends to this file, in the same PR:
 3. **New failure classes** — if you hit (or can imagine) a new "tests green but broken" mode, add a row to the table in section 1
 
 The bar: every PR arrives with the feature operated and observed on real hardware, and the checklist keeps collecting every way "tests green" has lied to us.
+
+## 8. Feature log (appended per PR)
+
+### ASS NUL-truncation fix + playback health monitoring + AVC hardware decode (v2.15)
+
+Own checks (all observed on HK1):
+
+- Play an MKV with zlib-compressed embedded ASS (e.g. LV999 S01E02 ASSx2) OP: karaoke wipe + static lines render complete (L0+L1 layers); `Skipped malformed ASS sample` in logcat stays ~0 (one documented all-sentinel residual at most)
+- TV settings → 播放 → 播放性能监测 → on: HUD appears top-left during playback; `MiruHealth`/`PlaybackHealth` lines flow in logcat AND persist to files/logs (run-as readable); toggle survives force-stop/restart/reinstall
+- Play one H.264 file: HUD must show the vendor decoder `[HW]` (e.g. `c2.rk.avc.decoder`) with ~0 drops (was: `c2.android.avc.decoder` software with majority drops)
+- Play one HEVC file: still vendor `[HW]` (e.g. `c2.rk.hevc.decoder`)
+
+Cross-checks:
+
+- Normal dialogue + no-subtitle episodes play unchanged; HDR software-decode preferences still honored (selector unit tests + default HEVC order untouched)
+- libass native host: single `libc++_shared.so` per ABI in APK, `MiruLibass: Resolved libass API from packaged libmpv.so` on device
+- Settings parity TV ↔ WebAPI ↔ WebUI for the new toggle (WebUI playback form switch; browser interaction not device-verified — no browser in test env)

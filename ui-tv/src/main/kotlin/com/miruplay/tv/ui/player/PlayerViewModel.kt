@@ -30,8 +30,10 @@ import com.miruplay.tv.model.playbackDisplayTitle
 import com.miruplay.tv.model.toApproximatePreset
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.player.LibVlcVoutMode
+import com.miruplay.tv.player.LibassSubtitleMonitorSnapshot
 import com.miruplay.tv.player.LibassSubtitleSession
 import com.miruplay.tv.player.PlaybackController
+import com.miruplay.tv.player.PlaybackHealthSnapshot
 import com.miruplay.tv.model.SubtitleTrack
 import com.miruplay.tv.model.toPlaybackSource
 import com.miruplay.tv.repository.BangumiEpisodeComment
@@ -158,6 +160,12 @@ class PlayerViewModel @Inject constructor(
 
     fun getLibassSubtitleSession(): LibassSubtitleSession? =
         playbackController.getLibassSubtitleSession()
+
+    fun currentPlaybackHealthSnapshot(): PlaybackHealthSnapshot? =
+        playbackController.currentPlaybackHealthSnapshot()
+
+    fun currentLibassMonitorSnapshot(): LibassSubtitleMonitorSnapshot? =
+        playbackController.currentLibassSubtitleMonitorSnapshot()
 
     fun usesVlcVideoLayout(): Boolean = playbackController.usesVlcVideoLayout()
 

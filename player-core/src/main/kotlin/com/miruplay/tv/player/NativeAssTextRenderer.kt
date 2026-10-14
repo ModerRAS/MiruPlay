@@ -80,7 +80,11 @@ internal class NativeAssTextRenderer(
                         relativeLibassSampleTimeUs(inputBuffer.timeUs, streamOffsetUs),
                     )
                     if (payload == null) {
-                        Log.w(TAG, "Skipped malformed ASS sample time_us=${inputBuffer.timeUs} bytes=${bytes.size}")
+                        Log.w(
+                            TAG,
+                            "Skipped malformed ASS sample time_us=${inputBuffer.timeUs} bytes=${bytes.size} " +
+                                "preview=${bytes.previewForLog()}",
+                        )
                     } else {
                         sampleCount++
                         if (sampleCount == 1) {
@@ -115,4 +119,12 @@ internal class NativeAssTextRenderer(
     private companion object {
         const val TAG = "NativeAssTextRenderer"
     }
+}
+
+/** Debug-only preview of a rejected sample: lossy decode, single line, bounded. */
+internal fun ByteArray.previewForLog(maxChars: Int = 160): String {
+    if (isEmpty()) return "<empty>"
+    val text = runCatching { toString(Charsets.UTF_8) }.getOrDefault("<binary>")
+    val singleLine = text.replace('\r', ' ').replace('\n', '⏎')
+    return if (singleLine.length <= maxChars) singleLine else singleLine.take(maxChars) + "…"
 }

@@ -54,6 +54,12 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putBoolean(KEY_SUBTITLE_BACKGROUND_TRANSPARENT, value).apply()
         }
 
+    var perfMonitorEnabled: Boolean
+        get() = prefs.getBoolean(KEY_PERF_MONITOR_ENABLED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_PERF_MONITOR_ENABLED, value).apply()
+        }
+
     var formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences
         get() {
             val stored = prefs.getString(KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES, null)
@@ -129,6 +135,13 @@ class PlaybackPreferencesManager @Inject constructor(
         subtitleBackgroundTransparent = transparent
     }
 
+    override suspend fun getPerfMonitorEnabled(): Boolean =
+        perfMonitorEnabled
+
+    override suspend fun setPerfMonitorEnabled(enabled: Boolean) {
+        perfMonitorEnabled = enabled
+    }
+
     override suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences =
         formatAwareToneMappingPreferences
 
@@ -170,6 +183,7 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
         private const val KEY_PREFERRED_SUBTITLE_LANGUAGE = "preferred_subtitle_language"
         private const val KEY_SUBTITLE_BACKGROUND_TRANSPARENT = "subtitle_background_transparent"
+        private const val KEY_PERF_MONITOR_ENABLED = "perf_monitor_enabled"
         private const val KEY_FORMAT_AWARE_TONE_MAPPING_PREFERENCES = "format_aware_tone_mapping_preferences"
         private const val KEY_AUDIO_DSP_CONFIG = "audio_dsp_config"
         private const val KEY_AUDIO_MEASURE_CALIBRATIONS = "audio_measure_calibrations"

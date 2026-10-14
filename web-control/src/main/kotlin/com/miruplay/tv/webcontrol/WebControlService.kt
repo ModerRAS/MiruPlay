@@ -38,6 +38,7 @@ import com.miruplay.tv.player.LibVlcVoutMode
 import com.miruplay.tv.player.forcedVideoSignalDescriptorFor
 import com.miruplay.tv.player.LatencyStats
 import com.miruplay.tv.player.LibassSubtitleMonitorSnapshot
+import com.miruplay.tv.player.PlaybackHealthSnapshot
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.AppUpdateChannelStore
@@ -430,6 +431,18 @@ class WebControlService @Inject constructor(
         }
     }
 
+    override suspend fun getPlaybackHealth(): PlaybackHealthDto {
+        val snapshot = playbackController.currentPlaybackHealthSnapshot()
+        return if (snapshot == null) {
+            PlaybackHealthDto(
+                enabled = playbackDebugOverrides.libassSubtitleMonitorEnabled,
+                backend = playbackController.activeRenderBackend.value.name,
+            )
+        } else {
+            snapshot.toDto()
+        }
+    }
+
     override suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = runOnIo {
         if (!profileInProgress.compareAndSet(false, true)) {
             return@runOnIo PlaybackNativeProfileCaptureDto(notes = listOf("已有采样进行中，请稍后再试"))
@@ -718,7 +731,10 @@ class WebControlService @Inject constructor(
             playbackDebugOverrides.skipLibVlcStartupOptions = request.skipLibVlcStartupOptions == true
         }
         if (request.subtitleMonitorEnabled != null) {
-            playbackDebugOverrides.libassSubtitleMonitorEnabled = request.subtitleMonitorEnabled == true
+            val enabled = request.subtitleMonitorEnabled == true
+            playbackDebugOverrides.libassSubtitleMonitorEnabled = enabled
+            // Persist so the toggle survives restarts (same as the TV settings switch).
+            playbackPreferencesRepository.setPerfMonitorEnabled(enabled)
         }
 
         playbackController.refreshActivePlaybackDebugConfig()
@@ -799,6 +815,7 @@ class WebControlService @Inject constructor(
             episodeVersionSelectionPolicy = episodeVersionSelectionPolicy.storageValue,
             preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
             subtitleBackgroundTransparent = subtitleBackgroundTransparent,
+            perfMonitorEnabled = playbackPreferencesRepository.getPerfMonitorEnabled(),
             formatAwareToneMapping = toneMapping,
             backendOptions = supportedPlaybackRenderBackends().map { backend ->
                 PlaybackBackendOptionDto(
@@ -825,6 +842,10 @@ class WebControlService @Inject constructor(
         }
         request.subtitleBackgroundTransparent?.let { transparent ->
             playbackPreferencesRepository.setSubtitleBackgroundTransparent(transparent)
+        }
+        request.perfMonitorEnabled?.let { enabled ->
+            playbackPreferencesRepository.setPerfMonitorEnabled(enabled)
+            playbackDebugOverrides.libassSubtitleMonitorEnabled = enabled
         }
         request.formatAwareToneMapping?.let { prefs ->
             playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())
@@ -1468,6 +1489,7 @@ private suspend fun playbackDebugConfigSnapshot(
         skipLibVlcStartupProbe = playbackDebugOverrides.skipLibVlcStartupProbe,
         skipLibVlcStartupOptions = playbackDebugOverrides.skipLibVlcStartupOptions,
         subtitleMonitorEnabled = playbackDebugOverrides.libassSubtitleMonitorEnabled,
+        perfMonitorEnabled = playbackPreferencesRepository.getPerfMonitorEnabled(),
     )
 }
 
@@ -1553,6 +1575,35 @@ private fun LibassSubtitleMonitorSnapshot.toDto(): LibassSubtitleMonitorDto = th
         clockLateness = snapshot.clockLateness.toDto(),
     )
 }
+
+private fun PlaybackHealthSnapshot.toDto(): PlaybackHealthDto = PlaybackHealthDto(
+    enabled = true,
+    backend = backend,
+    video = PlaybackVideoHealthDto(
+        decoderName = video.decoderName,
+        hardwareAccelerated = video.hardwareAccelerated,
+        decoderInitCount = video.decoderInitCount,
+        sampleMimeType = video.sampleMimeType,
+        codecs = video.codecs,
+        width = video.width,
+        height = video.height,
+        frameRate = video.frameRate,
+        droppedFramesTotal = video.droppedFramesTotal,
+        droppedEvents = video.droppedEvents,
+        maxDroppedPerEvent = video.maxDroppedPerEvent,
+        renderedFrames = video.renderedFrames,
+        audioUnderruns = video.audioUnderruns,
+        elapsedMs = video.elapsedMs,
+        timeToFirstFrameMs = video.timeToFirstFrameMs,
+    ),
+    ui = PlaybackUiJankDto(
+        running = ui.running,
+        totalFrames = ui.totalFrames,
+        jankFrames = ui.jankFrames,
+        maxDeltaMs = ui.maxDeltaMs,
+        maxDeltaAtElapsedMs = ui.maxDeltaAtElapsedMs,
+    ),
+)
 
 private fun LatencyStats.toDto(): LibassMonitorLatencyDto = LibassMonitorLatencyDto(
     count = count,

@@ -348,6 +348,7 @@ data class PlaybackSettingsDto(
     val episodeVersionSelectionPolicy: String = "auto_nearest",
     val preferredSubtitleLanguage: String,
     val subtitleBackgroundTransparent: Boolean = false,
+    val perfMonitorEnabled: Boolean = false,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
     val backendOptions: List<PlaybackBackendOptionDto> = emptyList(),
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
@@ -362,6 +363,7 @@ data class PlaybackSettingsRequest(
     val episodeVersionSelectionPolicy: String? = null,
     val preferredSubtitleLanguage: String? = null,
     val subtitleBackgroundTransparent: Boolean? = null,
+    val perfMonitorEnabled: Boolean? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
 )
 
@@ -790,6 +792,7 @@ data class PlaybackDebugConfigDto(
     val skipLibVlcStartupProbe: Boolean = false,
     val skipLibVlcStartupOptions: Boolean = false,
     val subtitleMonitorEnabled: Boolean = false,
+    val perfMonitorEnabled: Boolean = false,
 )
 
 @Serializable
@@ -837,6 +840,42 @@ data class LibassSubtitleMonitorDto(
     val clockInterval: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
     val clockJitter: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
     val clockLateness: LibassMonitorLatencyDto = LibassMonitorLatencyDto(),
+)
+
+@Serializable
+data class PlaybackVideoHealthDto(
+    val decoderName: String = "",
+    val hardwareAccelerated: Boolean? = null,
+    val decoderInitCount: Int = 0,
+    val sampleMimeType: String = "",
+    val codecs: String = "",
+    val width: Int = 0,
+    val height: Int = 0,
+    val frameRate: Float = 0f,
+    val droppedFramesTotal: Long = 0L,
+    val droppedEvents: Int = 0,
+    val maxDroppedPerEvent: Int = 0,
+    val renderedFrames: Long = 0L,
+    val audioUnderruns: Int = 0,
+    val elapsedMs: Long = 0L,
+    val timeToFirstFrameMs: Long = -1L,
+)
+
+@Serializable
+data class PlaybackUiJankDto(
+    val running: Boolean = false,
+    val totalFrames: Long = 0L,
+    val jankFrames: Long = 0L,
+    val maxDeltaMs: Long = 0L,
+    val maxDeltaAtElapsedMs: Long = -1L,
+)
+
+@Serializable
+data class PlaybackHealthDto(
+    val enabled: Boolean = false,
+    val backend: String = "",
+    val video: PlaybackVideoHealthDto = PlaybackVideoHealthDto(),
+    val ui: PlaybackUiJankDto = PlaybackUiJankDto(),
 )
 
 @Serializable

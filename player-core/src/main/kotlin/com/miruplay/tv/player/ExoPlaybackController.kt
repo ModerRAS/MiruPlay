@@ -161,6 +161,10 @@ class ExoPlaybackController @Inject constructor(
     private var standardExoPlayer: ExoPlayer? = null
     private var standardListener: Player.Listener? = null
     private var standardAnalyticsListener: AnalyticsListener? = null
+    // Playback health (video pipeline + UI jank) behind the debug switch. The libass
+    // subtitle monitor flag gates the whole trio: one switch for jank attribution.
+    private val videoHealth = VideoHealthMonitor()
+    private val uiJank = UiJankMonitor()
 
     override suspend fun play(source: PlaybackSource) {
         MiruLog.i(
@@ -269,6 +273,7 @@ class ExoPlaybackController @Inject constructor(
                 }
                 val player = if (httpConfig.isWebDav(source.uri)) standardExoPlayer() else activeExoPlayer()
                 preparePlayerForPlayback(player)
+                startPlaybackHealthForNewPlay()
 
                 val subtitleConfigs = source.subtitleTracks.mapIndexed { index, track ->
                     MediaItem.SubtitleConfiguration.Builder(Uri.parse(track.path))
@@ -484,6 +489,7 @@ class ExoPlaybackController @Inject constructor(
                 )
             }
             stopAllPlayers()
+            stopPlaybackHealth()
             externalMpvPlaying = false
             externalMpvPositionMs = 0L
             externalMpvSource = null
@@ -979,6 +985,7 @@ class ExoPlaybackController @Inject constructor(
             initializationDurationMsMs: Long,
         ) {
             if (!isCurrentPlayer(player)) return
+            videoHealth.onDecoderInitialized(decoderName)
             MiruLog.i(
                 "ExoPlaybackController",
                 "Video decoder initialized",
@@ -999,6 +1006,13 @@ class ExoPlaybackController @Inject constructor(
         ) {
             if (!isCurrentPlayer(player)) return
             refreshVideoSignalDescriptor(format)
+            videoHealth.onInputFormat(
+                format.sampleMimeType,
+                format.codecs,
+                format.width,
+                format.height,
+                format.frameRate,
+            )
             MiruLog.i(
                 "ExoPlaybackController",
                 "Video input format changed",
@@ -1020,6 +1034,7 @@ class ExoPlaybackController @Inject constructor(
             elapsedMs: Long,
         ) {
             if (!isCurrentPlayer(player) || droppedFrames <= 0) return
+            videoHealth.onDroppedFrames(droppedFrames)
             MiruLog.w(
                 "ExoPlaybackController",
                 "Dropped video frames",
@@ -1046,6 +1061,16 @@ class ExoPlaybackController @Inject constructor(
                     "source_uri" to currentSource?.uri.orEmpty(),
                 ),
             )
+        }
+
+        override fun onAudioUnderrun(
+            eventTime: AnalyticsListener.EventTime,
+            bufferSize: Int,
+            bufferSizeMs: Long,
+            elapsedSinceLastFeedMs: Long,
+        ) {
+            if (!isCurrentPlayer(player)) return
+            videoHealth.onAudioUnderrun()
         }
 
         override fun onVideoCodecError(
@@ -1750,6 +1775,17 @@ class ExoPlaybackController @Inject constructor(
             snapshot.copy(activeBackend = _activeRenderBackend.value.name)
         }
 
+    override fun currentPlaybackHealthSnapshot(): PlaybackHealthSnapshot? {
+        val video = videoHealth.snapshot()
+        val ui = uiJank.snapshot()
+        if (video == null && ui == null) return null
+        return PlaybackHealthSnapshot(
+            backend = _activeRenderBackend.value.name,
+            video = video ?: VideoHealthSnapshot(),
+            ui = ui ?: UiJankSnapshot(),
+        )
+    }
+
     private fun startIjkSubtitleClock() {
         ijkSubtitlePoller?.cancel()
         if (ijkSubtitleSession == null) return
@@ -2058,7 +2094,27 @@ class ExoPlaybackController @Inject constructor(
         player.playWhenReady = false
         player.stop()
         player.clearMediaItems()
-        LibassSubtitleRegistry.sessionFor(player)?.beginMedia()
+        LibassSubtitleRegistry.sessionFor(player)?.let { session ->
+            session.beginMedia()
+            session.videoFrameHook = { videoHealth.onFrameRendered() }
+            session.healthProvider = { currentPlaybackHealthSnapshot() }
+        }
+    }
+
+    private fun startPlaybackHealthForNewPlay() {
+        if (playbackDebugOverrides.libassSubtitleMonitorEnabled) {
+            videoHealth.start()
+            uiJank.start()
+        } else {
+            videoHealth.stop()
+            uiJank.stop()
+        }
+    }
+
+    private fun stopPlaybackHealth() {
+        // Retain snapshots for post-mortem inspection via WebControl/HUD.
+        videoHealth.stop()
+        uiJank.stop()
     }
 
     private fun releaseLibassSession(player: ExoPlayer) {

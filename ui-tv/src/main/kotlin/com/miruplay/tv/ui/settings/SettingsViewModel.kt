@@ -102,6 +102,7 @@ import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import com.miruplay.tv.player.AudioDspRuntimeConfig
+import com.miruplay.tv.player.PlaybackDebugOverrides
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
 import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
@@ -143,6 +144,7 @@ class SettingsViewModel @Inject constructor(
     @ApplicationContext private val appContext: Context,
     private val audioMeasureController: AudioMeasureController,
     private val toppingController: com.miruplay.tv.topping.ToppingController,
+    private val playbackDebugOverrides: PlaybackDebugOverrides,
 ) : ViewModel() {
 
     private val logUploadActions = LogUploadActionCoordinator(logUploadRepository)
@@ -196,6 +198,10 @@ class SettingsViewModel @Inject constructor(
     val preferredSubtitleLanguage: StateFlow<SubtitleLanguagePreference> = _preferredSubtitleLanguage.asStateFlow()
     private val _subtitleBackgroundTransparent = MutableStateFlow(playbackPreferences.subtitleBackgroundTransparent)
     val subtitleBackgroundTransparent: StateFlow<Boolean> = _subtitleBackgroundTransparent.asStateFlow()
+    private val _perfMonitorEnabled = MutableStateFlow(
+        playbackPreferences.perfMonitorEnabled || playbackDebugOverrides.libassSubtitleMonitorEnabled,
+    )
+    val perfMonitorEnabled: StateFlow<Boolean> = _perfMonitorEnabled.asStateFlow()
     private val _formatAwareToneMappingPreferences = MutableStateFlow(
         playbackPreferences.formatAwareToneMappingPreferences.normalized()
     )
@@ -1232,6 +1238,14 @@ class SettingsViewModel @Inject constructor(
     fun setSubtitleBackgroundTransparent(transparent: Boolean) {
         playbackPreferences.subtitleBackgroundTransparent = transparent
         _subtitleBackgroundTransparent.value = transparent
+    }
+
+    fun setPerfMonitorEnabled(enabled: Boolean) {
+        playbackPreferences.perfMonitorEnabled = enabled
+        // Live switch takes effect at the next playback boundary (same rule as the
+        // intent/WebAPI debug override); persisting keeps it across restarts.
+        playbackDebugOverrides.libassSubtitleMonitorEnabled = enabled
+        _perfMonitorEnabled.value = enabled
     }
 
     fun setAudioDspEnabled(enabled: Boolean) {

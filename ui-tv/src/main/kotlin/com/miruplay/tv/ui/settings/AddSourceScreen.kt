@@ -216,6 +216,10 @@ import com.miruplay.tv.model.preferredSubtitleLanguageSettingsDescriptionLabel
 import com.miruplay.tv.model.preferredSubtitleLanguageSettingsTitleLabel
 import com.miruplay.tv.model.subtitleBackgroundSettingsDescriptionLabel
 import com.miruplay.tv.model.subtitleBackgroundSettingsOptionLabel
+import com.miruplay.tv.model.perfMonitorSettingsDescriptionLabel
+import com.miruplay.tv.model.perfMonitorSettingsOptionLabel
+import com.miruplay.tv.model.perfMonitorSettingsTitleLabel
+import com.miruplay.tv.model.perfMonitorToggleLabel
 import com.miruplay.tv.model.subtitleBackgroundSettingsTitleLabel
 import com.miruplay.tv.model.subtitleBackgroundTransparentToggleLabel
 import com.miruplay.tv.model.displayLabel
@@ -413,6 +417,7 @@ fun AddSourceScreen(
     val episodeVersionSelectionPolicy by viewModel.episodeVersionSelectionPolicy.collectAsStateWithLifecycle()
     val preferredSubtitleLanguage by viewModel.preferredSubtitleLanguage.collectAsStateWithLifecycle()
     val subtitleBackgroundTransparent by viewModel.subtitleBackgroundTransparent.collectAsStateWithLifecycle()
+    val perfMonitorEnabled by viewModel.perfMonitorEnabled.collectAsStateWithLifecycle()
     val formatAwareToneMappingPreferences by viewModel.formatAwareToneMappingPreferences.collectAsStateWithLifecycle()
     val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
     val audioMeasure by viewModel.audioMeasure.collectAsStateWithLifecycle()
@@ -722,6 +727,8 @@ fun AddSourceScreen(
                     onPreferredSubtitleLanguageSelected = viewModel::setPreferredSubtitleLanguage,
                     subtitleBackgroundTransparent = subtitleBackgroundTransparent,
                     onSubtitleBackgroundTransparentChange = viewModel::setSubtitleBackgroundTransparent,
+                    perfMonitorEnabled = perfMonitorEnabled,
+                    onPerfMonitorEnabledChange = viewModel::setPerfMonitorEnabled,
                     formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                     onPlaybackBackendSelected = viewModel::setDefaultPlaybackBackend,
                     onToneMappingPresetSelected = viewModel::setToneMappingPreset,
@@ -1219,6 +1226,8 @@ private fun SettingsContent(
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     subtitleBackgroundTransparent: Boolean,
     onSubtitleBackgroundTransparentChange: (Boolean) -> Unit,
+    perfMonitorEnabled: Boolean,
+    onPerfMonitorEnabledChange: (Boolean) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -1498,6 +1507,8 @@ private fun SettingsContent(
                 onPreferredSubtitleLanguageSelected = onPreferredSubtitleLanguageSelected,
                 subtitleBackgroundTransparent = subtitleBackgroundTransparent,
                 onSubtitleBackgroundTransparentChange = onSubtitleBackgroundTransparentChange,
+                perfMonitorEnabled = perfMonitorEnabled,
+                onPerfMonitorEnabledChange = onPerfMonitorEnabledChange,
                 formatAwareToneMappingPreferences = formatAwareToneMappingPreferences,
                 onPlaybackBackendSelected = onPlaybackBackendSelected,
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
@@ -3264,6 +3275,8 @@ private fun PlaybackPanel(
     onPreferredSubtitleLanguageSelected: (SubtitleLanguagePreference) -> Unit,
     subtitleBackgroundTransparent: Boolean,
     onSubtitleBackgroundTransparentChange: (Boolean) -> Unit,
+    perfMonitorEnabled: Boolean,
+    onPerfMonitorEnabledChange: (Boolean) -> Unit,
     formatAwareToneMappingPreferences: FormatAwareToneMappingPreferences,
     onPlaybackBackendSelected: (PlaybackRenderBackend) -> Unit,
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
@@ -3433,6 +3446,84 @@ private fun PlaybackPanel(
             icon = Icons.Filled.CheckCircle,
             text = "当前：${subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent)}",
             color = if (subtitleBackgroundTransparent) ProgressGreen else TextSecondary,
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Tune,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = perfMonitorSettingsTitleLabel(),
+                style = TvTypography.subtitle,
+                color = TextPrimary,
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = perfMonitorSettingsDescriptionLabel(),
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+
+        Spacer(Modifier.height(14.dp))
+        ScanOptionChip(
+            text = perfMonitorToggleLabel(),
+            icon = Icons.Filled.Tune,
+            selected = perfMonitorEnabled,
+            enabled = true,
+            onClick = { onPerfMonitorEnabledChange(!perfMonitorEnabled) },
+            modifier = Modifier.width(150.dp),
+        )
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled)}",
+            color = if (perfMonitorEnabled) ProgressGreen else TextSecondary,
+        )
+
+        Spacer(Modifier.height(24.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Tune,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp),
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = perfMonitorSettingsTitleLabel(),
+                style = TvTypography.subtitle,
+                color = TextPrimary,
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = perfMonitorSettingsDescriptionLabel(),
+            style = TvTypography.body,
+            color = TextSecondary,
+        )
+
+        Spacer(Modifier.height(14.dp))
+        ScanOptionChip(
+            text = perfMonitorToggleLabel(),
+            icon = Icons.Filled.Tune,
+            selected = perfMonitorEnabled,
+            enabled = true,
+            onClick = { onPerfMonitorEnabledChange(!perfMonitorEnabled) },
+            modifier = Modifier.width(150.dp),
+        )
+
+        StatusMessage(
+            icon = Icons.Filled.CheckCircle,
+            text = "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled)}",
+            color = if (perfMonitorEnabled) ProgressGreen else TextSecondary,
         )
 
         Spacer(Modifier.height(24.dp))

@@ -840,6 +840,11 @@ private fun PlayerScreenContent(
                 onExit = navigateBack,
             )
         }
+
+        PlaybackHealthHud(
+            viewModel = viewModel,
+            modifier = Modifier.align(Alignment.TopStart),
+        )
     }
 }
 
