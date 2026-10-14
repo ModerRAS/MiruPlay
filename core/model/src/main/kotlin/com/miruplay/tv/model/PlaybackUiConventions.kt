@@ -109,6 +109,16 @@ fun subtitleBackgroundSettingsOptionLabel(transparent: Boolean): String =
 
 fun subtitleBackgroundTransparentToggleLabel(): String = "透明底"
 
+fun perfMonitorSettingsTitleLabel(): String = "播放性能监测"
+
+fun perfMonitorSettingsDescriptionLabel(): String =
+    "记录解码器掉帧、主线程卡顿、字幕渲染耗时并写入日志，用于定位卡顿原因；同时在播放画面左上角显示实时数据。"
+
+fun perfMonitorSettingsOptionLabel(enabled: Boolean): String =
+    if (enabled) "已开启" else "已关闭"
+
+fun perfMonitorToggleLabel(): String = "性能监测"
+
 fun SubtitleLanguagePreference.displayLabel(): String =
     when (this) {
         SubtitleLanguagePreference.AUTO -> "自动"

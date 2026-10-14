@@ -108,6 +108,12 @@ interface PlaybackController {
     fun currentLibassSubtitleMonitorSnapshot(): LibassSubtitleMonitorSnapshot? = null
 
     /**
+     * Playback health snapshot (video pipeline + UI jank), or null when monitoring is off.
+     * Gated by the same debug switch as the libass monitor (next playback boundary).
+     */
+    fun currentPlaybackHealthSnapshot(): PlaybackHealthSnapshot? = null
+
+    /**
      * True when the current active backend expects a VLC render host instead of PlayerView.
      */
     fun usesVlcVideoLayout(): Boolean

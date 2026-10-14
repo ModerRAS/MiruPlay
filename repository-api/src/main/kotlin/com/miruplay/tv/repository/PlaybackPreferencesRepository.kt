@@ -18,6 +18,9 @@ interface PlaybackPreferencesRepository {
     suspend fun setPreferredSubtitleLanguage(preference: SubtitleLanguagePreference)
     suspend fun getSubtitleBackgroundTransparent(): Boolean = false
     suspend fun setSubtitleBackgroundTransparent(transparent: Boolean) = Unit
+    /** Playback perf monitor (video/UI/subtitle health + log output). Default off. */
+    suspend fun getPerfMonitorEnabled(): Boolean = false
+    suspend fun setPerfMonitorEnabled(enabled: Boolean) = Unit
     suspend fun getFormatAwareToneMappingPreferences(): FormatAwareToneMappingPreferences
     suspend fun setFormatAwareToneMappingPreferences(preferences: FormatAwareToneMappingPreferences)
     suspend fun getAudioDspConfig(): AudioDspConfig = AudioDspConfig.neutral()

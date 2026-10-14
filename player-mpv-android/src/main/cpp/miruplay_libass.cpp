@@ -5,6 +5,7 @@
 #include <jni.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <cstring>
 #include <mutex>
@@ -403,8 +404,10 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
         : 1.0;
     g_api.set_aspect_ratio(session->renderer, display_aspect, storage_aspect);
 
+    const auto render_begin = std::chrono::steady_clock::now();
     int changed = 0;
     ASS_Image* images = g_api.render_frame(session->renderer, session->track, time_ms, &changed);
+    const auto render_end = std::chrono::steady_clock::now();
     if (!session->rendered_first_frame) {
         int image_count = 0;
         for (ASS_Image* image = images; image != nullptr; image = image->next) ++image_count;
@@ -475,8 +478,36 @@ Java_is_xyz_mpv_subtitle_JniNativeAssCalls_nativeRender(
         miruplay::ass_compositor::blend(target, image_view(image));
     }
     const int post_result = ANativeWindow_unlockAndPost(window);
+    const auto commit_end = std::chrono::steady_clock::now();
     ANativeWindow_release(window);
     if (post_result != 0) return -1;
+    {
+        using namespace std::chrono;
+        const auto total_ms = duration_cast<milliseconds>(commit_end - render_begin).count();
+        if (total_ms > 33) {
+            static long long last_slow_log_ms = 0;
+            const auto now_ms =
+                duration_cast<milliseconds>(commit_end.time_since_epoch()).count();
+            if (now_ms - last_slow_log_ms >= 5000) {
+                last_slow_log_ms = now_ms;
+                const auto render_ms =
+                    duration_cast<milliseconds>(render_end - render_begin).count();
+                int image_count = 0;
+                for (ASS_Image* image = images; image != nullptr; image = image->next) {
+                    ++image_count;
+                }
+                LOGW(
+                    "Slow ASS commit total=%lldms render=%lldms images=%d changed=%d "
+                    "frame=%dx%d",
+                    static_cast<long long>(total_ms),
+                    static_cast<long long>(render_ms),
+                    image_count,
+                    changed,
+                    frame_width,
+                    frame_height);
+            }
+        }
+    }
 
     miruplay::ass_compositor::commit_frame(
         &session->frame_state,

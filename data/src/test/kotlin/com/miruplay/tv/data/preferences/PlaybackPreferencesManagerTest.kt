@@ -79,6 +79,17 @@ class PlaybackPreferencesManagerTest {
     }
 
     @Test
+    fun `manager persists perf monitor toggle default off`() = runBlocking {
+        assertEquals(false, manager.getPerfMonitorEnabled())
+        assertEquals(false, manager.perfMonitorEnabled)
+
+        manager.setPerfMonitorEnabled(true)
+
+        assertEquals(true, manager.getPerfMonitorEnabled())
+        assertEquals(true, manager.perfMonitorEnabled)
+    }
+
+    @Test
     fun `manager persists normalized audio dsp config`() = runBlocking {
         assertEquals(false, manager.getAudioDspConfig().enabled)
 

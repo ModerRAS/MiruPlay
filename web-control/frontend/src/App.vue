@@ -1091,6 +1091,14 @@
                     inactive-text="黑色底"
                   />
                 </el-form-item>
+                <el-form-item label="性能监测">
+                  <el-switch
+                    v-model="playbackForm.perfMonitorEnabled"
+                    active-text="开启"
+                    inactive-text="关闭"
+                  />
+                  <div class="muted">记录解码掉帧/主线程卡顿/字幕耗时并写入日志，下次播放生效</div>
+                </el-form-item>
                 <el-form-item label="默认播放后端">
                   <el-select v-model="playbackForm.defaultBackend">
                     <el-option
@@ -2094,6 +2102,7 @@ const playbackForm = reactive({
   episodeVersionSelectionPolicy: 'auto_nearest',
   preferredSubtitleLanguage: 'auto',
   subtitleBackgroundTransparent: false,
+  perfMonitorEnabled: false,
   defaultBackend: ''
 })
 const translationLanguageOptions = [
@@ -4040,6 +4049,7 @@ function applyPlaybackSettings(data) {
   playbackSettings.episodeVersionSelectionPolicy = data.episodeVersionSelectionPolicy || 'auto_nearest'
   playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
   playbackSettings.subtitleBackgroundTransparent = Boolean(data.subtitleBackgroundTransparent)
+  playbackSettings.perfMonitorEnabled = Boolean(data.perfMonitorEnabled)
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
   playbackSettings.backendOptions = Array.isArray(data.backendOptions) ? data.backendOptions : []
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
@@ -4049,6 +4059,7 @@ function applyPlaybackSettings(data) {
   playbackForm.episodeVersionSelectionPolicy = playbackSettings.episodeVersionSelectionPolicy
   playbackForm.preferredSubtitleLanguage = playbackSettings.preferredSubtitleLanguage
   playbackForm.subtitleBackgroundTransparent = playbackSettings.subtitleBackgroundTransparent
+  playbackForm.perfMonitorEnabled = Boolean(playbackSettings.perfMonitorEnabled)
   playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
 }
 
@@ -4070,6 +4081,7 @@ async function savePlaybackSettings() {
       episodeVersionSelectionPolicy: playbackForm.episodeVersionSelectionPolicy,
       preferredSubtitleLanguage: playbackForm.preferredSubtitleLanguage,
       subtitleBackgroundTransparent: playbackForm.subtitleBackgroundTransparent,
+      perfMonitorEnabled: playbackForm.perfMonitorEnabled,
       formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
     }
     applyPlaybackSettings(await api('/api/settings/playback', {

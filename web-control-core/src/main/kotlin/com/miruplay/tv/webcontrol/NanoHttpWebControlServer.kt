@@ -397,6 +397,9 @@ session.method == Method.POST && route == "/api/audio-dsp/measure/run" -> {
             session.method == Method.GET && route == "/api/playback/subtitle-monitor" -> {
                 jsonResponse(LibassSubtitleMonitorDto.serializer(), webControlService.getLibassSubtitleMonitor())
             }
+            session.method == Method.GET && route == "/api/playback/health" -> {
+                jsonResponse(PlaybackHealthDto.serializer(), webControlService.getPlaybackHealth())
+            }
             session.method == Method.POST && route == "/api/playback/native-profile" -> {
                 val request = parseBody(session, PlaybackNativeProfileRequest.serializer())
                 jsonResponse(PlaybackNativeProfileCaptureDto.serializer(), webControlService.capturePlaybackNativeProfile(request))

@@ -52,6 +52,10 @@ internal fun playbackDecoderPriority(
             else -> 4
         }
     }
+    // Default: platform hardware first for both codecs. The AVC branches matter: without
+    // them every AVC decoder fell into `else -> 4` and the alphabetical tiebreak put
+    // c2.android.avc.decoder ahead of vendor hardware (e.g. c2.rk.avc.decoder), forcing
+    // software decode for all H.264 content. ponytail: mirrored HEVC shape, no new knobs.
     return when {
         normalizedName.startsWith("c2.") &&
             normalizedName.contains("hevc") &&
@@ -59,6 +63,15 @@ internal fun playbackDecoderPriority(
         normalizedName.startsWith("c2.android.hevc.decoder") -> 1
         normalizedName.startsWith("omx.") &&
             normalizedName.contains("hevc") &&
+            !normalizedName.contains("google") &&
+            !normalizedName.contains("android") -> 2
+        normalizedName.startsWith("c2.") &&
+            normalizedName.containsAny(codecTokens) &&
+            !normalizedName.contains("android") -> 0
+        normalizedName.startsWith("c2.android.avc.decoder") ||
+            normalizedName.startsWith("c2.android.h264.decoder") -> 1
+        normalizedName.startsWith("omx.") &&
+            normalizedName.containsAny(codecTokens) &&
             !normalizedName.contains("google") &&
             !normalizedName.contains("android") -> 2
         normalizedName.startsWith("omx.google.") -> 3

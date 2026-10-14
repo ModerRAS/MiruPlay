@@ -152,6 +152,7 @@ interface WebControlEndpointService {
     suspend fun getPlaybackClockSamples(limit: Int = 120): PlaybackClockSamplesDto = PlaybackClockSamplesDto()
     suspend fun getPlaybackNativeDiagnostics(logLimit: Int = 80): PlaybackNativeDiagnosticsDto = PlaybackNativeDiagnosticsDto()
     suspend fun getLibassSubtitleMonitor(): LibassSubtitleMonitorDto = LibassSubtitleMonitorDto()
+    suspend fun getPlaybackHealth(): PlaybackHealthDto = PlaybackHealthDto()
     suspend fun capturePlaybackNativeProfile(request: PlaybackNativeProfileRequest): PlaybackNativeProfileCaptureDto = PlaybackNativeProfileCaptureDto()
     suspend fun downloadPlaybackNativeProfile(name: String): LocalLogDownload =
         LocalLogDownload(

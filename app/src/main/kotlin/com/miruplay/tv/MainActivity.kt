@@ -308,6 +308,12 @@ class MainActivity : ComponentActivity() {
             )
             playbackDebugOverrides.skipLibVlcStartupProbe = true
         }
+        // Persistent user setting (works in release builds too): the launch intent extra
+        // wins when present, otherwise fall back to the settings toggle.
+        if (overrides.libassSubtitleMonitorEnabled == null) {
+            playbackDebugOverrides.libassSubtitleMonitorEnabled =
+                playbackPreferencesManager.perfMonitorEnabled
+        }
     }
 
     override fun onDestroy() {

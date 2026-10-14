@@ -25,6 +25,26 @@ class PlaybackMediaCodecSelectorTest {
     }
 
     @Test
+    fun `avc decoders prefer vendor c2 before software decoder`() {
+        // Regression: without AVC branches every AVC decoder scored 4 and the alphabetical
+        // tiebreak put c2.android.avc.decoder ahead of c2.rk.avc.decoder (software decode).
+        val ordered = listOf(
+            "OMX.google.h264.decoder",
+            "c2.android.avc.decoder",
+            "c2.rk.avc.decoder",
+        ).sortedBy { playbackDecoderPriority(MimeTypes.VIDEO_H264, it) }
+
+        assertEquals(
+            listOf(
+                "c2.rk.avc.decoder",
+                "c2.android.avc.decoder",
+                "OMX.google.h264.decoder",
+            ),
+            ordered,
+        )
+    }
+
+    @Test
     fun `non hevc mime keeps neutral priority`() {
         assertEquals(
             Int.MAX_VALUE,

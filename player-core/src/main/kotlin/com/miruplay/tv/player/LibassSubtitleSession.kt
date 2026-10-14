@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.Surface
 import androidx.media3.common.Format
 import androidx.media3.exoplayer.video.VideoFrameMetadataListener
+import com.miruplay.tv.core.common.logging.MiruLog
 import `is`.xyz.mpv.subtitle.NativeAssFont
 import `is`.xyz.mpv.subtitle.NativeAssRenderer
 import java.io.Closeable
@@ -31,6 +32,12 @@ class LibassSubtitleSession internal constructor(
     private var rebuildPending = false
     private var active = false
     private var closed = false
+
+    /** Optional per-video-frame hook (playback health accounting). Null by default: zero cost. */
+    var videoFrameHook: ((presentationTimeUs: Long) -> Unit)? = null
+
+    /** Optional playback health snapshot for the periodic log dump. Null by default. */
+    var healthProvider: (() -> PlaybackHealthSnapshot?)? = null
 
     // Debug-only: when a monitor is attached (debug override / test hook), periodically
     // dump a compact snapshot to logcat so real-device performance can be inspected
@@ -55,6 +62,12 @@ class LibassSubtitleSession internal constructor(
                         append(" jitterP95Ms=${snap.clockJitter.p95Ns / 1_000_000}")
                     },
                 )
+            }
+            // Playback health goes to logcat AND the persisted MiruLog (file + upload),
+            // so lag can be diagnosed from history without adb.
+            healthProvider?.invoke()?.let { health ->
+                Log.i("MiruHealth", health.compactLogLine())
+                MiruLog.i("PlaybackHealth", health.compactLogLine(), health.logAttributes())
             }
             monitorSamplerHandler?.postDelayed(this, MONITOR_SAMPLE_INTERVAL_MS)
         }
@@ -180,7 +193,12 @@ class LibassSubtitleSession internal constructor(
 
     internal fun bindTarget(newTarget: LibassRenderTarget) = synchronized(lock) {
         if (closed) return@synchronized
-        if (target === newTarget) return@synchronized
+        // Value equality: Compose re-runs the PlayerView update block (and SurfaceHolder
+        // fires created+changed) on every recomposition. Rebinding an equivalent target
+        // used to full-clear and re-post the 8MB subtitle surface each time (visible
+        // flicker + 50-80ms SurfaceFlinger stalls). SurfaceLibassRenderTarget is a data
+        // class so same surface+size binds are no-ops.
+        if (target == newTarget) return@synchronized
         target?.clear(renderer)
         target = newTarget
         scheduleRenderLocked()
@@ -229,6 +247,7 @@ class LibassSubtitleSession internal constructor(
         format: Format,
         mediaFormat: MediaFormat?,
     ) {
+        videoFrameHook?.invoke(presentationTimeUs)
         submitVideoFrame(
             presentationTimeUs,
             format.width,
@@ -431,10 +450,10 @@ private class NativeLibassRendererHandle(
     override fun close() = delegate.close()
 }
 
-private class SurfaceLibassRenderTarget(
+private data class SurfaceLibassRenderTarget(
     val surface: Surface,
-    private val width: Int,
-    private val height: Int,
+    val width: Int,
+    val height: Int,
 ) : LibassRenderTarget {
     override fun render(renderer: LibassRendererHandle, frame: LibassVideoFrame): Int =
         renderer.render(surface, frame, width, height)
