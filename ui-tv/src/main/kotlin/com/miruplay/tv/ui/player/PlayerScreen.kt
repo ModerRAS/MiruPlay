@@ -125,6 +125,8 @@ import com.miruplay.tv.model.formatPlaybackPosition
 import com.miruplay.tv.model.pictureOsdMenuTitleLabel
 import com.miruplay.tv.model.pictureSaveDefaultForFormatLabel
 import com.miruplay.tv.model.pictureSessionOverrideLabel
+import com.miruplay.tv.core.common.uiText
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.playbackAudioMenuTitle
 import com.miruplay.tv.model.playbackAudioOptionLabel
@@ -811,7 +813,7 @@ private fun PlayerScreenContent(
         if (subtitleTranslateDialogVisible) {
             SubtitleTranslateDialog(
                 sourceTrackLabel = selectedSubtitleTrackIndex
-                    ?.let { index -> availableSubtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } },
+                    ?.let { index -> availableSubtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index)?.resolve() } },
                 deepSeekKeyConfigured = viewModel.isDeepSeekKeyConfigured(),
                 defaultTargetLanguageCode = viewModel.defaultTranslationTargetLanguage(),
                 state = subtitleTranslationState,
@@ -1034,7 +1036,7 @@ private fun PlayerTopBar(
     ) {
         PlayerIconButton(
             icon = Icons.AutoMirrored.Filled.ArrowBack,
-            label = playbackBackLabel(),
+            label = playbackBackLabel().resolve(),
             onClick = onBack,
             size = 54.dp
         )
@@ -1095,13 +1097,13 @@ private fun TransportControls(
         )
         PlayerIconButton(
             icon = Icons.Filled.FastRewind,
-            label = playbackSeekBackLabel(PLAYBACK_SEEK_BACK_SECONDS),
+            label = playbackSeekBackLabel(PLAYBACK_SEEK_BACK_SECONDS).resolve(),
             onClick = onSkipBackward,
             size = 62.dp
         )
         PlayerIconButton(
             icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-            label = if (isPlaying) playbackPauseLabel() else playbackPlayLabel(),
+            label = (if (isPlaying) playbackPauseLabel() else playbackPlayLabel()).resolve(),
             onClick = onTogglePlayback,
             size = 82.dp,
             modifier = Modifier.focusRequester(focusRequester),
@@ -1110,7 +1112,7 @@ private fun TransportControls(
         )
         PlayerIconButton(
             icon = Icons.Filled.FastForward,
-            label = playbackSeekForwardLabel(PLAYBACK_SEEK_FORWARD_SECONDS),
+            label = playbackSeekForwardLabel(PLAYBACK_SEEK_FORWARD_SECONDS).resolve(),
             onClick = onSkipForward,
             size = 62.dp
         )
@@ -1188,7 +1190,7 @@ internal fun PlayerBottomBar(
         ) {
             PlayerInfoChip(
                 icon = Icons.Filled.GraphicEq,
-                text = signalFormatLabel.ifBlank { playbackLocalSourceLabel() }
+                text = signalFormatLabel.ifBlank { playbackLocalSourceLabel().resolve() }
             )
             PlayerActionChip(
                 icon = Icons.Filled.Forum,
@@ -1203,7 +1205,7 @@ internal fun PlayerBottomBar(
             )
             PlayerActionChip(
                 icon = Icons.Filled.PhotoFilter,
-                text = pictureOsdMenuTitleLabel(),
+                text = pictureOsdMenuTitleLabel().resolve(),
                 selected = openMenu == PlayerMenu.Picture,
                 onClick = { onOpenMenu(PlayerMenu.Picture) },
                 modifier = Modifier
@@ -1214,7 +1216,7 @@ internal fun PlayerBottomBar(
             )
             PlayerActionChip(
                 icon = Icons.Filled.Speed,
-                text = playbackSpeedChipLabel(playbackSpeed),
+                text = playbackSpeedChipLabel(playbackSpeed).resolve(),
                 selected = openMenu == PlayerMenu.Speed,
                 onClick = { onOpenMenu(PlayerMenu.Speed) },
                 modifier = Modifier
@@ -1225,9 +1227,9 @@ internal fun PlayerBottomBar(
             )
             PlayerActionChip(
                 icon = Icons.Filled.Subtitles,
-                text = selectedSubtitleTrackIndex
+                text = (selectedSubtitleTrackIndex
                     ?.let { index -> subtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } }
-                    ?: playbackSubtitleCountLabel(subtitles.size),
+                    ?: playbackSubtitleCountLabel(subtitles.size)).resolve(),
                 selected = openMenu == PlayerMenu.Subtitles,
                 enabled = subtitles.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Subtitles) },
@@ -1239,13 +1241,13 @@ internal fun PlayerBottomBar(
             )
             PlayerActionChip(
                 icon = Icons.Filled.Audiotrack,
-                text = selectedAudioTrackIndex
+                text = (selectedAudioTrackIndex
                     ?.let { index ->
                         audioTracks.getOrNull(index)?.let {
                             playbackAudioOptionLabel(it.title, it.language, index)
                         }
                     }
-                    ?: playbackAudioTrackCountLabel(audioTracks.size),
+                    ?: playbackAudioTrackCountLabel(audioTracks.size)).resolve(),
                 selected = openMenu == PlayerMenu.Audio,
                 enabled = audioTracks.isNotEmpty(),
                 onClick = { onOpenMenu(PlayerMenu.Audio) },
@@ -1532,7 +1534,7 @@ internal fun PlayerOptionsPanel(
                 PlayerMenu.Subtitles -> playbackSubtitlesMenuTitle()
                 PlayerMenu.Audio -> playbackAudioMenuTitle()
                 PlayerMenu.Picture -> pictureOsdMenuTitleLabel()
-            },
+            }.resolve(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
         )
@@ -1562,7 +1564,7 @@ internal fun PlayerOptionsPanel(
             ) {
                 item {
                     PlayerOptionButton(
-                        text = playbackSubtitleOffLabel(),
+                        text = playbackSubtitleOffLabel().resolve(),
                         selected = selectedSubtitleTrackIndex == null,
                         onClick = { onSelectSubtitle(null) },
                         modifier = if (selectedSubtitleTrackIndex == null) {
@@ -1574,7 +1576,7 @@ internal fun PlayerOptionsPanel(
                 }
                 itemsIndexed(subtitles) { index, track ->
                     PlayerOptionButton(
-                        text = playbackSubtitleOptionLabel(track, index),
+                        text = playbackSubtitleOptionLabel(track, index).resolve(),
                         selected = index == selectedSubtitleTrackIndex,
                         onClick = { onSelectSubtitle(index) },
                         modifier = if (index == selectedSubtitleTrackIndex) {
@@ -1602,7 +1604,7 @@ internal fun PlayerOptionsPanel(
                             title = track.title,
                             language = track.language,
                             index = index,
-                        ),
+                        ).resolve(),
                         selected = index == selectedAudioTrackIndex,
                         onClick = { onSelectAudioTrack(index) },
                         modifier = if (index == initialAudioIndex) {
@@ -1623,7 +1625,7 @@ internal fun PlayerOptionsPanel(
                 ) {
                     picturePresets.forEachIndexed { index, preset ->
                         PlayerOptionButton(
-                            text = "${pictureSessionOverrideLabel()} ${toneMappingPresetLabel(preset)}",
+                            text = "${pictureSessionOverrideLabel().resolve()} ${toneMappingPresetLabel(preset).resolve()}",
                             selected = preset == currentPicturePreset,
                             onClick = { onSelectPicturePreset(preset) },
                             modifier = if (index == initialPictureIndex) {
@@ -1640,7 +1642,7 @@ internal fun PlayerOptionsPanel(
                     itemVerticalAlignment = Alignment.CenterVertically,
                 ) {
                     PlayerOptionButton(
-                        text = pictureSaveDefaultForFormatLabel(),
+                        text = pictureSaveDefaultForFormatLabel().resolve(),
                         selected = false,
                         onClick = onSavePictureDefault,
                     )
@@ -1677,16 +1679,16 @@ private fun PlayerInfoPanel(
 ) {
     val infoInitialFocus = rememberInitialFocusHandle()
     val scrollState = rememberScrollState()
-    val selectedSubtitle = selectedSubtitleTrackIndex
+    val selectedSubtitle = (selectedSubtitleTrackIndex
         ?.let { index -> subtitles.getOrNull(index)?.let { playbackSubtitleOptionLabel(it, index) } }
-        ?: playbackSubtitleOffLabel()
-    val selectedAudio = selectedAudioTrackIndex
+        ?: playbackSubtitleOffLabel()).resolve()
+    val selectedAudio = (selectedAudioTrackIndex
         ?.let { index ->
             audioTracks.getOrNull(index)?.let {
                 playbackAudioOptionLabel(it.title, it.language, index)
             }
         }
-        ?: "—"
+        ?: uiText("common_em_dash", "—")).resolve()
 
     Column(
         modifier = Modifier
@@ -1740,8 +1742,8 @@ private fun PlayerInfoPanel(
                     PlayerInfoRow("位置", formatPlaybackPosition(currentPosition))
                     PlayerInfoRow("总时长", formatPlaybackPosition(duration))
                     PlayerInfoRow("速度", playbackSpeedValueLabel(playbackSpeed))
-                    PlayerInfoRow("请求后端", playbackBackendLabel(requestedBackend))
-                    PlayerInfoRow("活动后端", playbackBackendLabel(activeBackend))
+                    PlayerInfoRow("请求后端", playbackBackendLabel(requestedBackend).resolve())
+                    PlayerInfoRow("活动后端", playbackBackendLabel(activeBackend).resolve())
                     PlayerInfoRow("回退原因", fallbackReason?.takeIf(String::isNotBlank) ?: "—")
                     PlayerInfoRow("传递函数", signal?.transfer?.name ?: "—")
                     PlayerInfoRow("色彩原色", signal?.colorPrimaries?.name ?: "—")
@@ -1912,7 +1914,7 @@ private fun ErrorOverlay(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = playbackErrorTitle(),
+                text = playbackErrorTitle().resolve(),
                 style = TvTypography.subtitle,
                 color = TextPrimary
             )
@@ -1927,13 +1929,13 @@ private fun ErrorOverlay(
             Spacer(Modifier.height(22.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 PlayerOptionButton(
-                    text = playbackRetryLabel(),
+                    text = playbackRetryLabel().resolve(),
                     selected = false,
                     onClick = onRetry,
                     modifier = retryFocus.modifier(),
                 )
                 PlayerOptionButton(
-                    text = playbackBackToDetailsLabel(),
+                    text = playbackBackToDetailsLabel().resolve(),
                     selected = false,
                     onClick = onExit,
                 )

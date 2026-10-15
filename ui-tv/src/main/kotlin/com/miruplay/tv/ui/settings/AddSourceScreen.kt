@@ -117,7 +117,10 @@ import androidx.compose.ui.res.stringResource
 import com.miruplay.tv.repository.AppLanguage
 import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.canRunNow
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.ui.tv.R
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
@@ -1056,7 +1059,7 @@ private fun SettingsMenuPanel(
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
-        playbackSummary = "${playbackEndAction.playbackEndMenuSummary()} · ${preferredSubtitleLanguage.displayLabel()}字幕 · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend)}",
+        playbackSummary = "${playbackEndAction.playbackEndMenuSummary().resolve()} · ${preferredSubtitleLanguage.displayLabel().resolve()}${playbackSubtitlesMenuTitle().resolve()} · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend).resolve()}",
         audioDspEnabled = audioDspEnabled,
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
@@ -3334,12 +3337,12 @@ private fun PlaybackPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = playbackEndSettingsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = playbackEndSettingsTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = playbackEndSettingsDescriptionLabel(),
+            text = playbackEndSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -3347,7 +3350,7 @@ private fun PlaybackPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = playbackEndReturnToDetailActionLabel(),
+                text = playbackEndReturnToDetailActionLabel().resolve(),
                 icon = Icons.AutoMirrored.Filled.ArrowBack,
                 selected = endAction == PlaybackEndAction.RETURN_TO_DETAIL,
                 enabled = true,
@@ -3355,7 +3358,7 @@ private fun PlaybackPanel(
                 modifier = Modifier.width(160.dp)
             )
             ScanOptionChip(
-                text = playbackEndPlayNextEpisodeActionLabel(),
+                text = playbackEndPlayNextEpisodeActionLabel().resolve(),
                 icon = Icons.Filled.PlayArrow,
                 selected = endAction == PlaybackEndAction.PLAY_NEXT_EPISODE,
                 enabled = true,
@@ -3367,8 +3370,8 @@ private fun PlaybackPanel(
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
             text = when (endAction) {
-                PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailDetail()
-                PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail()
+                PlaybackEndAction.RETURN_TO_DETAIL -> playbackEndReturnToDetailDetail().resolve()
+                PlaybackEndAction.PLAY_NEXT_EPISODE -> playbackEndPlayNextEpisodeDetail().resolve()
             },
             color = if (endAction == PlaybackEndAction.PLAY_NEXT_EPISODE) ProgressGreen else TextSecondary
         )
@@ -3418,7 +3421,7 @@ private fun PlaybackPanel(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = preferredSubtitleLanguageSettingsTitleLabel(),
+                text = preferredSubtitleLanguageSettingsTitleLabel().resolve(),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
@@ -3426,7 +3429,7 @@ private fun PlaybackPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = preferredSubtitleLanguageSettingsDescriptionLabel(),
+            text = preferredSubtitleLanguageSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary,
         )
@@ -3435,7 +3438,7 @@ private fun PlaybackPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             SubtitleLanguagePreference.entries.forEach { preference ->
                 ScanOptionChip(
-                    text = preference.displayLabel(),
+                    text = preference.displayLabel().resolve(),
                     icon = Icons.Filled.Language,
                     selected = preferredSubtitleLanguage == preference,
                     enabled = true,
@@ -3447,7 +3450,7 @@ private fun PlaybackPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "当前优先：${preferredSubtitleLanguage.displayLabel()}",
+            text = UiText("subtitle_language_current_priority", listOf(preferredSubtitleLanguage.displayLabel()), "当前优先：${preferredSubtitleLanguage.displayLabel().fallback}").resolve(),
             color = if (preferredSubtitleLanguage == SubtitleLanguagePreference.AUTO) TextSecondary else ProgressGreen,
         )
 
@@ -3461,7 +3464,7 @@ private fun PlaybackPanel(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = subtitleBackgroundSettingsTitleLabel(),
+                text = subtitleBackgroundSettingsTitleLabel().resolve(),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
@@ -3469,14 +3472,14 @@ private fun PlaybackPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = subtitleBackgroundSettingsDescriptionLabel(),
+            text = subtitleBackgroundSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary,
         )
 
         Spacer(Modifier.height(14.dp))
         ScanOptionChip(
-            text = subtitleBackgroundTransparentToggleLabel(),
+            text = subtitleBackgroundTransparentToggleLabel().resolve(),
             icon = Icons.Filled.Subtitles,
             selected = subtitleBackgroundTransparent,
             enabled = true,
@@ -3486,7 +3489,7 @@ private fun PlaybackPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "当前：${subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent)}",
+            text = UiText("subtitle_background_current", listOf(subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent)), "当前：${subtitleBackgroundSettingsOptionLabel(subtitleBackgroundTransparent).fallback}").resolve(),
             color = if (subtitleBackgroundTransparent) ProgressGreen else TextSecondary,
         )
 
@@ -3500,7 +3503,7 @@ private fun PlaybackPanel(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = perfMonitorSettingsTitleLabel(),
+                text = perfMonitorSettingsTitleLabel().resolve(),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
@@ -3508,14 +3511,14 @@ private fun PlaybackPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = perfMonitorSettingsDescriptionLabel(),
+            text = perfMonitorSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary,
         )
 
         Spacer(Modifier.height(14.dp))
         ScanOptionChip(
-            text = perfMonitorToggleLabel(),
+            text = perfMonitorToggleLabel().resolve(),
             icon = Icons.Filled.Tune,
             selected = perfMonitorEnabled,
             enabled = true,
@@ -3525,7 +3528,7 @@ private fun PlaybackPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled)}",
+            text = UiText("perf_monitor_current", listOf(perfMonitorSettingsOptionLabel(perfMonitorEnabled)), "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled).fallback}").resolve(),
             color = if (perfMonitorEnabled) ProgressGreen else TextSecondary,
         )
 
@@ -3539,7 +3542,7 @@ private fun PlaybackPanel(
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = perfMonitorSettingsTitleLabel(),
+                text = perfMonitorSettingsTitleLabel().resolve(),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
@@ -3547,14 +3550,14 @@ private fun PlaybackPanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = perfMonitorSettingsDescriptionLabel(),
+            text = perfMonitorSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary,
         )
 
         Spacer(Modifier.height(14.dp))
         ScanOptionChip(
-            text = perfMonitorToggleLabel(),
+            text = perfMonitorToggleLabel().resolve(),
             icon = Icons.Filled.Tune,
             selected = perfMonitorEnabled,
             enabled = true,
@@ -3564,7 +3567,7 @@ private fun PlaybackPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled)}",
+            text = UiText("perf_monitor_current", listOf(perfMonitorSettingsOptionLabel(perfMonitorEnabled)), "当前：${perfMonitorSettingsOptionLabel(perfMonitorEnabled).fallback}").resolve(),
             color = if (perfMonitorEnabled) ProgressGreen else TextSecondary,
         )
 
@@ -3577,19 +3580,19 @@ private fun PlaybackPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = pictureSettingsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = pictureSettingsTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = pictureSettingsDescriptionLabel(),
+            text = pictureSettingsDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = "默认后端",
+            text = stringResource(R.string.picture_default_backend),
             style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
             color = TextSecondary
         )
@@ -3597,7 +3600,7 @@ private fun PlaybackPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             supportedPlaybackRenderBackends().forEach { backend ->
                 ScanOptionChip(
-                    text = playbackBackendLabel(backend),
+                    text = playbackBackendLabel(backend).resolve(),
                     icon = Icons.Filled.PlayArrow,
                     selected = formatAwareToneMappingPreferences.defaultBackend.normalizeSupportedBackend() == backend,
                     enabled = true,
@@ -3611,7 +3614,7 @@ private fun PlaybackPanel(
         VideoRenderRuleKey.entries.forEach { ruleKey ->
             val ruleSet = formatAwareToneMappingPreferences.rules.getValue(ruleKey)
             Text(
-                text = videoRenderRuleLabel(ruleKey),
+                text = videoRenderRuleLabel(ruleKey).resolve(),
                 style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
                 color = TextSecondary
             )
@@ -3619,7 +3622,7 @@ private fun PlaybackPanel(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 toneMappingPresetOptions().forEach { preset ->
                     ScanOptionChip(
-                        text = toneMappingPresetLabel(preset),
+                        text = toneMappingPresetLabel(preset).resolve(),
                         selected = ruleSet.toApproximatePreset() == preset,
                         enabled = true,
                         onClick = { onToneMappingPresetSelected(ruleKey, preset) },
@@ -3630,7 +3633,7 @@ private fun PlaybackPanel(
             Spacer(Modifier.height(8.dp))
             StatusMessage(
                 icon = Icons.Filled.CheckCircle,
-                text = ruleSet.summaryLabel(),
+                text = ruleSet.summaryLabel().resolve(),
                 color = if (ruleSet.enabled) ProgressGreen else TextSecondary
             )
             Spacer(Modifier.height(14.dp))

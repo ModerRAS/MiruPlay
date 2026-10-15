@@ -20,7 +20,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.pressKey
 import androidx.compose.ui.unit.dp
+import androidx.test.core.app.ApplicationProvider
+import android.content.Context
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.player.AudioTrack
 import org.junit.Rule
 import org.junit.Test
@@ -34,6 +37,8 @@ import org.robolectric.annotation.Config
 class PlayerTimelineFocusTest {
     @get:Rule
     val compose = createComposeRule()
+
+    private val appContext: Context get() = ApplicationProvider.getApplicationContext()
 
     @Test
     fun `controls focus timeline and down follows the nearest enabled action`() {
@@ -100,8 +105,8 @@ class PlayerTimelineFocusTest {
         compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText(playbackAudioTrackCountLabel(1)).assertIsFocused()
-        compose.onNodeWithText(playbackAudioTrackCountLabel(1)).performKeyInput {
+        compose.onNodeWithText(playbackAudioTrackCountLabel(1).resolve(appContext)).assertIsFocused()
+        compose.onNodeWithText(playbackAudioTrackCountLabel(1).resolve(appContext)).performKeyInput {
             pressKey(Key.DirectionUp)
         }
         compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).assertIsFocused()

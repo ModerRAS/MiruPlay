@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
+
 import kotlin.math.max
 import kotlinx.serialization.Serializable
 
@@ -11,12 +14,12 @@ enum class ToneMappingProfilePreset {
     SOFT,
 }
 
-fun toneMappingPresetLabel(preset: ToneMappingProfilePreset): String =
+fun toneMappingPresetLabel(preset: ToneMappingProfilePreset): UiText =
     when (preset) {
-        ToneMappingProfilePreset.BYPASS -> "直通"
-        ToneMappingProfilePreset.BALANCED -> "平衡"
-        ToneMappingProfilePreset.PUNCHY -> "偏浓"
-        ToneMappingProfilePreset.SOFT -> "柔和"
+        ToneMappingProfilePreset.BYPASS -> uiText("tonemapping_bypass", "直通")
+        ToneMappingProfilePreset.BALANCED -> uiText("tonemapping_balanced", "平衡")
+        ToneMappingProfilePreset.PUNCHY -> uiText("tonemapping_punchy", "偏浓")
+        ToneMappingProfilePreset.SOFT -> uiText("tonemapping_soft", "柔和")
     }
 
 fun toneMappingPresetOptions(): List<ToneMappingProfilePreset> =
