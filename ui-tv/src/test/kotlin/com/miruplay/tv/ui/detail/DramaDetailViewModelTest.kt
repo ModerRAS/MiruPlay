@@ -105,7 +105,7 @@ class DramaDetailViewModelTest {
         assertEquals(15_000L, viewModel.episodesWithProgress.value.single().second?.positionMs)
         assertEquals("继续观看 1", viewModel.primaryActionLabel.value.fallback)
         assertEquals("示例剧", viewModel.heroTitle.value)
-        assertNull(viewModel.actionMessage.value)
+        assertNull(viewModel.actionMessage.value?.text?.fallback)
         assertFalse(viewModel.isRefreshingMetadata.value)
         assertFalse(viewModel.hasTmdbTokenConfigured.value)
     }
@@ -207,7 +207,7 @@ class DramaDetailViewModelTest {
         assertEquals(1, viewModel.episodesWithProgress.value.size)
         assertEquals(2, viewModel.episodesWithProgress.value.single().first.seasonNumber)
         assertEquals(3, viewModel.episodesWithProgress.value.single().first.episodeNumber)
-        assertEquals("已切换到第 2 季，共 1 集。", viewModel.actionMessage.value)
+        assertEquals("已切换到第 2 季，共 1 集。", viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -238,7 +238,7 @@ class DramaDetailViewModelTest {
 
         assertEquals(2, viewModel.selectedSeason.value)
         assertTrue(viewModel.episodesWithProgress.value.isEmpty())
-        assertEquals("第 2 季还没有可播放剧集。", viewModel.actionMessage.value)
+        assertEquals("第 2 季还没有可播放剧集。", viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -262,7 +262,7 @@ class DramaDetailViewModelTest {
         assertTrue(viewModel.episodesWithProgress.value.isEmpty())
         assertEquals("播放", viewModel.primaryActionLabel.value.fallback)
         assertEquals("", viewModel.heroTitle.value)
-        assertNull(viewModel.actionMessage.value)
+        assertNull(viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -334,7 +334,7 @@ class DramaDetailViewModelTest {
 
         assertEquals("刷新后简介", viewModel.series.value?.summary)
         assertEquals("刷新后标题", viewModel.episodesWithProgress.value.single().first.title)
-        assertEquals("电视剧信息已刷新。", viewModel.actionMessage.value)
+        assertEquals("电视剧信息已刷新。", viewModel.actionMessage.value?.text?.fallback)
         assertEquals(1, indexRepository.upsertedEntries.size)
         assertEquals("刷新后标题", indexRepository.upsertedEntries.single().episodeTitle)
         assertEquals("刷新后简介", indexRepository.upsertedEntries.single().plot)
@@ -432,12 +432,12 @@ class DramaDetailViewModelTest {
 
         viewModel.loadSeries("示例剧")
         advanceUntilIdle()
-        assertNull(viewModel.actionMessage.value)
+        assertNull(viewModel.actionMessage.value?.text?.fallback)
 
         viewModel.refreshSeries()
         advanceUntilIdle()
 
-        assertEquals("刷新电视剧信息失败：HTTP 错误 429：Too Many Requests", viewModel.actionMessage.value)
+        assertEquals("刷新电视剧信息失败：HTTP 错误 429：Too Many Requests", viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -507,7 +507,7 @@ class DramaDetailViewModelTest {
 
         assertEquals(
             "当前没有可直接刷新的在线详情源；在线手动匹配仍可继续使用。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。",
-            viewModel.actionMessage.value,
+            viewModel.actionMessage.value?.text?.fallback,
         )
     }
 
@@ -567,7 +567,7 @@ class DramaDetailViewModelTest {
         assertTrue(viewModel.canRefreshBoundMetadata.value)
         assertEquals("TVMaze 在线简介", viewModel.series.value?.summary)
         assertEquals("TVMaze 在线标题", viewModel.episodesWithProgress.value.single().first.title)
-        assertNull(viewModel.actionMessage.value)
+        assertNull(viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -617,7 +617,7 @@ class DramaDetailViewModelTest {
         assertTrue(viewModel.manualMatch.value.isOpen)
         assertEquals(1, viewModel.manualMatch.value.results.size)
         assertEquals("金庸武侠世界", viewModel.manualMatch.value.selectedResult?.title)
-        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
+        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage?.text?.fallback)
     }
 
     @Test
@@ -667,7 +667,7 @@ class DramaDetailViewModelTest {
         assertEquals(1, viewModel.manualMatch.value.results.size)
         assertEquals("TVMaze", viewModel.manualMatch.value.selectedResult?.providerRef?.source)
         assertEquals(listOf("TVMaze"), viewModel.manualMatch.value.selectedResult?.sourceLabels)
-        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
+        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage?.text?.fallback)
     }
 
     @Test
@@ -798,7 +798,7 @@ class DramaDetailViewModelTest {
         assertEquals("321", indexRepository.upsertedEntries.single().metadataId)
         assertEquals("金庸武侠世界", indexRepository.upsertedEntries.single().metadataTitle)
         assertEquals("在线标题", indexRepository.upsertedEntries.single().episodeTitle)
-        assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value)
+        assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value?.text?.fallback)
         assertEquals(321, viewModel.series.value?.tmdbId)
         assertFalse(viewModel.manualMatch.value.isOpen)
     }
@@ -887,7 +887,7 @@ class DramaDetailViewModelTest {
         assertEquals("maze-321", viewModel.series.value?.boundMetadataProviderRef()?.id)
         assertNull(viewModel.series.value?.tmdbId)
         assertNull(cached?.tmdbId)
-        assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value)
+        assertEquals("已应用手动匹配，电视剧信息已更新。", viewModel.actionMessage.value?.text?.fallback)
     }
 
     @Test
@@ -962,7 +962,7 @@ class DramaDetailViewModelTest {
 
         assertFalse(viewModel.isRefreshingMetadata.value)
         assertEquals("刷新后简介", viewModel.series.value?.summary)
-        assertEquals("电视剧信息已刷新。", viewModel.actionMessage.value)
+        assertEquals("电视剧信息已刷新。", viewModel.actionMessage.value?.text?.fallback)
     }
 }
 

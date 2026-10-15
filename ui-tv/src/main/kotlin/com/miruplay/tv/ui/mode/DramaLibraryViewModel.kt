@@ -139,9 +139,9 @@ class DramaLibraryViewModel @Inject constructor(
                         val sourceFailureMessage = currentScanState.sourceFailures.firstOrNull()
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = DramaLibraryUiState.ScanError(
-                                sourceFailureMessage?.let { rawUiText(it) } ?: uiText("drama_library_no_content", "未找到电视剧内容，请检查媒体源路径")
+                                sourceFailureMessage ?: uiText("drama_library_no_content", "未找到电视剧内容，请检查媒体源路径")
                             )
-                        } else if (!sourceFailureMessage.isNullOrBlank()) {
+                        } else if (sourceFailureMessage != null) {
                             applyScanNotice(
                                 buildScanNotice(
                                     firstFailure = sourceFailureMessage,
@@ -337,7 +337,7 @@ private fun monotonicNowMs(): Long =
     System.nanoTime() / 1_000_000L
 
 private fun buildScanNotice(
-    firstFailure: String,
+    firstFailure: UiText,
     failedSourceCount: Int,
 ): UiMessage =
     if (failedSourceCount <= 1) {

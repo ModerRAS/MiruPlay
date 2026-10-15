@@ -682,10 +682,10 @@ class SettingsViewModel @Inject constructor(
                 test.onSuccess { connected ->
                     _testResult.value = if (connected) ConnectionTestResult.Success else ConnectionTestResult.Failed(uiText("connection_failed", "无法连接到服务器"))
                 }.onError { error ->
-                    _testResult.value = ConnectionTestResult.Failed(rawUiText(error.toUserMessage()))
+                    _testResult.value = ConnectionTestResult.Failed(error.toUiText())
                 }
             }.onError { error ->
-                _testResult.value = ConnectionTestResult.Failed(rawUiText(error.toUserMessage()))
+                _testResult.value = ConnectionTestResult.Failed(error.toUiText())
             }
         }
     }
@@ -774,7 +774,7 @@ class SettingsViewModel @Inject constructor(
                     cloudDriveScheduler.syncPeriodicWork(config)
                     _cloudDriveActionMessage.value = cloudRssConfigSavedStatus().asInfo()
                 }
-                .onError { error -> _cloudDriveActionMessage.value = errorMessage(error.toUserMessage()) }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -787,7 +787,7 @@ class SettingsViewModel @Inject constructor(
             val current = when (val result = cloudDriveRepository.getConfig()) {
                 is Result.Success -> result.data
                 is Result.Error -> {
-                    _proxyStatusMessage.value = errorMessage(result.error.toUserMessage())
+                    _proxyStatusMessage.value = result.error.toUiText().asError()
                     return@launch
                 }
             }
@@ -801,7 +801,7 @@ class SettingsViewModel @Inject constructor(
                     bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
                     _proxyStatusMessage.value = settingsProxySavedStatus().asInfo()
                 }
-                .onError { error -> _proxyStatusMessage.value = errorMessage(error.toUserMessage()) }
+                .onError { error -> _proxyStatusMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -921,7 +921,7 @@ class SettingsViewModel @Inject constructor(
                     _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus().asInfo()
                 }
                 .onError { error ->
-                    _cloudDriveActionMessage.value = errorMessage(error.toUserMessage())
+                    _cloudDriveActionMessage.value = error.toUiText().asError()
                 }
             _cloudDriveBusy.value = false
         }
@@ -946,7 +946,7 @@ class SettingsViewModel @Inject constructor(
                     ).asInfo()
                 }
                 .onError { error ->
-                    _cloudDriveActionMessage.value = errorMessage(error.toUserMessage())
+                    _cloudDriveActionMessage.value = error.toUiText().asError()
                 }
             _cloudDriveBusy.value = false
         }
@@ -970,14 +970,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             cloudDriveRepository.saveSubscription(subscription)
                 .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name).asInfo() }
-                .onError { error -> _cloudDriveActionMessage.value = errorMessage(error.toUserMessage()) }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
     fun setRssSubscriptionEnabled(subscription: RssSubscriptionInfo, enabled: Boolean) {
         viewModelScope.launch {
             cloudDriveRepository.saveSubscription(subscription.copy(enabled = enabled))
-                .onError { error -> _cloudDriveActionMessage.value = errorMessage(error.toUserMessage()) }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -985,7 +985,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             cloudDriveRepository.deleteSubscription(id)
                 .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus().asInfo() }
-                .onError { error -> _cloudDriveActionMessage.value = errorMessage(error.toUserMessage()) }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -1006,7 +1006,7 @@ class SettingsViewModel @Inject constructor(
                     }
                     .onError { error ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = errorMessage(error.toUserMessage())
+                        _cloudDriveActionMessage.value = error.toUiText().asError()
                     }
             } finally {
                 _cloudDriveBusy.value = false
@@ -1049,7 +1049,7 @@ class SettingsViewModel @Inject constructor(
                 ) {
                     is Result.Success -> saved.data
                     is Result.Error -> {
-                        _cloudDriveActionMessage.value = errorMessage(saved.error.toUserMessage())
+                        _cloudDriveActionMessage.value = saved.error.toUiText().asError()
                         return@launch
                     }
                 }
@@ -1067,7 +1067,7 @@ class SettingsViewModel @Inject constructor(
                         is Result.Success -> refreshCloudDriveCredentialState()
                         is Result.Error -> {
                             refreshCloudDriveCredentialState()
-                            _cloudDriveActionMessage.value = errorMessage(login.error.toUserMessage())
+                            _cloudDriveActionMessage.value = login.error.toUiText().asError()
                             return@launch
                         }
                     }
@@ -1091,7 +1091,7 @@ class SettingsViewModel @Inject constructor(
                     }
                     .onError { error ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = errorMessage(error.toUserMessage())
+                        _cloudDriveActionMessage.value = error.toUiText().asError()
                     }
             } finally {
                 _cloudDriveBusy.value = false
@@ -1134,7 +1134,7 @@ class SettingsViewModel @Inject constructor(
                     browseCloudDriveDirectory(prepared.data.path)
                 }
                 is Result.Error -> {
-                    _cloudDriveActionMessage.value = errorMessage(prepared.error.toUserMessage())
+                    _cloudDriveActionMessage.value = prepared.error.toUiText().asError()
                 }
             }
         }
@@ -1428,7 +1428,7 @@ class SettingsViewModel @Inject constructor(
                     _appUpdateState.value = _appUpdateState.value.copy(
                         isBusy = false,
                         progressPercent = null,
-                        statusMessage = errorMessage(result.error.toUserMessage()),
+                        statusMessage = result.error.toUiText().asError(),
                     )
                 }
             }
@@ -1480,7 +1480,7 @@ class SettingsViewModel @Inject constructor(
                         _appUpdateState.value = _appUpdateState.value.copy(
                             isBusy = false,
                             progressPercent = null,
-                            statusMessage = errorMessage(result.error.toUserMessage()),
+                            statusMessage = result.error.toUiText().asError(),
                         )
                     }
                 }
@@ -1508,7 +1508,7 @@ class SettingsViewModel @Inject constructor(
             is Result.Error -> {
                 _appUpdateState.value = _appUpdateState.value.copy(
                     isBusy = false,
-                    statusMessage = errorMessage(result.error.toUserMessage()),
+                    statusMessage = result.error.toUiText().asError(),
                 )
             }
         }

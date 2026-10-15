@@ -3,6 +3,7 @@ package com.miruplay.tv.ui.music
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.MusicAlbum
 import com.miruplay.tv.model.MusicTrack
 import com.miruplay.tv.repository.MusicRepository
@@ -16,7 +17,7 @@ import javax.inject.Inject
 sealed class MusicAlbumDetailUiState {
     data object Loading : MusicAlbumDetailUiState()
     data class HasContent(val album: MusicAlbum, val tracks: List<MusicTrack>) : MusicAlbumDetailUiState()
-    data class Error(val message: String) : MusicAlbumDetailUiState()
+    data class Error(val message: UiText) : MusicAlbumDetailUiState()
 }
 
 @HiltViewModel
@@ -35,7 +36,7 @@ class MusicAlbumDetailViewModel @Inject constructor(
             _state.value = MusicAlbumDetailUiState.Loading
             val albumRes = musicRepository.getAlbumById(albumId)
             if (albumRes is com.miruplay.tv.core.common.Result.Error) {
-                _state.value = MusicAlbumDetailUiState.Error(albumRes.error.toUserMessage())
+                _state.value = MusicAlbumDetailUiState.Error(albumRes.error.toUiText())
                 return@launch
             }
             val album = (albumRes as com.miruplay.tv.core.common.Result.Success).data

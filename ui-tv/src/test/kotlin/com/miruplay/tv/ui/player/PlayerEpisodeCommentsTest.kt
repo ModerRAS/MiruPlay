@@ -50,8 +50,8 @@ class PlayerEpisodeCommentsTest {
         assertEquals(202, requestedEpisodeId)
         assertEquals(202, loadedEpisodeId)
         assertEquals(Result.success(emptyList<Nothing>()), result)
-        assertEquals("Bangumi Ep. 202", bangumiEpisodeLabel(loadedEpisodeId))
-        assertEquals("当前剧集", bangumiEpisodeLabel(null))
+        assertEquals("Bangumi Ep. 202", bangumiEpisodeLabel(loadedEpisodeId).fallback)
+        assertEquals("当前剧集", bangumiEpisodeLabel(null).fallback)
     }
 
     private fun episode(bangumiEpisodeId: Int): Episode =

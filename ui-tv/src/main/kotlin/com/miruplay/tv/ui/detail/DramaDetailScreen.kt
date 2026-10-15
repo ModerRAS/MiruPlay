@@ -67,8 +67,12 @@ import com.miruplay.tv.model.dramaRefreshActionLabel
 import com.miruplay.tv.model.dramaSeasonCountLabel
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.playbackBackLabel
 import com.miruplay.tv.model.progressLabel
 import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.providerDisplayLabel
 import com.miruplay.tv.model.providerStableKey
@@ -209,7 +213,7 @@ private fun DramaDetailContent(
     hasTmdbTokenConfigured: Boolean,
     canRefreshBoundMetadata: Boolean,
     primaryActionLabel: UiText,
-    actionMessage: String?,
+    actionMessage: UiMessage?,
     primaryActionEpisode: DramaEpisode?,
     hasPlayableEpisodes: Boolean,
     onNavigateBack: () -> Unit,
@@ -321,14 +325,11 @@ private fun DramaDetailContent(
                             modifier = Modifier.width(170.dp),
                         )
                     }
-                    if (!actionMessage.isNullOrBlank()) {
+                    actionMessage?.let { message ->
                         Spacer(Modifier.height(14.dp))
-                        val positiveMessage = actionMessage.contains("已切换") ||
-                            actionMessage.contains("已刷新") ||
-                            actionMessage.contains("已更新")
                         Text(
-                            text = actionMessage,
-                            color = if (positiveMessage) ProgressGreen else WarningYellow,
+                            text = message.text.resolve(),
+                            color = if (message is UiMessage.Error) WarningYellow else ProgressGreen,
                             style = TvTypography.body,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -347,7 +348,7 @@ private fun DramaDetailContent(
                 isRefreshing = isRefreshingMetadata,
                 boundProviderLabel = series.boundMetadataProviderRef()?.source,
                 canRefreshBoundMetadata = canRefreshBoundMetadata,
-            ).resolve(),
+            ),
             highlightColor = when {
                 isRefreshingMetadata -> AccentBlue
                 series.boundMetadataProviderRef() != null -> ProgressGreen
@@ -397,7 +398,7 @@ private fun DramaDetailContent(
         Spacer(Modifier.height(12.dp))
         if (episodes.isEmpty()) {
             DramaEpisodeEmptyState(
-                message = actionMessage ?: "当前季还没有可播放剧集。",
+                message = actionMessage ?: uiText("drama_season_empty_state", "当前季还没有可播放剧集。").asError(),
                 onNavigateBack = onNavigateBack,
             )
         } else {
@@ -545,20 +546,12 @@ private fun DramaManualMatchDialog(
                     }
                 }
 
-                if (!state.statusMessage.isNullOrBlank()) {
+                state.statusMessage?.let { status ->
                     item(key = "status-message") {
                         Text(
-                            text = state.statusMessage,
+                            text = status.text.resolve(),
                             style = TvTypography.body,
-                            color = if (
-                                state.statusMessage.contains("找到") ||
-                                state.statusMessage.contains("已选择") ||
-                                state.statusMessage.contains("已应用")
-                            ) {
-                                ProgressGreen
-                            } else {
-                                WarningYellow
-                            },
+                            color = if (status is UiMessage.Error) WarningYellow else ProgressGreen,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -729,7 +722,7 @@ private fun DramaManualMatchResultItem(
 
 @Composable
 private fun DramaMetadataHintCard(
-    message: String,
+    message: UiText,
     highlightColor: Color,
     iconColor: Color,
 ) {
@@ -750,7 +743,7 @@ private fun DramaMetadataHintCard(
             modifier = Modifier.size(22.dp),
         )
         Text(
-            text = message,
+            text = message.resolve(),
             color = TextPrimary,
             style = TvTypography.body,
             maxLines = 2,
@@ -761,7 +754,7 @@ private fun DramaMetadataHintCard(
 
 @Composable
 private fun DramaEpisodeEmptyState(
-    message: String,
+    message: UiMessage,
     onNavigateBack: () -> Unit,
 ) {
     Column(
@@ -771,12 +764,12 @@ private fun DramaEpisodeEmptyState(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = message,
+            text = message.text.resolve(),
             color = TextSecondary,
             style = TvTypography.body,
         )
         TvButton(
-            text = "返回",
+            text = playbackBackLabel().resolve(),
             onClick = onNavigateBack,
             modifier = Modifier.width(160.dp),
             secondary = true,

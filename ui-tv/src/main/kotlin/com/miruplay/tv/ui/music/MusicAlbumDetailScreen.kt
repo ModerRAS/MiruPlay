@@ -22,6 +22,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.ui.components.LoadingIndicator
 import com.miruplay.tv.ui.components.OverscanContainer
 import com.miruplay.tv.ui.components.TvButton
@@ -42,7 +43,7 @@ fun MusicAlbumDetailScreen(
         when (val s = state) {
             is MusicAlbumDetailUiState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
             is MusicAlbumDetailUiState.Error -> Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = s.message, style = TvTypography.body, color = TextSecondary)
+                Text(text = s.message.resolve(), style = TvTypography.body, color = TextSecondary)
                 Spacer(Modifier.height(12.dp))
                 TvButton(text = "返回", onClick = onNavigateBack)
             }

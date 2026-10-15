@@ -588,7 +588,7 @@ class DramaLibraryViewModelTest {
         scanController.emit(
             LibraryScanState.Finished(
                 results = emptyList(),
-                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+                sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
             ),
         )
         advanceUntilIdle()
@@ -639,7 +639,7 @@ class DramaLibraryViewModelTest {
         scanController.emit(
             LibraryScanState.Finished(
                 results = emptyList(),
-                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+                sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
             ),
         )
         advanceUntilIdle()

@@ -1,6 +1,7 @@
 package com.miruplay.tv.ui.library
 
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -47,7 +48,7 @@ class LibraryScanNoticeTest {
     fun `scan notice keeps failure visible when old content remains`() {
         val notice = libraryScanNotice(
             results = emptyList(),
-            sourceFailures = listOf("未找到媒体库索引：library.db"),
+            sourceFailures = listOf(rawUiText("未找到媒体库索引：library.db")),
         )
 
         assertEquals("扫描失败：未找到媒体库索引：library.db", notice?.text?.fallback)

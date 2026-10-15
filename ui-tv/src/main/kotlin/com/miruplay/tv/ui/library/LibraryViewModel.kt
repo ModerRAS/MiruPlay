@@ -146,7 +146,7 @@ class LibraryViewModel @Inject constructor(
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError(
-                                scanState.sourceFailures.firstOrNull()?.let { rawUiText(it) }
+                                scanState.sourceFailures.firstOrNull()
                                     ?: libraryNoContentAfterScanMessage()
                             )
                         } else {
@@ -302,7 +302,7 @@ private data class LibraryLoadSnapshot(
 
 internal fun libraryScanNotice(
     results: List<ScanResult>,
-    sourceFailures: List<String>,
+    sourceFailures: List<UiText>,
 ): UiMessage? {
     val summarized = results.mapNotNull(ScanResult::summary).map { rawUiText(it) }
     val unsummarized = results.filter { it.summary.isNullOrBlank() }
@@ -313,7 +313,7 @@ internal fun libraryScanNotice(
             listOf(UiText("library_scan_done_files", listOf(count), "扫描完成：$count 个文件"))
         }
         .orEmpty()
-    val failure = sourceFailures.takeIf(List<String>::isNotEmpty)?.let {
+    val failure = sourceFailures.takeIf(List<UiText>::isNotEmpty)?.let {
         val suffix = if (it.size > 1) {
             val size = it.size
             UiText("library_scan_failed_suffix", listOf(size), "（共 $size 个源失败）")

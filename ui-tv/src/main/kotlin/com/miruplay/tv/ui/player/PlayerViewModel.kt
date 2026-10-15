@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.EpisodeVersion
@@ -277,7 +278,7 @@ class PlayerViewModel @Inject constructor(
             if (activeSource != source || episodeCommentsGeneration != generation) return@launch
             if (bangumiEpisodeId == null) {
                 _episodeComments.value = EpisodeCommentsUiState(
-                    errorMessage = "当前剧集没有匹配到 Bangumi 单集，无法加载评论。",
+                    errorMessage = uiText("comments_no_episode", "当前剧集没有匹配到 Bangumi 单集，无法加载评论。"),
                 )
                 return@launch
             }
@@ -300,7 +301,7 @@ class PlayerViewModel @Inject constructor(
                     if (activeSource != source || episodeCommentsGeneration != generation) return@launch
                     _episodeComments.value = current.copy(
                         isLoading = false,
-                        errorMessage = result.error.toUserMessage(),
+                        errorMessage = result.error.toUiText(),
                     )
                 }
             }
@@ -405,20 +406,20 @@ class PlayerViewModel @Inject constructor(
     fun translateSelectedSubtitle(provider: TranslationProvider, targetLanguageCode: String) {
         val source = activeSource ?: run {
             _subtitleTranslationState.value =
-                SubtitleTranslationState.Error("当前没有正在播放的内容，无法翻译字幕")
+                SubtitleTranslationState.Error(uiText("translate_no_content", "当前没有正在播放的内容，无法翻译字幕"))
             return
         }
         val selectedIndex = _selectedSubtitleTrackIndex.value
         val selectedTrack = selectedIndex?.let { index -> _availableSubtitles.value.getOrNull(index) }
         if (selectedTrack == null) {
             _subtitleTranslationState.value = SubtitleTranslationState.Error(
-                "请先在字幕菜单中选择要翻译的字幕轨道",
+                uiText("translate_no_track", "请先在字幕菜单中选择要翻译的字幕轨道"),
             )
             return
         }
         if (provider == TranslationProvider.DEEPSEEK && translationPreferences.deepSeekApiKey.isBlank()) {
             _subtitleTranslationState.value = SubtitleTranslationState.Error(
-                "未配置 DeepSeek API Key，请在 WebControl 设置中配置后重试",
+                uiText("translate_no_deepseek_key", "未配置 DeepSeek API Key，请在 WebControl 设置中配置后重试"),
             )
             return
         }
@@ -446,10 +447,14 @@ class PlayerViewModel @Inject constructor(
                     _subtitleTranslationState.value = SubtitleTranslationState.Idle
                 }
                 is Result.Error -> {
-                    val baseMessage = result.error.toUserMessage()
+                    val baseMessage = result.error.toUiText()
                     _subtitleTranslationState.value = SubtitleTranslationState.Error(
                         if (provider == TranslationProvider.DEEPSEEK) {
-                            "$baseMessage（可在 WebControl 设置 DeepSeek API Key）"
+                            UiText(
+                                "translate_deepseek_hint",
+                                listOf(baseMessage),
+                                "${baseMessage.fallback}（可在 WebControl 设置 DeepSeek API Key）",
+                            )
                         } else {
                             baseMessage
                         },
@@ -886,7 +891,7 @@ data class EpisodeCommentsUiState(
     val comments: List<BangumiEpisodeComment> = emptyList(),
     val isLoading: Boolean = false,
     val hasMore: Boolean = false,
-    val errorMessage: String? = null,
+    val errorMessage: UiText? = null,
 )
 
 internal suspend fun resolveBangumiEpisodeId(
@@ -910,5 +915,5 @@ sealed interface PlaybackFinishEvent {
 sealed interface SubtitleTranslationState {
     data object Idle : SubtitleTranslationState
     data object Translating : SubtitleTranslationState
-    data class Error(val message: String) : SubtitleTranslationState
+    data class Error(val message: UiText) : SubtitleTranslationState
 }

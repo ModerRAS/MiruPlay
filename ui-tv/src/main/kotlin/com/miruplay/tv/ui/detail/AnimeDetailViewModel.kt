@@ -330,9 +330,9 @@ class AnimeDetailViewModel @Inject constructor(
                 is Result.Error -> {
                     _manualMatch.value = _manualMatch.value.copy(
                         isApplying = false,
-                        statusMessage = errorMessage(refreshed.error.toUserMessage()),
+                        statusMessage = refreshed.error.toUiText().asError(),
                     )
-                    _actionMessage.value = errorMessage(refreshed.error.toUserMessage())
+                    _actionMessage.value = refreshed.error.toUiText().asError()
                     _isSyncing.value = false
                     return@launch
                 }
@@ -405,7 +405,7 @@ class AnimeDetailViewModel @Inject constructor(
                 _actionMessage.value = detailBangumiSyncCompleteMessage(summary.pushedEpisodes, summary.pulledEpisodes).asInfo()
                 loadAnime(current.id)
             }.onError { error ->
-                _actionMessage.value = errorMessage(error.toUserMessage())
+                _actionMessage.value = error.toUiText().asError()
             }
             _isSyncing.value = false
         }

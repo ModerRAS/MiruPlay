@@ -1,6 +1,7 @@
 package com.miruplay.tv.scanner
 
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -77,13 +78,13 @@ class LibraryScanStatusTest {
         status.start()
         status.finish(
             results = emptyList(),
-            sourceFailures = listOf("HTTP 错误 404：Not Found"),
+            sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
         )
 
         assertEquals(
             LibraryScanState.Finished(
                 results = emptyList(),
-                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+                sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
             ),
             status.state.value,
         )

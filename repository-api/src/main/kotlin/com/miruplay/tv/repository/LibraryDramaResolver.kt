@@ -1,6 +1,8 @@
 package com.miruplay.tv.repository
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.model.FilenameParseResult
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaEpisodeMetadata
@@ -29,7 +31,7 @@ data class LibraryDramaDetail(
     val indexEntries: List<MediaIndexEntry>,
     val series: DramaSeries,
     val episodes: List<DramaEpisode>,
-    val metadataMessage: String? = null,
+    val metadataMessage: UiText? = null,
     val resolvedMetadata: DramaSeriesMetadata? = null,
 )
 
@@ -78,8 +80,8 @@ class LibraryDramaResolver(
         val metadataBundle = rawMetadataBundle?.takeIf { group.acceptsResolvedMetadata(it.series) }
         val metadataMessage = when {
             rawMetadataBundle != null && metadataBundle == null ->
-                "在线元数据返回结果和本地剧名差太大，已忽略这次自动匹配。"
-            else -> (metadataResult as? Result.Error)?.error?.toUserMessage()
+                uiText("drama_metadata_mismatch", "在线元数据返回结果和本地剧名差太大，已忽略这次自动匹配。")
+            else -> (metadataResult as? Result.Error)?.error?.toUiText()
         }
         return group.toDramaDetail(
             cachedSeries = cachedSeries,
@@ -140,7 +142,7 @@ fun LibraryIndexedDramaGroup.toDramaSeries(): DramaSeries =
 private fun LibraryIndexedDramaGroup.toDramaDetail(
     cachedSeries: DramaSeries? = null,
     metadataBundle: DramaSeriesMetadata? = null,
-    metadataMessage: String? = null,
+    metadataMessage: UiText? = null,
 ): LibraryDramaDetail {
     val episodes = entries.toDramaEpisodes(source, seriesId)
     val mergedEpisodes = episodes.merge(metadataBundle)

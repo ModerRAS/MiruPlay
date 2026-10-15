@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import com.miruplay.tv.translation.SUPPORTED_TARGET_LANGUAGES
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.translation.TranslationProvider
 import com.miruplay.tv.ui.components.rememberInitialFocusHandle
 import com.miruplay.tv.ui.theme.AnimeRed
@@ -176,7 +177,7 @@ internal fun SubtitleTranslateDialog(
             (state as? SubtitleTranslationState.Error)?.let { error ->
                 Spacer(Modifier.height(16.dp))
                 Text(
-                    text = error.message,
+                    text = error.message.resolve(),
                     style = TvTypography.body,
                     color = AnimeRed,
                 )

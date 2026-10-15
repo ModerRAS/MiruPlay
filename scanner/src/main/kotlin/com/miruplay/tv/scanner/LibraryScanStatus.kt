@@ -21,7 +21,7 @@ sealed class LibraryScanState {
     ) : LibraryScanState()
     data class Finished(
         val results: List<ScanResult>,
-        val sourceFailures: List<String> = emptyList(),
+        val sourceFailures: List<UiText> = emptyList(),
     ) : LibraryScanState()
     data class Failed(val message: UiText) : LibraryScanState()
     data object Cancelled : LibraryScanState()
@@ -120,7 +120,7 @@ class LibraryScanStatus @Inject constructor() {
     @Synchronized
     fun finish(
         results: List<ScanResult>,
-        sourceFailures: List<String> = emptyList(),
+        sourceFailures: List<UiText> = emptyList(),
     ) {
         cancelRequest = null
         _state.value = LibraryScanState.Finished(
