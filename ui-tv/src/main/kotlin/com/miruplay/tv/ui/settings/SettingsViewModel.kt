@@ -64,6 +64,8 @@ import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.repository.AppLanguage
+import com.miruplay.tv.repository.AppLocaleStore
 import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.AppModePreferencesRepository
@@ -134,6 +136,7 @@ class SettingsViewModel @Inject constructor(
     private val logUploadRepository: LogUploadRepository,
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdateChannelStore: AppUpdateChannelStore,
+    private val appLocaleStore: AppLocaleStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
@@ -550,6 +553,15 @@ class SettingsViewModel @Inject constructor(
         appUpdateChannelStore.addChannelChangeListener { channel ->
             _appUpdateChannel.value = channel
             _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
+        }
+
+    private val _appLanguage = MutableStateFlow(appLocaleStore.appLanguage)
+    val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
+
+    // 其他表面（WebAPI/WebUI）改语言时同步 UI；Activity 侧监听同一存储负责 recreate
+    private val appLanguageChangeListener: java.io.Closeable =
+        appLocaleStore.addLanguageChangeListener { language ->
+            _appLanguage.value = language
         }
 
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
@@ -1362,6 +1374,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAppLanguage(language: AppLanguage) {
+        if (language == _appLanguage.value) return
+        appLocaleStore.appLanguage = language
+        _appLanguage.value = language
+        // UI 立即反映选择；Activity 侧监听同一存储负责 recreate 生效
+    }
+
     fun setAppUpdateChannel(channel: UpdateChannel) {
         if (channel == _appUpdateChannel.value) return
         appUpdateChannelStore.updateChannel = channel
@@ -1641,6 +1660,7 @@ class SettingsViewModel @Inject constructor(
         logUploadConfigObserverJob?.cancel()
         logUploadAutoScheduler.stop()
         updateChannelChangeListener.close()
+        appLanguageChangeListener.close()
         super.onCleared()
     }
 }

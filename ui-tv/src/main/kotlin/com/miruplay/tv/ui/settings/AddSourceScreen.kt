@@ -113,8 +113,11 @@ import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.design.MiruPlayInputIntent
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.repository.AppLanguage
 import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.canRunNow
+import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.repository.AppMode
 import com.miruplay.tv.repository.toMediaContentMode
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
@@ -3123,6 +3126,43 @@ private fun ConnectionStatus(result: ConnectionTestResult?) {
 }
 
 @Composable
+private fun AppLanguageSection(
+    viewModel: SettingsViewModel = hiltViewModel()
+) {
+    val current by viewModel.appLanguage.collectAsStateWithLifecycle()
+    Spacer(Modifier.height(18.dp))
+    Text(
+        text = stringResource(R.string.settings_app_language_title),
+        style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
+        color = TextPrimary
+    )
+    Spacer(Modifier.height(10.dp))
+    AppLanguage.entries.chunked(3).forEach { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            row.forEach { language ->
+                ScanOptionChip(
+                    text = language.autonym.ifBlank { stringResource(R.string.settings_app_language_follow_system) },
+                    icon = Icons.Filled.Language,
+                    selected = current == language,
+                    enabled = true,
+                    onClick = { viewModel.setAppLanguage(language) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+    }
+    StatusMessage(
+        icon = Icons.Filled.Info,
+        text = stringResource(R.string.settings_app_language_hint),
+        color = TextSecondary
+    )
+}
+
+@Composable
 private fun ScanPanel(
     autoScanEnabled: Boolean,
     autoScanIntervalHours: Int,
@@ -3184,6 +3224,8 @@ private fun ScanPanel(
             text = settingsAppModeHint(),
             color = TextSecondary
         )
+
+        AppLanguageSection()
 
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {

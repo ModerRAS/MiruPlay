@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_app_language_title">語言</string>
+    <string name="settings_app_language_follow_system">跟隨系統</string>
+    <string name="settings_app_language_hint">手動選擇後介面即時重新載入生效</string>
+</resources>

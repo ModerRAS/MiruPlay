@@ -614,6 +614,16 @@ data class AppUpdateChannelRequest(
 )
 
 @Serializable
+data class AppLocaleDto(
+    val language: String = "system",
+)
+
+@Serializable
+data class SetAppLocaleRequest(
+    val language: String,
+)
+
+@Serializable
 data class AppUpdateDownloadResponse(
     val installLaunch: String,
     val error: String? = null,

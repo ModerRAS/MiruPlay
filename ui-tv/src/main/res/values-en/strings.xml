@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_app_language_title">Language</string>
+    <string name="settings_app_language_follow_system">Follow system</string>
+    <string name="settings_app_language_hint">The interface reloads immediately after a manual selection</string>
+</resources>

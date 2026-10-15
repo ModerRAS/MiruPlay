@@ -100,6 +100,11 @@ class MainActivity : ComponentActivity() {
 
     private var restoreLaunchTmdbOverrides: (() -> Unit)? = null
     private var launchDirectPlaybackRequest: LaunchDirectPlaybackRequest? by mutableStateOf(null)
+    private var appLocaleListener: android.content.SharedPreferences.OnSharedPreferenceChangeListener? = null
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(AppLocaleApplier.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val onCreateStartUptimeMs = SystemClock.uptimeMillis()
@@ -109,6 +114,7 @@ class MainActivity : ComponentActivity() {
             attributes = mapOf("has_saved_state" to (savedInstanceState != null).toString()),
         )
         super.onCreate(savedInstanceState)
+        appLocaleListener = AppLocaleApplier.recreateOnLanguageChange(this)
         logStartupTrace("onCreate_after_super", onCreateStartUptimeMs)
         val launchIntentSnapshot = captureLaunchIntentSnapshot(intent)
         logStartupTrace("onCreate_after_snapshot", onCreateStartUptimeMs)
@@ -323,6 +329,8 @@ class MainActivity : ComponentActivity() {
         }
         restoreLaunchTmdbOverrides?.invoke()
         restoreLaunchTmdbOverrides = null
+        appLocaleListener?.let { AppLocaleApplier.unregister(this, it) }
+        appLocaleListener = null
         super.onDestroy()
     }
 

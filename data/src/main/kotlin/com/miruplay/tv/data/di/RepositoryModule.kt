@@ -3,6 +3,7 @@ package com.miruplay.tv.data.di
 import com.miruplay.tv.data.preferences.AppModePreferencesManager
 import com.miruplay.tv.data.preferences.WebControlPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.data.preferences.AppLocalePreferencesManager
 import com.miruplay.tv.data.preferences.AppUpdatePreferencesManager
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.logging.LogUploadRepositoryImpl
@@ -17,6 +18,7 @@ import com.miruplay.tv.data.secure.MediaSourceSecretStore
 import com.miruplay.tv.data.secure.SecurePreferencesManager
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppModePreferencesRepository
+import com.miruplay.tv.repository.AppLocaleStore
 import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -121,4 +123,10 @@ abstract class RepositoryModule {
     abstract fun bindAppUpdateChannelStore(
         impl: AppUpdatePreferencesManager
     ): AppUpdateChannelStore
+
+    @Binds
+    @Singleton
+    abstract fun bindAppLocaleStore(
+        impl: AppLocalePreferencesManager
+    ): AppLocaleStore
 }

@@ -41,6 +41,8 @@ import com.miruplay.tv.player.LibassSubtitleMonitorSnapshot
 import com.miruplay.tv.player.PlaybackHealthSnapshot
 import com.miruplay.tv.repository.AppCredentialStore
 import com.miruplay.tv.repository.AppModePreferencesRepository
+import com.miruplay.tv.repository.AppLanguage
+import com.miruplay.tv.repository.AppLocaleStore
 import com.miruplay.tv.repository.AppUpdateChannelStore
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
@@ -120,6 +122,7 @@ class WebControlService @Inject constructor(
     private val webControlAccessManager: WebControlAccessManager,
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdateChannelStore: AppUpdateChannelStore,
+    private val appLocaleStore: AppLocaleStore,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val translationPreferencesRepository: TranslationPreferencesRepository,
 ) : SharedWebControlEndpointService(
@@ -1184,6 +1187,17 @@ class WebControlService @Inject constructor(
         // 渠道变了，旧缓存不再有效，立即用新渠道重新检查
         lastUpdateCheck = null
         checkAppUpdate()
+    }
+
+    override suspend fun getAppLocale(): AppLocaleDto = runOnIo {
+        AppLocaleDto(language = appLocaleStore.appLanguage.id)
+    }
+
+    override suspend fun setAppLocale(request: SetAppLocaleRequest): AppLocaleDto = runOnIo {
+        val language = AppLanguage.fromId(request.language)
+            ?: throw IllegalArgumentException("Unknown app language: ${request.language}")
+        appLocaleStore.appLanguage = language
+        AppLocaleDto(language = language.id)
     }
 
     override suspend fun checkAppUpdate(): AppUpdateDto = runOnIo {

@@ -201,6 +201,7 @@ class SettingsViewModelTokenTest {
             logUploadRepository = logUploadRepository,
             appUpdateRepository = appUpdateRepository,
             appUpdateChannelStore = AppUpdateChannelStoreStub,
+            appLocaleStore = AppLocaleStoreStub,
             cloudDriveClient = cloudDriveClient,
             cloudDriveEngine = cloudDriveEngine,
             cloudDriveScheduler = cloudDriveScheduler,
@@ -217,4 +218,8 @@ class SettingsViewModelTokenTest {
 
 private object AppUpdateChannelStoreStub : AppUpdateChannelStore {
     override var updateChannel: com.miruplay.tv.repository.UpdateChannel = com.miruplay.tv.repository.UpdateChannel.ALPHA
+}
+
+private object AppLocaleStoreStub : com.miruplay.tv.repository.AppLocaleStore {
+    override var appLanguage: com.miruplay.tv.repository.AppLanguage = com.miruplay.tv.repository.AppLanguage.SYSTEM
 }

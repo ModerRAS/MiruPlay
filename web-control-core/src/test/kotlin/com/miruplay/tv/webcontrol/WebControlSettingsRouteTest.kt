@@ -46,6 +46,30 @@ class WebControlSettingsRouteTest {
     }
 
     @Test
+    fun `locale settings round trip persists language id`() {
+        val service = SettingsStubService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+
+        val put = server.serve(
+            session(
+                method = NanoHTTPD.Method.PUT,
+                uri = "/api/settings/locale",
+                body = """{"language":"en-US"}""",
+            )
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, put.status)
+        assertEquals("en-US", service.capturedLocale)
+
+        val get = server.serve(session(method = NanoHTTPD.Method.GET, uri = "/api/settings/locale", body = ""))
+        assertEquals(NanoHTTPD.Response.Status.OK, get.status)
+        assertTrue(get.bodyText().contains("\"language\":\"en-US\""))
+    }
+
+    @Test
     fun `playback settings route serializes end action and tone mapping`() {
         val service = SettingsStubService()
         val server = NanoHttpWebControlServer(
@@ -272,6 +296,7 @@ class WebControlSettingsRouteTest {
         var capturedPlayback: PlaybackSettingsRequest? = null
         var capturedTmdbToken: String? = null
         var capturedAppControlAction: String? = null
+        var capturedLocale: String? = null
         var tmdbCleared = false
         var rotateCalled = false
 
@@ -367,6 +392,14 @@ class WebControlSettingsRouteTest {
         override suspend fun appControl(request: AppControlRequest): AppControlDto {
             capturedAppControlAction = request.action
             return AppControlDto(action = request.action, accepted = true, message = "ok")
+        }
+
+        override suspend fun getAppLocale(): AppLocaleDto =
+            AppLocaleDto(language = capturedLocale ?: "system")
+
+        override suspend fun setAppLocale(request: SetAppLocaleRequest): AppLocaleDto {
+            capturedLocale = request.language
+            return getAppLocale()
         }
     }
 }
