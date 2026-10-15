@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_bg_tasks">后台任务</string>
+    <string name="notif_channel_bg_desc">媒体库扫描、同步、刮削和下载进度</string>
+</resources>

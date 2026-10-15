@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="worker_archive_title">Bangumi Archive 更新</string>
+    <string name="worker_rss_title">CloudDrive/RSS 同步</string>
+    <string name="worker_archive_text">正在下载最新离线刮削数据</string>
+    <string name="worker_rss_manual">正在手动同步订阅内容</string>
+    <string name="worker_rss_scheduled">正在按计划同步订阅内容</string>
+</resources>
