@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
@@ -980,7 +981,7 @@ fun AddSourceScreen(
                     onSelectCurrent = {
                         location = it
                         locationDisplayName = mediaSourceLocalPathDisplayName(it)
-                        if (name.isBlank() || name == "本地下载") {
+                        if (name.isBlank() || name == MediaSourceType.LOCAL.defaultSourceName().resolve(context)) {
                             name = locationDisplayName.ifBlank { mediaSourceLocalLibraryFallbackName().resolve(context) }
                         }
                         viewModel.clearTestResult()
@@ -1671,7 +1672,7 @@ private fun SettingsSectionHeader(section: MiruPlaySettingsSection) {
         if (section == MiruPlaySettingsSection.SCAN || section == MiruPlaySettingsSection.PLAYBACK) {
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "此页选择后立即保存",
+                text = stringResource(R.string.settings_forms_save_hint),
                 style = TvTypography.caption,
                 color = ProgressGreen,
             )
@@ -1745,13 +1746,13 @@ private fun EmptySourceHint() {
     ) {
         Column {
             Text(
-                text = "先添加一个本地或网络媒体库",
+                text = stringResource(R.string.settings_forms_add_first),
                 style = TvTypography.body,
                 color = TextPrimary
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = "MuMu 共享文件夹通常可用默认 Download 路径。",
+                text = stringResource(R.string.settings_forms_mumu_hint),
                 style = TvTypography.caption,
                 color = TextSecondary
             )
@@ -1867,7 +1868,7 @@ private fun SourceDeleteButton(
     ) {
         Icon(
             imageVector = Icons.Filled.Delete,
-            contentDescription = "删除",
+            contentDescription = stringResource(R.string.settings_forms_delete_desc),
             tint = Color.White,
             modifier = Modifier.size(28.dp)
         )
@@ -1935,7 +1936,7 @@ private fun WebUiPanel(
                 modifier = Modifier.width(150.dp)
             )
             TvButton(
-                text = if (showAccessToken) "隐藏令牌" else "显示令牌",
+                text = if (showAccessToken) stringResource(R.string.settings_forms_hide_token) else stringResource(R.string.settings_forms_show_token),
                 icon = Icons.Filled.Key,
                 onClick = { showAccessToken = !showAccessToken },
                 enabled = accessToken.isNotBlank(),
@@ -2919,14 +2920,14 @@ private fun SourceFormPanel(
         if (selectedType == MediaSourceType.WEBDAV && selectedContentMode == MediaContentMode.ANIME) {
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "识别来源",
+                text = stringResource(R.string.settings_forms_recognition_title),
                 style = TvTypography.caption,
                 color = TextSecondary
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ScanOptionChip(
-                    text = "目录扫描",
+                    text = stringResource(R.string.settings_forms_dir_scan),
                     icon = Icons.Filled.Storage,
                     selected = selectedRecognitionMode == MediaRecognitionMode.DIRECTORY,
                     enabled = true,
@@ -2945,16 +2946,16 @@ private fun SourceFormPanel(
             StatusMessage(
                 icon = Icons.Filled.CheckCircle,
                 text = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) {
-                    "扫描时读取 WebDAV 根目录 library.db。"
+                    stringResource(R.string.settings_forms_mlip_desc)
                 } else {
-                    "扫描目录并按文件名识别，可继续使用在线元数据。"
+                    stringResource(R.string.settings_forms_dir_desc)
                 },
                 color = if (selectedRecognitionMode == MediaRecognitionMode.MLIP) ProgressGreen else TextSecondary
             )
             if (selectedRecognitionMode == MediaRecognitionMode.MLIP) {
                 StatusMessage(
                     icon = Icons.Filled.Info,
-                    text = "library.db 是只读元数据来源；请在远端数据库修正内容后重新扫描。",
+                    text = stringResource(R.string.settings_forms_mlip_readonly),
                     color = TextSecondary
                 )
             }
@@ -3409,17 +3410,17 @@ private fun PlaybackPanel(
         )
 
         Spacer(Modifier.height(24.dp))
-        Text(text = "多版本下一集策略", style = TvTypography.subtitle, color = TextPrimary)
+        Text(text = stringResource(R.string.settings_version_policy_title), style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "同一集存在多个文件时，决定自动续播如何选择下一集版本。",
+            text = stringResource(R.string.settings_version_policy_desc),
             style = TvTypography.body,
             color = TextSecondary,
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = "自动选择相近路径",
+                text = stringResource(R.string.settings_version_policy_auto),
                 icon = Icons.Filled.PlayArrow,
                 selected = episodeVersionSelectionPolicy == EpisodeVersionSelectionPolicy.AUTO_NEAREST,
                 enabled = true,
@@ -3429,7 +3430,7 @@ private fun PlaybackPanel(
                 modifier = Modifier.width(220.dp),
             )
             ScanOptionChip(
-                text = "每集手动选择版本",
+                text = stringResource(R.string.settings_version_policy_manual),
                 icon = Icons.Filled.FolderOpen,
                 selected = episodeVersionSelectionPolicy == EpisodeVersionSelectionPolicy.MANUAL,
                 enabled = true,
@@ -3721,17 +3722,17 @@ private fun AudioDspTvControls(
             modifier = Modifier.size(26.dp),
         )
         Spacer(Modifier.width(10.dp))
-        Text(text = "音频 PEQ / DSP", style = TvTypography.subtitle, color = TextPrimary)
+        Text(text = stringResource(R.string.settings_audio_dsp_title), style = TvTypography.subtitle, color = TextPrimary)
     }
     Spacer(Modifier.height(6.dp))
     Text(
-        text = "电视端仅提供总开关和预设切换，完整频段与线性相位设置请使用 WebUI。",
+        text = stringResource(R.string.settings_audio_dsp_desc),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(14.dp))
     ScanOptionChip(
-        text = if (config.enabled) "音频 DSP 已启用" else "音频 DSP 已关闭",
+        text = if (config.enabled) stringResource(R.string.settings_audio_dsp_on) else stringResource(R.string.settings_audio_dsp_off),
         icon = Icons.Filled.GraphicEq,
         selected = config.enabled,
         enabled = true,
@@ -3740,7 +3741,7 @@ private fun AudioDspTvControls(
     )
     Spacer(Modifier.height(12.dp))
     Text(
-        text = "当前预设",
+        text = stringResource(R.string.settings_audio_dsp_preset),
         style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
         color = TextSecondary,
     )
@@ -3760,15 +3761,15 @@ private fun AudioDspTvControls(
     StatusMessage(
         icon = Icons.Filled.CheckCircle,
         text = if (config.enabled) {
-            "当前预设：${config.presets.firstOrNull { it.id == config.selectedPresetId }?.name ?: config.selectedPresetId}"
+            stringResource(R.string.settings_audio_dsp_current, config.presets.firstOrNull { it.id == config.selectedPresetId }?.name ?: config.selectedPresetId)
         } else {
-            "音频保持原始输出，不应用 PEQ 或 FIR"
+            stringResource(R.string.settings_audio_dsp_bypass)
         },
         color = if (config.enabled) ProgressGreen else TextSecondary,
     )
     Spacer(Modifier.height(18.dp))
     Text(
-        text = "扫频测量（播放对数扫频并用麦克风采集房间响应）",
+        text = stringResource(R.string.measure_sweep_title),
         style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
         color = TextSecondary,
     )
@@ -3799,7 +3800,7 @@ private fun AudioDspTvControls(
     }
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ScanOptionChip(
-            text = if (audioMeasure.measuring) audioMeasure.progress ?: "测量中…" else "播放扫频并测量",
+            text = if (audioMeasure.measuring) audioMeasure.progress?.resolve() ?: stringResource(R.string.measure_in_progress) else stringResource(R.string.measure_start_sweep),
             icon = Icons.Filled.GraphicEq,
             selected = false,
             enabled = !audioMeasure.measuring,
@@ -3807,7 +3808,7 @@ private fun AudioDspTvControls(
             modifier = Modifier.width(220.dp),
         )
         ScanOptionChip(
-            text = "房间校准向导",
+            text = stringResource(R.string.measure_wizard_title),
             icon = Icons.Filled.Settings,
             selected = false,
             enabled = true,
@@ -3818,7 +3819,7 @@ private fun AudioDspTvControls(
             uri?.let(onImportWavMeasurement)
         }
         ScanOptionChip(
-            text = "导入 WAV 测量",
+            text = stringResource(R.string.measure_import_wav),
             icon = Icons.Filled.FileDownload,
             selected = false,
             enabled = !audioMeasure.measuring,
@@ -3835,12 +3836,12 @@ private fun AudioDspTvControls(
         TvTextField(
             value = serialInput,
             onValueChange = { serialInput = it },
-            label = "UMIK-1 序列号（如 700-1234）",
+            label = stringResource(R.string.measure_umik_serial_label),
             isPassword = false,
             modifier = Modifier.width(280.dp),
         )
         ScanOptionChip(
-            text = if (downloadIncidence == "0deg") "0° 入射" else "90° 入射",
+            text = if (downloadIncidence == "0deg") stringResource(R.string.measure_incidence_0) else stringResource(R.string.measure_incidence_90),
             icon = Icons.Filled.Tune,
             selected = downloadIncidence == "90deg",
             enabled = true,
@@ -3848,7 +3849,7 @@ private fun AudioDspTvControls(
             modifier = Modifier.width(140.dp),
         )
         ScanOptionChip(
-            text = if (audioMeasure.downloadingCalibration) "下载中…" else "从 miniDSP 下载",
+            text = if (audioMeasure.downloadingCalibration) stringResource(R.string.measure_downloading) else stringResource(R.string.measure_download_minidsp),
             icon = Icons.Filled.Download,
             selected = false,
             enabled = !audioMeasure.downloadingCalibration && serialInput.isNotBlank(),
@@ -3859,9 +3860,9 @@ private fun AudioDspTvControls(
     StatusMessage(
         icon = if (audioMeasure.calibrationName != null) Icons.Filled.CheckCircle else Icons.Filled.Info,
         text = if (audioMeasure.calibrationName != null) {
-            "当前校准：${audioMeasure.calibrationName}（已保存 ${audioMeasure.calibrationCount} 份，管理请用 WebUI）"
+            stringResource(R.string.measure_calibration_current, audioMeasure.calibrationName, audioMeasure.calibrationCount)
         } else {
-            "未设置校准：直接测量会把麦克风自身的频响算进 EQ 里"
+            stringResource(R.string.measure_calibration_missing)
         },
         color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
     )
@@ -3869,7 +3870,7 @@ private fun AudioDspTvControls(
         Spacer(Modifier.height(8.dp))
         StatusMessage(
             icon = Icons.Filled.Error,
-            text = "麦克风权限被拒绝，请在系统设置中允许 MiruPlay 使用麦克风后重试",
+            text = stringResource(R.string.measure_mic_permission_denied),
             color = Color(0xFFE57373),
         )
     }
@@ -3877,7 +3878,7 @@ private fun AudioDspTvControls(
         Spacer(Modifier.height(8.dp))
         StatusMessage(
             icon = Icons.Filled.Error,
-            text = error,
+            text = error.text.resolve(),
             color = Color(0xFFE57373),
         )
     }
@@ -3886,14 +3887,14 @@ private fun AudioDspTvControls(
             Spacer(Modifier.height(8.dp))
             StatusMessage(
                 icon = Icons.Filled.Info,
-                text = "麦克风不可用：" + (caps.reason ?: "未知原因"),
+                text = stringResource(R.string.measure_mic_unavailable, caps.reason ?: stringResource(R.string.measure_unknown_reason)),
                 color = TextSecondary,
             )
         } else if (caps.inputDeviceName != null) {
             Spacer(Modifier.height(8.dp))
             StatusMessage(
                 icon = Icons.Filled.Info,
-                text = "输入设备：" + caps.inputDeviceName,
+                text = stringResource(R.string.measure_input_device, caps.inputDeviceName ?: ""),
                 color = TextSecondary,
             )
         }
@@ -3903,9 +3904,14 @@ private fun AudioDspTvControls(
         if (result.valid) {
             StatusMessage(
                 icon = Icons.Filled.CheckCircle,
-                text = "测量有效：估计漂移 " + "%.1f".format(result.estimatedPpm) + " ppm，" +
-                    result.bands.size + " 个滤波器，匹配范围 " + result.matchLoHz.toInt() + "–" + result.matchHiHz.toInt() +
-                    " Hz，峰高 " + "%.2f".format(result.peakAfterDb) + " dB",
+                text = stringResource(
+                    R.string.measure_result_valid,
+                    "%.1f".format(result.estimatedPpm),
+                    result.bands.size,
+                    result.matchLoHz.toInt(),
+                    result.matchHiHz.toInt(),
+                    "%.2f".format(result.peakAfterDb),
+                ),
                 color = ProgressGreen,
             )
             Spacer(Modifier.height(8.dp))
@@ -3922,7 +3928,7 @@ private fun AudioDspTvControls(
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ScanOptionChip(
-                    text = "应用为预设（全部声道）",
+                    text = stringResource(R.string.measure_apply_preset),
                     icon = Icons.Filled.CheckCircle,
                     selected = false,
                     enabled = true,
@@ -3930,7 +3936,7 @@ private fun AudioDspTvControls(
                     modifier = Modifier.width(240.dp),
                 )
                 ScanOptionChip(
-                    text = "放弃结果",
+                    text = stringResource(R.string.measure_discard),
                     icon = Icons.Filled.Close,
                     selected = false,
                     enabled = true,
@@ -3941,7 +3947,7 @@ private fun AudioDspTvControls(
         } else {
             StatusMessage(
                 icon = Icons.Filled.Error,
-                text = "测量无效：" + (result.invalidReason ?: "未知原因") + "（未应用任何 EQ）",
+                text = stringResource(R.string.measure_result_invalid, result.invalidReason ?: stringResource(R.string.measure_unknown_reason)),
                 color = Color(0xFFE57373),
             )
         }
@@ -3962,18 +3968,18 @@ private fun MusicSrcBypassTvControls(
             modifier = Modifier.size(26.dp),
         )
         Spacer(Modifier.width(10.dp))
-        Text(text = "音乐 SRC 绕过", style = TvTypography.subtitle, color = TextPrimary)
+        Text(text = stringResource(R.string.settings_music_src_title), style = TvTypography.subtitle, color = TextPrimary)
     }
     Spacer(Modifier.height(6.dp))
     Text(
-        text = "选择音乐播放时如何处理系统采样率转换：系统默认走混音器，软件高质重采样到本机速率，直通尝试硬直通。DSP 与高质软 SRC 可共存。",
+        text = stringResource(R.string.settings_music_src_desc),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(14.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ScanOptionChip(
-            text = "系统默认",
+            text = stringResource(R.string.settings_music_src_system),
             icon = Icons.Filled.Settings,
             selected = mode == MusicSrcBypassMode.SYSTEM,
             enabled = true,
@@ -3981,7 +3987,7 @@ private fun MusicSrcBypassTvControls(
             modifier = Modifier.width(130.dp),
         )
         ScanOptionChip(
-            text = "高质软 SRC",
+            text = stringResource(R.string.settings_music_src_software),
             icon = Icons.Filled.GraphicEq,
             selected = mode == MusicSrcBypassMode.SOFTWARE,
             enabled = true,
@@ -3989,7 +3995,7 @@ private fun MusicSrcBypassTvControls(
             modifier = Modifier.width(150.dp),
         )
         ScanOptionChip(
-            text = "直通",
+            text = stringResource(R.string.settings_music_src_direct),
             icon = Icons.Filled.Audiotrack,
             selected = mode == MusicSrcBypassMode.DIRECT,
             enabled = true,
@@ -4000,9 +4006,9 @@ private fun MusicSrcBypassTvControls(
     StatusMessage(
         icon = Icons.Filled.CheckCircle,
         text = when (mode) {
-            MusicSrcBypassMode.SYSTEM -> "系统混音器 SRC（兼容最好，可能经 Speex 重采样）"
-            MusicSrcBypassMode.SOFTWARE -> "高质软 SRC 到本机速率（DSP 共存，绕过系统低质 SRC）"
-            MusicSrcBypassMode.DIRECT -> "直通/Offload（无 DSP 时 bit-perfect，有 DSP 时回落软 SRC）"
+            MusicSrcBypassMode.SYSTEM -> stringResource(R.string.settings_music_src_system_desc)
+            MusicSrcBypassMode.SOFTWARE -> stringResource(R.string.settings_music_src_software_desc)
+            MusicSrcBypassMode.DIRECT -> stringResource(R.string.settings_music_src_direct_desc)
         },
         color = if (mode == MusicSrcBypassMode.SOFTWARE) ProgressGreen else TextSecondary,
     )
@@ -4022,30 +4028,30 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
                 modifier = Modifier.size(26.dp),
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = "Topping DAC 控制", style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = stringResource(R.string.settings_topping_title), style = TvTypography.subtitle, color = TextPrimary)
         }
         Spacer(Modifier.height(6.dp))
         when {
             status == null -> Text(
-                text = "正在检测 USB DAC…",
+                text = stringResource(R.string.settings_topping_probing),
                 style = TvTypography.body,
                 color = TextSecondary,
             )
             !status.attached -> Text(
-                text = status.reason ?: "未检测到 Topping DAC",
+                text = status.reason ?: stringResource(R.string.settings_topping_not_found),
                 style = TvTypography.body,
                 color = TextSecondary,
             )
             else -> Column {
                 Text(
-                    text = "已连接：" + status.model + if (!status.confirmed) "（寄存器映射未实机确认，拒绝写入）" else "",
+                    text = stringResource(R.string.settings_topping_connected, status.model ?: "", if (!status.confirmed) stringResource(R.string.settings_topping_unconfirmed) else ""),
                     style = TvTypography.body,
                     color = if (status.confirmed) TextPrimary else TextSecondary,
                 )
                 if (!status.usbPermission) {
                     Spacer(Modifier.height(8.dp))
                     ScanOptionChip(
-                        text = "授予 USB 权限",
+                        text = stringResource(R.string.settings_topping_grant_usb),
                         icon = Icons.Filled.Usb,
                         selected = false,
                         enabled = !topping.busy,
@@ -4062,12 +4068,12 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
             TvTextField(
                 value = volumeInput.value,
                 onValueChange = { volumeInput.value = it },
-                label = "音量 dB（-99..0）",
+                label = stringResource(R.string.settings_topping_volume_label),
                 isPassword = false,
                 modifier = Modifier.width(200.dp),
             )
             ScanOptionChip(
-                text = "设置音量",
+                text = stringResource(R.string.settings_topping_set_volume),
                 icon = Icons.Filled.VolumeUp,
                 selected = false,
                 enabled = !topping.busy && status?.confirmed == true && status.hidVolume,
@@ -4077,7 +4083,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
                 modifier = Modifier.width(150.dp),
             )
             ScanOptionChip(
-                text = "允许 > -10 dB",
+                text = stringResource(R.string.settings_topping_allow_loud),
                 icon = Icons.Filled.Warning,
                 selected = confirmLoud,
                 enabled = true,
@@ -4091,12 +4097,12 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
             TvTextField(
                 value = preampInput.value,
                 onValueChange = { preampInput.value = it },
-                label = "Preamp dB（-40..+10）",
+                label = stringResource(R.string.settings_topping_preamp_label),
                 isPassword = false,
                 modifier = Modifier.width(200.dp),
             )
             ScanOptionChip(
-                text = "设置 Preamp",
+                text = stringResource(R.string.settings_topping_set_preamp),
                 icon = Icons.Filled.Tune,
                 selected = false,
                 enabled = !topping.busy && status?.confirmed == true,
@@ -4108,7 +4114,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
         }
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "推送 PEQ 预设到 DAC 硬件（应用内预设 → 10 段硬件 PEQ，仅 PK/LS/HS）",
+            text = stringResource(R.string.settings_topping_push_desc),
             style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
             color = TextSecondary,
         )
@@ -4116,7 +4122,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             audioDspConfig.presets.forEach { preset ->
                 ScanOptionChip(
-                    text = "推送：" + preset.name,
+                    text = stringResource(R.string.settings_topping_push, preset.name),
                     icon = Icons.Filled.Send,
                     selected = false,
                     enabled = !topping.busy && status?.confirmed == true,
@@ -4128,7 +4134,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = "关闭全部频段",
+                text = stringResource(R.string.settings_topping_flat),
                 icon = Icons.Filled.Clear,
                 selected = false,
                 enabled = !topping.busy && status?.confirmed == true,
@@ -4136,7 +4142,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
                 modifier = Modifier.width(160.dp),
             )
             ScanOptionChip(
-                text = if (status?.gainOn == true) "增益：开" else "增益：关",
+                text = if (status?.gainOn == true) stringResource(R.string.settings_topping_gain_on) else stringResource(R.string.settings_topping_gain_off),
                 icon = Icons.Filled.GraphicEq,
                 selected = false,
                 enabled = !topping.busy && status?.confirmed == true,
@@ -4144,7 +4150,7 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
                 modifier = Modifier.width(140.dp),
             )
             ScanOptionChip(
-                text = "设备休眠 / 唤醒",
+                text = stringResource(R.string.settings_topping_power),
                 icon = Icons.Filled.PowerSettingsNew,
                 selected = false,
                 enabled = !topping.busy && status?.confirmed == true,
@@ -4155,9 +4161,9 @@ private fun ToppingDacControls(viewModel: SettingsViewModel = hiltViewModel()) {
         val errorText = topping.error
         val messageText = topping.message
         if (errorText != null) {
-            StatusMessage(icon = Icons.Filled.Warning, text = errorText, color = AnimeRed)
+            StatusMessage(icon = Icons.Filled.Warning, text = errorText.text.resolve(), color = AnimeRed)
         } else if (messageText != null) {
-            StatusMessage(icon = Icons.Filled.CheckCircle, text = messageText, color = ProgressGreen)
+            StatusMessage(icon = Icons.Filled.CheckCircle, text = messageText.text.resolve(), color = ProgressGreen)
         }
     }
 }
@@ -4365,13 +4371,13 @@ private fun AboutPanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvButton(
-                text = "重启应用",
+                text = stringResource(R.string.settings_restart_app),
                 icon = Icons.Filled.Refresh,
                 onClick = onRestartApp,
                 modifier = Modifier.fillMaxWidth()
             )
             TvButton(
-                text = "退出应用",
+                text = stringResource(R.string.settings_exit_app),
                 icon = Icons.AutoMirrored.Filled.ExitToApp,
                 onClick = onExitApp,
                 modifier = Modifier.fillMaxWidth()
@@ -4567,7 +4573,7 @@ private fun MetadataPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = if (syncState.isRunning) "同步中…" else "同步全部 Bangumi 进度",
+                text = if (syncState.isRunning) stringResource(R.string.bangumi_sync_running) else stringResource(R.string.bangumi_sync_all),
                 icon = Icons.Filled.Sync,
                 enabled = hasToken && !syncState.isRunning,
                 onClick = onSyncAll
@@ -4577,7 +4583,13 @@ private fun MetadataPanel(
             Spacer(Modifier.height(8.dp))
             StatusMessage(
                 icon = if (syncState.errorMessage != null) Icons.Filled.Warning else Icons.Filled.CheckCircle,
-                text = syncState.errorMessage ?: "已同步 ${syncState.syncedCount} 部（失败 ${syncState.failedCount} 部）；上送 ${syncState.totalPushedEpisodes} 集、拉取 ${syncState.totalPulledEpisodes} 集",
+                text = syncState.errorMessage?.text?.resolve() ?: stringResource(
+                    R.string.bangumi_sync_summary,
+                    syncState.syncedCount,
+                    syncState.failedCount,
+                    syncState.totalPushedEpisodes,
+                    syncState.totalPulledEpisodes,
+                ),
                 color = if (syncState.errorMessage != null || syncState.failedCount > 0) WarningYellow else ProgressGreen
             )
         }
@@ -4649,7 +4661,7 @@ private fun BangumiArchivePanel(
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "离线索引用于本地快速搜索 Bangumi 条目；系统会每 ${state.autoUpdateIntervalDays} 天自动更新一次。",
+            text = stringResource(R.string.archive_index_desc, state.autoUpdateIntervalDays),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -4657,7 +4669,7 @@ private fun BangumiArchivePanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = if (state.hasSubjectData) "离线搜索可用" else "未下载",
+                text = if (state.hasSubjectData) stringResource(R.string.archive_index_available) else stringResource(R.string.archive_index_missing),
                 icon = Icons.Filled.CheckCircle,
                 selected = state.hasSubjectData,
                 enabled = false,
@@ -4665,7 +4677,7 @@ private fun BangumiArchivePanel(
                 modifier = Modifier.width(170.dp)
             )
             ScanOptionChip(
-                text = if (state.autoUpdateEnabled) "每周自动更新" else "自动更新关闭",
+                text = if (state.autoUpdateEnabled) stringResource(R.string.archive_auto_update_on) else stringResource(R.string.archive_auto_update_off),
                 icon = Icons.Filled.Refresh,
                 selected = state.autoUpdateEnabled,
                 enabled = false,
@@ -4703,13 +4715,13 @@ private fun BangumiArchivePanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = if (state.isDownloading) "下载中" else if (state.hasSubjectData) "更新 Archive" else "下载 Archive",
+                text = if (state.isDownloading) stringResource(R.string.archive_downloading) else if (state.hasSubjectData) stringResource(R.string.archive_update) else stringResource(R.string.archive_download),
                 icon = Icons.Filled.Download,
                 enabled = state.available && !state.isDownloading,
                 onClick = onDownload
             )
             TvButton(
-                text = "刷新状态",
+                text = stringResource(R.string.archive_refresh_status),
                 icon = Icons.Filled.Refresh,
                 enabled = !state.isDownloading,
                 onClick = onRefresh
@@ -5033,7 +5045,7 @@ private fun RoomCalibrationWizard(
                 )
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    text = "房间校准向导",
+                    text = stringResource(R.string.measure_wizard_title),
                     style = TvTypography.title,
                     color = TextPrimary,
                 )
@@ -5041,10 +5053,10 @@ private fun RoomCalibrationWizard(
             Spacer(Modifier.height(6.dp))
             Text(
                 text = when (currentStep) {
-                    CalibrationStep.DEVICE_CHECK -> "第 1 步 · 检查设备并对音量"
-                    CalibrationStep.SWEEPING -> "第 2 步 · 对数扫频测量"
-                    CalibrationStep.RESULT -> "第 3 步 · 频响曲线与一键校准"
-                    CalibrationStep.DONE -> "完成"
+                    CalibrationStep.DEVICE_CHECK -> stringResource(R.string.wizard_step_devices)
+                    CalibrationStep.SWEEPING -> stringResource(R.string.wizard_step_sweep)
+                    CalibrationStep.RESULT -> stringResource(R.string.wizard_step_result)
+                    CalibrationStep.DONE -> stringResource(R.string.wizard_step_done)
                 },
                 style = TvTypography.subtitle,
                 color = TextSecondary,
@@ -5125,15 +5137,15 @@ private fun DeviceCheckStep(
 
     StatusMessage(
         icon = if (audioMeasure.outputDeviceName != null) Icons.Filled.CheckCircle else Icons.Filled.Info,
-        text = "输出设备：${audioMeasure.outputDeviceName ?: "未知（扫频将走系统默认输出）"}",
+        text = audioMeasure.outputDeviceName?.let { stringResource(R.string.wizard_output_device, it) } ?: stringResource(R.string.wizard_output_unknown),
         color = if (audioMeasure.outputDeviceName != null) ProgressGreen else TextSecondary,
     )
     StatusMessage(
         icon = if (micAvailable) Icons.Filled.CheckCircle else Icons.Filled.Error,
         text = when {
-            micAvailable -> "麦克风：$shownMicName（可在下方更换）"
-            caps?.reason != null -> "麦克风不可用：${caps.reason}"
-            else -> "麦克风：未检测，按下方“重新检测”"
+            micAvailable -> stringResource(R.string.wizard_mic_ready, shownMicName ?: "")
+            caps?.reason != null -> stringResource(R.string.wizard_mic_unavailable, caps.reason ?: "")
+            else -> stringResource(R.string.wizard_mic_missing)
         },
         color = if (micAvailable) ProgressGreen else AccentBlue,
     )
@@ -5141,7 +5153,7 @@ private fun DeviceCheckStep(
     if (caps?.mics?.isNotEmpty() == true && micAvailable) {
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "测量麦克风（点选切换，选择会记住）",
+            text = stringResource(R.string.wizard_mic_picker_title),
             style = TvTypography.caption.copy(fontWeight = FontWeight.SemiBold),
             color = TextSecondary,
         )
@@ -5166,23 +5178,23 @@ private fun DeviceCheckStep(
     StatusMessage(
         icon = Icons.Filled.Info,
         text = if (audioMeasure.calibrationName != null) {
-            "麦克风校准：${audioMeasure.calibrationName}"
+            stringResource(R.string.wizard_mic_calibration, audioMeasure.calibrationName ?: "")
         } else {
-            "麦克风校准：未设置（内置麦克风无校准数据，低频精度有限；建议用 WebUI 导入 UMIK 校准文件）"
+            stringResource(R.string.wizard_mic_calibration_missing)
         },
         color = if (audioMeasure.calibrationName != null) ProgressGreen else TextSecondary,
     )
 
     Spacer(Modifier.height(22.dp))
     Text(
-        text = "音量对齐：播放粉红噪音，把电视音量调到日常听音大小后停止噪音。测量期间不要再动音量。",
+        text = stringResource(R.string.wizard_volume_align),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(12.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ScanOptionChip(
-            text = if (audioMeasure.noisePlaying) "停止噪音" else "播放粉红噪音",
+            text = if (audioMeasure.noisePlaying) stringResource(R.string.wizard_stop_noise) else stringResource(R.string.wizard_play_noise),
             icon = if (audioMeasure.noisePlaying) Icons.Filled.Close else Icons.Filled.PlayArrow,
             selected = audioMeasure.noisePlaying,
             enabled = true,
@@ -5190,7 +5202,7 @@ private fun DeviceCheckStep(
             modifier = Modifier.width(210.dp),
         )
         ScanOptionChip(
-            text = "重新检测",
+            text = stringResource(R.string.wizard_redetect),
             icon = Icons.Filled.Refresh,
             selected = false,
             enabled = true,
@@ -5201,14 +5213,14 @@ private fun DeviceCheckStep(
 
     Spacer(Modifier.height(28.dp))
     Text(
-        text = "把麦克风放到听音位（正常听音高度，朝向电视），关窗关风扇，保持安静约 1–2 分钟。",
+        text = stringResource(R.string.wizard_mic_placement),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(14.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         ScanOptionChip(
-            text = "开始扫频测量",
+            text = stringResource(R.string.wizard_start_sweep),
             icon = Icons.Filled.GraphicEq,
             selected = false,
             enabled = micAvailable,
@@ -5216,7 +5228,7 @@ private fun DeviceCheckStep(
             modifier = Modifier.width(210.dp),
         )
         ScanOptionChip(
-            text = "取消",
+            text = stringResource(R.string.wizard_cancel),
             icon = Icons.Filled.Close,
             selected = false,
             enabled = true,
@@ -5228,7 +5240,7 @@ private fun DeviceCheckStep(
         Spacer(Modifier.height(10.dp))
         StatusMessage(
             icon = Icons.Filled.Error,
-            text = "请先解决麦克风问题（USB 麦克风未接/权限未授予），或使用 WebUI 的「导入 WAV」方式测量。",
+            text = stringResource(R.string.wizard_mic_issue),
             color = AccentBlue,
         )
     }
@@ -5246,18 +5258,18 @@ private fun SweepingStep(audioMeasure: SettingsViewModel.AudioMeasureUiState) {
         }
     }
     val e = elapsedS.toFloat()
-    val stage = when {
-        e < 4f -> "播放扫频 1/2（4 秒，请保持安静）…"
-        e < 5f -> "采集房间尾音…"
-        e < 9.2f -> "播放扫频 2/2（4.2 秒）…"
-        e < 10.2f -> "采集房间尾音…"
-        else -> "分析房间响应：估计时钟漂移、拟合 PEQ（这步较慢，请等待）…"
+    @StringRes val stageRes = when {
+        e < 4f -> R.string.wizard_stage_sweep1
+        e < 5f -> R.string.wizard_stage_tail
+        e < 9.2f -> R.string.wizard_stage_sweep2
+        e < 10.2f -> R.string.wizard_stage_tail
+        else -> R.string.wizard_stage_analyze
     }
     val pct = ((e / 12f * 80f).coerceIn(0f, 80f) + if (e > 10.2f) ((e - 10.2f)).coerceIn(0f, 12f) else 0f)
         .coerceAtMost(92f).toInt()
     val serverStage = audioMeasure.progress
     Text(
-        text = "请保持安静，不要调整音量",
+        text = stringResource(R.string.wizard_stay_quiet),
         style = TvTypography.subtitle,
         color = TextPrimary,
     )
@@ -5277,13 +5289,13 @@ private fun SweepingStep(audioMeasure: SettingsViewModel.AudioMeasureUiState) {
     }
     Spacer(Modifier.height(18.dp))
     Text(
-        text = if (e < 10.2f) stage else (serverStage ?: stage),
+        text = if (e < 10.2f) stringResource(stageRes) else (serverStage?.resolve() ?: stringResource(stageRes)),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(8.dp))
     Text(
-        text = "分析房间响应为大规模运算，可能需要 1–2 分钟，请等待结果出现。",
+        text = stringResource(R.string.wizard_analyze_note),
         style = TvTypography.caption,
         color = TextSecondary,
     )
@@ -5298,14 +5310,19 @@ private fun ResultStep(
 ) {
     val result = audioMeasure.result
     if (result == null) {
-        Text("没有测量结果。", style = TvTypography.body, color = TextSecondary)
+        Text(stringResource(R.string.measure_result_empty), style = TvTypography.body, color = TextSecondary)
         return
     }
     if (result.valid) {
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = "测量有效：漂移 ${"%.1f".format(result.estimatedPpm)} ppm，" +
-                "${result.bands.size} 个滤波器，匹配 ${"%.0f".format(result.matchLoHz)}–${"%.0f".format(result.matchHiHz)} Hz",
+            text = stringResource(
+                R.string.measure_result_valid_short,
+                "%.1f".format(result.estimatedPpm),
+                result.bands.size,
+                "%.0f".format(result.matchLoHz),
+                "%.0f".format(result.matchHiHz),
+            ),
             color = ProgressGreen,
         )
         Spacer(Modifier.height(16.dp))
@@ -5320,7 +5337,7 @@ private fun ResultStep(
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                text = "红线：当前房间频响（平滑后）· 灰线：校准目标曲线",
+                text = stringResource(R.string.measure_curve_legend),
                 style = TvTypography.caption,
                 color = TextSecondary,
             )
@@ -5337,14 +5354,14 @@ private fun ResultStep(
             Spacer(Modifier.height(16.dp))
         }
         Text(
-            text = "一键校准将自动削峰（只切不提），生成校准预设并启用。",
+            text = stringResource(R.string.measure_autocal_note),
             style = TvTypography.body,
             color = TextSecondary,
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = "一键校准（全部声道）",
+                text = stringResource(R.string.measure_autocal),
                 icon = Icons.Filled.Save,
                 selected = false,
                 enabled = true,
@@ -5352,7 +5369,7 @@ private fun ResultStep(
                 modifier = Modifier.width(260.dp),
             )
             ScanOptionChip(
-                text = "重新测量",
+                text = stringResource(R.string.measure_retry),
                 icon = Icons.Filled.Refresh,
                 selected = false,
                 enabled = true,
@@ -5363,13 +5380,13 @@ private fun ResultStep(
     } else {
         StatusMessage(
             icon = Icons.Filled.Error,
-            text = "测量无效：${measureInvalidReasonHint(result.invalidReason)}（未应用任何 EQ）",
+            text = stringResource(R.string.measure_result_invalid_reason, measureInvalidReasonHint(result.invalidReason).resolve()),
             color = AnimeRed,
         )
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = "重新测量",
+                text = stringResource(R.string.measure_retry),
                 icon = Icons.Filled.Refresh,
                 selected = false,
                 enabled = true,
@@ -5377,7 +5394,7 @@ private fun ResultStep(
                 modifier = Modifier.width(160.dp),
             )
             ScanOptionChip(
-                text = "关闭",
+                text = stringResource(R.string.measure_close),
                 icon = Icons.Filled.Close,
                 selected = false,
                 enabled = true,
@@ -5393,18 +5410,18 @@ private fun DoneStep(config: AudioDspConfig, onClose: () -> Unit) {
     val presetName = config.presets.firstOrNull { it.id == config.selectedPresetId }?.name
     StatusMessage(
         icon = Icons.Filled.CheckCircle,
-        text = "校准已保存：${presetName ?: "房间校准"}（已启用）",
+        text = stringResource(R.string.measure_cal_saved, presetName ?: stringResource(R.string.measure_cal_default_name)),
         color = ProgressGreen,
     )
     Spacer(Modifier.height(12.dp))
     Text(
-        text = "播放任意内容即可生效。可在 WebUI「音频 DSP」里查看/微调各频段，或导出 JSON 备份。",
+        text = stringResource(R.string.measure_cal_saved_note),
         style = TvTypography.body,
         color = TextSecondary,
     )
     Spacer(Modifier.height(20.dp))
     ScanOptionChip(
-        text = "完成",
+        text = stringResource(R.string.measure_done),
         icon = Icons.Filled.CheckCircle,
         selected = false,
         enabled = true,
@@ -5466,16 +5483,16 @@ private fun ResponseCurveChart(
     }
 }
 /** 管线内部英文无效原因 → 人话提示（与 WebUI measureInvalidHint 保持一致语义）。 */
-private fun measureInvalidReasonHint(reason: String?): String {
-    if (reason.isNullOrBlank()) return "未知原因"
+private fun measureInvalidReasonHint(reason: String?): UiText {
+    if (reason.isNullOrBlank()) return uiText("measure_invalid_unknown", "未知原因")
     return when {
-        reason.contains("single sweep") -> "单次扫频无法验证时钟漂移（内部错误，需要双扫频）"
+        reason.contains("single sweep") -> uiText("measure_invalid_single_sweep", "单次扫频无法验证时钟漂移（内部错误，需要双扫频）")
         reason.contains("boundary") ->
-            "输出与麦克风的时钟漂移超出可估计范围（±15 ppm）。内置麦克风通常无法达标，建议使用 USB 校准麦克风（如 UMIK-1），或改用共享时钟环境（环回）录制后导入 WAV"
+            uiText("measure_invalid_boundary", "输出与麦克风的时钟漂移超出可估计范围（±15 ppm）。内置麦克风通常无法达标，建议使用 USB 校准麦克风（如 UMIK-1），或改用共享时钟环境（环回）录制后导入 WAV")
         reason.contains("clock-drift") ->
-            "USB 麦克风与电视输出时钟漂移过大或两次估计不一致。请重试 1–2 次；仍失败则改用共享时钟环境（环回）录制后导入 WAV"
-        reason.contains("tails") -> "两次测量的房间尾音不一致，结果不可信。请确认环境安静后重试"
-        reason.contains("sharpness") -> "脉冲响应不锐利：检查麦克风位置是否在听音位、环境噪声是否过大"
-        else -> reason
+            uiText("measure_invalid_clock_drift", "USB 麦克风与电视输出时钟漂移过大或两次估计不一致。请重试 1–2 次；仍失败则改用共享时钟环境（环回）录制后导入 WAV")
+        reason.contains("tails") -> uiText("measure_invalid_tails", "两次测量的房间尾音不一致，结果不可信。请确认环境安静后重试")
+        reason.contains("sharpness") -> uiText("measure_invalid_sharpness", "脉冲响应不锐利：检查麦克风位置是否在听音位、环境噪声是否过大")
+        else -> rawUiText(reason)
     }
 }

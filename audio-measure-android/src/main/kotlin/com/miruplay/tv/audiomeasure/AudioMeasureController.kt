@@ -9,6 +9,8 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.hardware.usb.UsbManager
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.measure.LogSweep
 import com.miruplay.tv.measure.LogSweepGenerator
@@ -386,7 +388,7 @@ class AudioMeasureController(private val context: Context) {
     suspend fun measureRoom(
         calibrationText: String? = null,
         preferredMicId: Int? = null,
-        onProgress: (String) -> Unit = {},
+        onProgress: (UiText) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
         stopPinkNoise() // noise from the volume-check step must not pollute capture
         val capabilities = probe()
@@ -397,7 +399,7 @@ class AudioMeasureController(private val context: Context) {
         }
         val recordings = mutableListOf<DoubleArray>()
         sweeps.forEachIndexed { index, sweep ->
-            onProgress("播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…")
+            onProgress(UiText("measure_sweep_progress", listOf(index + 1, sweeps.size, SWEEP_DURATIONS_S[index].toString()), "播放扫频 ${index + 1}/${sweeps.size}（${SWEEP_DURATIONS_S[index]}s）…"))
             val tPlay = System.currentTimeMillis()
             recordings += playAndCapture(sweep, preferredMicId)
             MiruLog.i(tag, "sweep ${index + 1}/${sweeps.size} play+capture", attributes = mapOf(
@@ -405,7 +407,7 @@ class AudioMeasureController(private val context: Context) {
                 "audioS" to SWEEP_DURATIONS_S[index].toString(),
             ))
         }
-        onProgress("分析房间响应…")
+        onProgress(uiText("measure_analyzing", "分析房间响应…"))
         val tAnalysis = System.currentTimeMillis()
         val measurement = RoomMeasurer.measure(
             recordings = recordings,
@@ -429,9 +431,9 @@ class AudioMeasureController(private val context: Context) {
     suspend fun importWav(
         wavBytes: ByteArray,
         calibrationText: String? = null,
-        onProgress: (String) -> Unit = {},
+        onProgress: (UiText) -> Unit = {},
     ): MeasureOutcome = withContext(Dispatchers.IO) {
-        onProgress("解析 WAV…")
+        onProgress(uiText("measure_parsing_wav", "解析 WAV…"))
         val (samples, fs) = WavFile.read16bitMono(wavBytes)
         val calibration = calibrationText?.let { MicCalibration.parse(it).calibration }
         // 录音至少要容纳扫频 + 半秒 IR 余量，否则无法定参考长度。
@@ -439,7 +441,7 @@ class AudioMeasureController(private val context: Context) {
         if (candidates.isEmpty()) {
             throw MeasureException("WAV 太短：需要 ≥ ${SWEEP_DURATIONS_S.first().toInt() + 1} 秒的标准扫频录音（含房间尾音）")
         }
-        onProgress("分析房间响应…")
+        onProgress(uiText("measure_analyzing", "分析房间响应…"))
         var best: RoomMeasurer.Measurement? = null
         var bestSharpness = -1.0
         for (durationS in candidates) {

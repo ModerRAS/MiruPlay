@@ -256,11 +256,11 @@ class SettingsViewModel @Inject constructor(
         /** User-picked input device; persisted across restarts. null = controller default. */
         val selectedMicId: Int? = null,
         val measuring: Boolean = false,
-        val progress: String? = null,
-        val error: String? = null,
+        val progress: UiText? = null,
+        val error: UiMessage? = null,
         val result: AudioMeasureResultUi? = null,
         val calibrationName: String? = null,
-        val calibrationWarning: String? = null,
+        val calibrationWarning: UiText? = null,
         val downloadingCalibration: Boolean = false,
         val calibrationCount: Int = 0,
         val outputDeviceName: String? = null,
@@ -273,8 +273,8 @@ class SettingsViewModel @Inject constructor(
     data class ToppingUiState(
         val status: com.miruplay.tv.topping.ToppingController.Status? = null,
         val busy: Boolean = false,
-        val message: String? = null,
-        val error: String? = null,
+        val message: UiMessage? = null,
+        val error: UiMessage? = null,
     )
 
     private val _topping = MutableStateFlow(ToppingUiState())
@@ -291,7 +291,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun toppingCommand(message: String, block: suspend () -> com.miruplay.tv.topping.ToppingController.Status) {
+    private suspend fun toppingCommand(message: UiMessage, block: suspend () -> com.miruplay.tv.topping.ToppingController.Status) {
         if (_topping.value.busy) return
         _topping.update { it.copy(busy = true, error = null) }
         try {
@@ -299,48 +299,48 @@ class SettingsViewModel @Inject constructor(
             _topping.update { it.copy(busy = false, status = status, message = message) }
         } catch (e: Exception) {
             _topping.update {
-                it.copy(busy = false, error = e.message ?: "操作失败", status = toppingController.status())
+                it.copy(busy = false, error = e.message?.let { errorMessage(it) } ?: uiText("topping_action_failed", "操作失败").asError(), status = toppingController.status())
             }
         }
     }
 
     fun setToppingVolume(db: Double, confirmed: Boolean = false) {
         viewModelScope.launch {
-            toppingCommand("音量已设为 ${db} dB") { toppingController.setVolume(db, confirmed) }
+            toppingCommand(UiText("topping_volume_set", listOf(db), "音量已设为 ${db} dB").asInfo()) { toppingController.setVolume(db, confirmed) }
         }
     }
 
     fun pushToppingPreset(presetId: String) {
         viewModelScope.launch {
-            toppingCommand("预设已推送到 Topping DAC") {
+            toppingCommand(uiText("topping_preset_pushed", "预设已推送到 Topping DAC").asInfo()) {
                 val config = runCatching { playbackPreferences.audioDspConfig.normalized() }
                     .getOrDefault(AudioDspConfig.neutral())
                 val preset = config.presets.firstOrNull { it.id == presetId }
-                    ?: throw IllegalStateException("预设不存在：" + presetId)
+                    ?: throw IllegalStateException(uiText("topping_preset_missing", "预设不存在").fallback + presetId)
                 toppingController.applyPreset(preset).let { toppingController.status() }
             }
         }
     }
 
     fun flatTopping() {
-        viewModelScope.launch { toppingCommand("已关闭全部 PEQ 频段") { toppingController.flat() } }
+        viewModelScope.launch { toppingCommand(uiText("topping_flat_done", "已关闭全部 PEQ 频段").asInfo()) { toppingController.flat() } }
     }
 
     fun setToppingGain(on: Boolean) {
-        viewModelScope.launch { toppingCommand(if (on) "增益已开启" else "增益已关闭") { toppingController.setGain(on) } }
+        viewModelScope.launch { toppingCommand((if (on) uiText("topping_gain_enabled", "增益已开启") else uiText("topping_gain_disabled", "增益已关闭")).asInfo()) { toppingController.setGain(on) } }
     }
 
     fun setToppingPower(on: Boolean) {
-        viewModelScope.launch { toppingCommand(if (on) "设备已唤醒" else "设备已休眠") { toppingController.setPower(on) } }
+        viewModelScope.launch { toppingCommand((if (on) uiText("topping_power_on", "设备已唤醒") else uiText("topping_power_off", "设备已休眠")).asInfo()) { toppingController.setPower(on) } }
     }
 
     fun setToppingPreamp(db: Double) {
-        viewModelScope.launch { toppingCommand("Preamp 已设为 ${db} dB") { toppingController.setPreamp(db) } }
+        viewModelScope.launch { toppingCommand(UiText("topping_preamp_set", listOf(db), "Preamp 已设为 ${db} dB").asInfo()) { toppingController.setPreamp(db) } }
     }
 
     fun requestToppingUsbPermission() {
         viewModelScope.launch {
-            toppingCommand("USB 权限已授予") { toppingController.requestUsbPermission(); toppingController.status() }
+            toppingCommand(uiText("topping_usb_granted", "USB 权限已授予").asInfo()) { toppingController.requestUsbPermission(); toppingController.status() }
         }
     }
 
@@ -358,7 +358,7 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     calibrationName = state?.first,
                     calibrationCount = state?.second ?: 0,
-                    calibrationWarning = state?.third,
+                    calibrationWarning = state?.third?.let { rawUiText(it) },
                 )
             }
         }
@@ -385,11 +385,11 @@ class SettingsViewModel @Inject constructor(
                         downloadingCalibration = false,
                         calibrationName = settings.name,
                         calibrationCount = updated.size,
-                        calibrationWarning = warning,
+                        calibrationWarning = warning?.let { rawUiText(it) },
                     )
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message ?: "下载校准失败") }
+                _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message?.let { errorMessage(it) } ?: uiText("measure_download_failed", "下载校准失败").asError()) }
             }
         }
     }
@@ -421,7 +421,7 @@ class SettingsViewModel @Inject constructor(
         if (_audioMeasure.value.measuring) return
         setPinkNoise(false)
         viewModelScope.launch {
-            _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
+            _audioMeasure.update { it.copy(measuring = true, progress = uiText("measure_preparing", "准备中…"), error = null, result = null) }
             try {
                 val outcome = audioMeasureController.measureRoom(
                     calibrationText = activeCalibrationText(),
@@ -438,7 +438,7 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "测量失败") }
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message?.let { errorMessage(it) } ?: uiText("measure_failed", "测量失败").asError()) }
             }
         }
     }
@@ -446,11 +446,11 @@ class SettingsViewModel @Inject constructor(
     fun importWavMeasurement(uri: Uri) {
         if (_audioMeasure.value.measuring) return
         viewModelScope.launch {
-            _audioMeasure.update { it.copy(measuring = true, progress = "读取 WAV…", error = null, result = null) }
+            _audioMeasure.update { it.copy(measuring = true, progress = uiText("measure_reading_wav", "读取 WAV…"), error = null, result = null) }
             try {
                 val bytes = withContext(Dispatchers.IO) {
                     appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("无法读取所选文件")
+                        ?: throw IllegalStateException(uiText("measure_wav_unreadable", "无法读取所选文件").fallback)
                 }
                 val outcome = audioMeasureController.importWav(bytes, activeCalibrationText()) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
@@ -459,7 +459,7 @@ class SettingsViewModel @Inject constructor(
                     it.copy(measuring = false, progress = null, result = outcome.toResultUi())
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "WAV 导入失败") }
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message?.let { errorMessage(it) } ?: uiText("measure_wav_failed", "WAV 导入失败").asError()) }
             }
         }
     }
@@ -737,7 +737,8 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 _bangumiSyncState.value = BangumiSyncAllUiState(
                     isRunning = false,
-                    errorMessage = e.message ?: "同步失败",
+                    errorMessage = e.message?.let { errorMessage(it) }
+                        ?: uiText("bangumi_sync_failed", "同步失败").asError(),
                 )
             }
         }
@@ -1766,7 +1767,7 @@ data class BangumiSyncAllUiState(
     val totalPulledEpisodes: Int = 0,
     val totalRemoteWatchedEpisodes: Int = 0,
     val failedAnimeIds: List<String> = emptyList(),
-    val errorMessage: String? = null,
+    val errorMessage: UiMessage? = null,
 )
 
 sealed class ConnectionTestResult {
