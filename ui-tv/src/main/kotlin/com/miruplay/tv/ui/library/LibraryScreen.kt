@@ -2,6 +2,8 @@ package com.miruplay.tv.ui.library
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -225,12 +227,12 @@ private fun LibraryHeader(
             TvTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                label = "搜索片库",
+                label = stringResource(R.string.library_search_library),
                 modifier = Modifier.width(260.dp),
                 requestInitialFocus = true,
             )
             TvButton(
-                text = "关闭搜索",
+                text = stringResource(R.string.library_close_search),
                 icon = Icons.Filled.Close,
                 onClick = { onSearchActiveChange(false) },
                 modifier = Modifier.width(150.dp),
@@ -238,7 +240,7 @@ private fun LibraryHeader(
             )
         } else {
             TvButton(
-                text = "搜索",
+                text = stringResource(R.string.library_search_action_btn),
                 icon = Icons.Filled.Search,
                 onClick = { onSearchActiveChange(true) },
                 modifier = Modifier
@@ -433,9 +435,9 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isNotEmpty()) {
-            SectionHeader(title = "搜索结果", trailing = libraryCollectedCountLabel(library.size).resolve())
+            SectionHeader(title = stringResource(R.string.library_search_results), trailing = libraryCollectedCountLabel(library.size).resolve())
             if (library.isEmpty()) {
-                Text(text = "没有匹配的内容", style = TvTypography.body, color = TextSecondary)
+                Text(text = stringResource(R.string.library_no_match), style = TvTypography.body, color = TextSecondary)
             } else {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(18.dp),

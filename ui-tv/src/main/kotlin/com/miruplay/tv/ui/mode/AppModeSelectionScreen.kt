@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.mode
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,14 +48,14 @@ fun AppModeSelectionScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "选择首页模式",
+                text = stringResource(R.string.appmode_select_title),
                 style = TvTypography.title,
                 color = TextPrimary,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(12.dp))
             Text(
-                text = "第一次打开时，先选 MiruPlay 默认首页：动漫、电视剧或音乐。",
+                text = stringResource(R.string.appmode_select_desc),
                 style = TvTypography.body,
                 color = TextSecondary,
                 textAlign = TextAlign.Center,
@@ -65,7 +67,7 @@ fun AppModeSelectionScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 TvButton(
-                    text = "动漫",
+                    text = stringResource(R.string.appmode_anime),
                     onClick = { onSelectMode(AppMode.ANIME) },
                     modifier = Modifier
                         .width(180.dp)
@@ -73,13 +75,13 @@ fun AppModeSelectionScreen(
                 )
                 Spacer(Modifier.width(16.dp))
                 TvButton(
-                    text = "电视剧",
+                    text = stringResource(R.string.appmode_drama),
                     onClick = { onSelectMode(AppMode.DRAMA) },
                     modifier = Modifier.width(180.dp)
                 )
                 Spacer(Modifier.width(16.dp))
                 TvButton(
-                    text = "音乐",
+                    text = stringResource(R.string.appmode_music),
                     onClick = { onSelectMode(AppMode.MUSIC) },
                     modifier = Modifier.width(180.dp)
                 )

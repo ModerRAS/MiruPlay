@@ -2,6 +2,7 @@ package com.miruplay.tv.ui.music
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.MusicAlbum
 import com.miruplay.tv.repository.MediaSourceRepository
 import com.miruplay.tv.repository.MusicRepository
@@ -21,7 +22,7 @@ sealed class MusicLibraryUiState {
     data object NoSources : MusicLibraryUiState()
     data object HasSourcesNoContent : MusicLibraryUiState()
     data class HasContent(val albums: List<MusicAlbum>, val scanNotice: String? = null) : MusicLibraryUiState()
-    data class ScanError(val message: String) : MusicLibraryUiState()
+    data class ScanError(val message: UiText) : MusicLibraryUiState()
 }
 
 @HiltViewModel

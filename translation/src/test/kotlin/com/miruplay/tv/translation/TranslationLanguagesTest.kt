@@ -11,7 +11,7 @@ class TranslationLanguagesTest {
     fun `supported list has about 10 languages with zh-Hans first as default`() {
         assertTrue(SUPPORTED_TARGET_LANGUAGES.size >= 10)
         assertEquals("zh-Hans", SUPPORTED_TARGET_LANGUAGES.first().code)
-        assertEquals("中文", SUPPORTED_TARGET_LANGUAGES.first().displayName)
+        assertEquals("中文", SUPPORTED_TARGET_LANGUAGES.first().displayName.fallback)
         assertTrue(SUPPORTED_TARGET_LANGUAGES.any { it.code == "zh-Hans" })
         assertTrue(SUPPORTED_TARGET_LANGUAGES.map { it.code }.distinct().size == SUPPORTED_TARGET_LANGUAGES.size)
     }

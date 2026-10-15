@@ -83,7 +83,7 @@ class SubtitleTranslationService @Inject constructor(
             val outputFile = writeCacheSrt(track, targetLanguageCode, srtText)
             val displayName = SUPPORTED_TARGET_LANGUAGES
                 .firstOrNull { it.code == targetLanguageCode }
-                ?.displayName ?: targetLanguageCode
+                ?.displayName?.fallback ?: targetLanguageCode
             return success(
                 SubtitleTrack(
                     language = targetLanguageCode,

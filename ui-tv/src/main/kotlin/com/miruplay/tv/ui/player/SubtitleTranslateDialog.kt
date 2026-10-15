@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.player
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.tv.material3.Text
 import com.miruplay.tv.translation.SUPPORTED_TARGET_LANGUAGES
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.translation.TranslationProvider
 import com.miruplay.tv.ui.components.rememberInitialFocusHandle
@@ -82,21 +87,21 @@ internal fun SubtitleTranslateDialog(
                 .padding(24.dp),
         ) {
             Text(
-                text = "翻译字幕",
+                text = stringResource(R.string.translate_dialog_title),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
             if (sourceTrackLabel != null) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "将「$sourceTrackLabel」翻译为：",
+                    text = stringResource(R.string.translate_dialog_source, sourceTrackLabel ?: ""),
                     style = TvTypography.body,
                     color = TextSecondary,
                 )
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "翻译服务",
+                text = stringResource(R.string.translate_provider_title),
                 style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
             )
@@ -107,13 +112,13 @@ internal fun SubtitleTranslateDialog(
                 itemVerticalAlignment = Alignment.CenterVertically,
             ) {
                 PlayerOptionButton(
-                    text = subtitleTranslationProviderLabel(TranslationProvider.GOOGLE),
+                    text = subtitleTranslationProviderLabel(TranslationProvider.GOOGLE).resolve(),
                     selected = selectedProvider == TranslationProvider.GOOGLE,
                     enabled = !isTranslating,
                     onClick = { selectedProvider = TranslationProvider.GOOGLE },
                 )
                 PlayerOptionButton(
-                    text = subtitleTranslationProviderLabel(TranslationProvider.BING),
+                    text = subtitleTranslationProviderLabel(TranslationProvider.BING).resolve(),
                     selected = selectedProvider == TranslationProvider.BING,
                     enabled = !isTranslating,
                     onClick = { selectedProvider = TranslationProvider.BING },
@@ -122,7 +127,7 @@ internal fun SubtitleTranslateDialog(
                     text = subtitleTranslationProviderLabel(
                         TranslationProvider.DEEPSEEK,
                         deepSeekKeyConfigured = deepSeekKeyConfigured,
-                    ),
+                    ).resolve(),
                     selected = selectedProvider == TranslationProvider.DEEPSEEK,
                     enabled = !isTranslating,
                     onClick = { selectedProvider = TranslationProvider.DEEPSEEK },
@@ -130,7 +135,7 @@ internal fun SubtitleTranslateDialog(
             }
             Spacer(Modifier.height(16.dp))
             Text(
-                text = "目标语言",
+                text = stringResource(R.string.translate_target_title),
                 style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
             )
@@ -142,7 +147,7 @@ internal fun SubtitleTranslateDialog(
             ) {
                 languages.forEach { language ->
                     PlayerOptionButton(
-                        text = language.displayName,
+                        text = language.displayName.resolve(),
                         selected = language.code == selectedLanguageCode,
                         enabled = !isTranslating,
                         onClick = {
@@ -168,7 +173,7 @@ internal fun SubtitleTranslateDialog(
                         color = AnimeRed,
                     )
                     Text(
-                        text = "正在翻译字幕…",
+                        text = stringResource(R.string.translate_in_progress),
                         style = TvTypography.body,
                         color = TextPrimary,
                     )
@@ -189,9 +194,13 @@ internal fun SubtitleTranslateDialog(
 private fun subtitleTranslationProviderLabel(
     provider: TranslationProvider,
     deepSeekKeyConfigured: Boolean = true,
-): String = when (provider) {
-    TranslationProvider.GOOGLE -> "Google 翻译"
-    TranslationProvider.BING -> "必应翻译"
+): UiText = when (provider) {
+    TranslationProvider.GOOGLE -> uiText("translate_provider_google", "Google 翻译")
+    TranslationProvider.BING -> uiText("translate_provider_bing", "必应翻译")
     TranslationProvider.DEEPSEEK ->
-        if (deepSeekKeyConfigured) "DeepSeek" else "DeepSeek（需在 WebControl 设置 Key）"
+        if (deepSeekKeyConfigured) {
+            rawUiText("DeepSeek")
+        } else {
+            uiText("translate_provider_deepseek_missing", "DeepSeek（需在 WebControl 设置 Key）")
+        }
 }

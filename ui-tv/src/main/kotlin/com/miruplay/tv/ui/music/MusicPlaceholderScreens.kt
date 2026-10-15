@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.music
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,13 +31,13 @@ fun MusicLibraryPlaceholder(
 ) {
     OverscanContainer(modifier = Modifier.fillMaxSize().background(DarkSurface)) {
         Column(modifier = Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "音乐库", style = TvTypography.title, color = TextPrimary)
+            Text(text = stringResource(R.string.music_library_title), style = TvTypography.title, color = TextPrimary)
             Spacer(Modifier.height(12.dp))
-            Text(text = "MUSIC 模式已就绪，扫描后将在此展示专辑", style = TvTypography.body, color = TextSecondary)
+            Text(text = stringResource(R.string.music_library_ready), style = TvTypography.body, color = TextSecondary)
             Spacer(Modifier.height(24.dp))
-            TvButton(text = "设置", onClick = onNavigateToSettings)
+            TvButton(text = stringResource(R.string.music_settings), onClick = onNavigateToSettings)
             Spacer(Modifier.height(12.dp))
-            TvButton(text = "打开示例专辑", onClick = { onNavigateToDetail("demo-album") })
+            TvButton(text = stringResource(R.string.music_open_demo), onClick = { onNavigateToDetail("demo-album") })
         }
     }
 }
@@ -45,11 +47,11 @@ fun MusicLibraryPlaceholder(
 fun MusicAlbumDetailPlaceholder(albumId: String, onNavigateBack: () -> Unit, onPlayTrack: (String) -> Unit) {
     OverscanContainer(modifier = Modifier.fillMaxSize().background(DarkSurface)) {
         Column(modifier = Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "专辑详情: $albumId", style = TvTypography.title, color = TextPrimary)
+            Text(text = stringResource(R.string.music_album_detail_title, albumId), style = TvTypography.title, color = TextPrimary)
             Spacer(Modifier.height(12.dp))
-            TvButton(text = "返回", onClick = onNavigateBack)
+            TvButton(text = stringResource(R.string.music_back), onClick = onNavigateBack)
             Spacer(Modifier.height(12.dp))
-            TvButton(text = "播放示例音轨", onClick = { onPlayTrack("demo-track") })
+            TvButton(text = stringResource(R.string.music_play_demo), onClick = { onPlayTrack("demo-track") })
         }
     }
 }
@@ -59,11 +61,11 @@ fun MusicAlbumDetailPlaceholder(albumId: String, onNavigateBack: () -> Unit, onP
 fun MusicPlayerPlaceholder(trackId: String, onNavigateBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(DarkSurface), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = "音乐播放: $trackId", style = TvTypography.title, color = TextPrimary)
+            Text(text = stringResource(R.string.music_player_track_title, trackId), style = TvTypography.title, color = TextPrimary)
             Spacer(Modifier.height(12.dp))
-            Text(text = "Phase 1 占位，DSP 与 SRC 三档已在设置中", style = TvTypography.body, color = TextSecondary)
+            Text(text = stringResource(R.string.music_phase1_note), style = TvTypography.body, color = TextSecondary)
             Spacer(Modifier.height(24.dp))
-            TvButton(text = "返回", onClick = onNavigateBack)
+            TvButton(text = stringResource(R.string.music_back), onClick = onNavigateBack)
         }
     }
 }

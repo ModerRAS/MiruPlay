@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.music
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -45,16 +47,16 @@ fun MusicAlbumDetailScreen(
             is MusicAlbumDetailUiState.Error -> Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = s.message.resolve(), style = TvTypography.body, color = TextSecondary)
                 Spacer(Modifier.height(12.dp))
-                TvButton(text = "返回", onClick = onNavigateBack)
+                TvButton(text = stringResource(R.string.music_back), onClick = onNavigateBack)
             }
             is MusicAlbumDetailUiState.HasContent -> {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text(text = s.album.title, style = TvTypography.title, color = TextPrimary)
-                            Text(text = "${s.album.artist ?: "未知艺术家"} · ${s.tracks.size} 首", style = TvTypography.body, color = TextSecondary)
+                            Text(text = stringResource(R.string.music_album_subtitle, s.album.artist ?: stringResource(R.string.music_unknown_artist), s.tracks.size), style = TvTypography.body, color = TextSecondary)
                         }
-                        TvButton(text = "返回", onClick = onNavigateBack, modifier = Modifier.width(110.dp), secondary = true)
+                        TvButton(text = stringResource(R.string.music_back), onClick = onNavigateBack, modifier = Modifier.width(110.dp), secondary = true)
                     }
                     LazyColumn(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         itemsIndexed(s.tracks, key = { _, t -> t.id }) { idx, track ->
