@@ -33,8 +33,8 @@ class DisplayFormattingTest {
         )
         val titledEpisode = untitledEpisode.copy(title = "First Light")
 
-        assertEquals("第 3 集", untitledEpisode.playbackDisplayTitle())
-        assertEquals("第 3 集 · First Light", titledEpisode.playbackDisplayTitle())
+        assertEquals("第 3 集", untitledEpisode.playbackDisplayTitle().fallback)
+        assertEquals("第 3 集 · First Light", titledEpisode.playbackDisplayTitle().fallback)
     }
 
     @Test

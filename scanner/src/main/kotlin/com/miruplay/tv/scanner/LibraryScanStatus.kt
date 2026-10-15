@@ -1,5 +1,7 @@
 package com.miruplay.tv.scanner
 
+import com.miruplay.tv.core.common.UiText
+
 import com.miruplay.tv.model.ScanResult
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -21,7 +23,7 @@ sealed class LibraryScanState {
         val results: List<ScanResult>,
         val sourceFailures: List<String> = emptyList(),
     ) : LibraryScanState()
-    data class Failed(val message: String) : LibraryScanState()
+    data class Failed(val message: UiText) : LibraryScanState()
     data object Cancelled : LibraryScanState()
 }
 
@@ -128,7 +130,7 @@ class LibraryScanStatus @Inject constructor() {
     }
 
     @Synchronized
-    fun fail(message: String) {
+    fun fail(message: UiText) {
         cancelRequest = null
         _state.value = LibraryScanState.Failed(message)
     }

@@ -1,129 +1,131 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CloudDriveRssStatusConventionsTest {
     @Test
     fun `cloud rss form labels are shared`() {
-        assertEquals("CloudDrive2", cloudDriveRssTitleLabel())
+        assertEquals("CloudDrive2", cloudDriveRssTitleLabel().fallback)
         assertEquals(
             "RSS 会提交到 CloudDrive2 离线下载目录，整理后触发所选 WebDAV 媒体源扫描。",
-            cloudDriveRssDescriptionLabel(),
+            cloudDriveRssDescriptionLabel().fallback,
         )
-        assertEquals("定时已开", cloudDriveRssScheduledChipLabel(true))
-        assertEquals("定时关闭", cloudDriveRssScheduledChipLabel(false))
-        assertEquals("Key 已保存", cloudDriveRssCredentialsBadgeLabel(true))
-        assertEquals("密码已保存", cloudDriveRssCredentialsBadgeLabel(tokenConfigured = false, passwordConfigured = true))
+        assertEquals("定时已开", cloudDriveRssScheduledChipLabel(true).fallback)
+        assertEquals("定时关闭", cloudDriveRssScheduledChipLabel(false).fallback)
+        assertEquals("Key 已保存", cloudDriveRssCredentialsBadgeLabel(true).fallback)
+        assertEquals("密码已保存", cloudDriveRssCredentialsBadgeLabel(tokenConfigured = false, passwordConfigured = true).fallback)
         assertEquals(
             "Key 与密码已保存",
-            cloudDriveRssCredentialsBadgeLabel(tokenConfigured = true, passwordConfigured = true),
+            cloudDriveRssCredentialsBadgeLabel(tokenConfigured = true, passwordConfigured = true).fallback,
         )
-        assertEquals("未授权", cloudDriveRssCredentialsBadgeLabel(false))
-        assertEquals("用户名密码已保存", cloudDriveRssPasswordCredentialLabel(true))
-        assertEquals("用户名密码未保存", cloudDriveRssPasswordCredentialLabel(false))
-        assertEquals("Key 已保存", cloudDriveRssApiTokenCredentialLabel(true))
-        assertEquals("Key 未保存", cloudDriveRssApiTokenCredentialLabel(false))
-        assertEquals("CloudDrive2 地址", cloudDriveRssEndpointFieldLabel())
-        assertEquals("CloudDrive2 用户名", cloudDriveRssUsernameFieldLabel())
-        assertEquals("密码（登录后保存）", cloudDriveRssPasswordFieldLabel())
-        assertEquals("API Token / Key（可替代密码登录）", cloudDriveRssApiTokenFieldLabel())
-        assertEquals("下载目录 A", cloudDriveRssInboxPathFieldLabel())
-        assertEquals("整理目录 B", cloudDriveRssLibraryPathFieldLabel())
-        assertEquals("定时间隔（分钟）", cloudDriveRssIntervalMinutesFieldLabel())
-        assertEquals("RSS 代理已开", cloudDriveRssProxyToggleLabel(true))
-        assertEquals("RSS 代理关闭", cloudDriveRssProxyToggleLabel(false))
-        assertEquals("启用", cloudDriveRssEnabledToggleLabel())
-        assertEquals("代理地址", cloudDriveRssProxyHostFieldLabel())
-        assertEquals("代理端口", cloudDriveRssProxyPortFieldLabel())
+        assertEquals("未授权", cloudDriveRssCredentialsBadgeLabel(false).fallback)
+        assertEquals("用户名密码已保存", cloudDriveRssPasswordCredentialLabel(true).fallback)
+        assertEquals("用户名密码未保存", cloudDriveRssPasswordCredentialLabel(false).fallback)
+        assertEquals("Key 已保存", cloudDriveRssApiTokenCredentialLabel(true).fallback)
+        assertEquals("Key 未保存", cloudDriveRssApiTokenCredentialLabel(false).fallback)
+        assertEquals("CloudDrive2 地址", cloudDriveRssEndpointFieldLabel().fallback)
+        assertEquals("CloudDrive2 用户名", cloudDriveRssUsernameFieldLabel().fallback)
+        assertEquals("密码（登录后保存）", cloudDriveRssPasswordFieldLabel().fallback)
+        assertEquals("API Token / Key（可替代密码登录）", cloudDriveRssApiTokenFieldLabel().fallback)
+        assertEquals("下载目录 A", cloudDriveRssInboxPathFieldLabel().fallback)
+        assertEquals("整理目录 B", cloudDriveRssLibraryPathFieldLabel().fallback)
+        assertEquals("定时间隔（分钟）", cloudDriveRssIntervalMinutesFieldLabel().fallback)
+        assertEquals("RSS 代理已开", cloudDriveRssProxyToggleLabel(true).fallback)
+        assertEquals("RSS 代理关闭", cloudDriveRssProxyToggleLabel(false).fallback)
+        assertEquals("启用", cloudDriveRssEnabledToggleLabel().fallback)
+        assertEquals("代理地址", cloudDriveRssProxyHostFieldLabel().fallback)
+        assertEquals("代理端口", cloudDriveRssProxyPortFieldLabel().fallback)
     }
 
     @Test
     fun `cloud rss actions scan source and directory labels are shared`() {
-        assertEquals("保存", cloudDriveRssSaveConfigActionLabel())
-        assertEquals("保存凭据", cloudDriveRssSaveCredentialsActionLabel())
-        assertEquals("清空凭据", cloudDriveRssClearCredentialsActionLabel())
-        assertEquals("登录并保存密码", cloudDriveRssLoginActionLabel())
-        assertEquals("处理中", cloudDriveRssLoginActionLabel(busy = true))
-        assertEquals("验证并保存 Key", cloudDriveRssSaveApiTokenActionLabel())
-        assertEquals("验证令牌", cloudDriveRssVerifyApiTokenActionLabel())
-        assertEquals("立即执行", cloudDriveRssRunNowActionLabel())
-        assertEquals("执行中", cloudDriveRssRunNowActionLabel(busy = true))
-        assertEquals("保存并立即执行", cloudDriveRssSaveAndRunNowActionLabel())
-        assertEquals("执行中", cloudDriveRssSaveAndRunNowActionLabel(busy = true))
-        assertEquals("CloudDrive2 Key 已保存在加密存储中。", cloudDriveRssTokenStatusMessage(true))
+        assertEquals("保存", cloudDriveRssSaveConfigActionLabel().fallback)
+        assertEquals("保存凭据", cloudDriveRssSaveCredentialsActionLabel().fallback)
+        assertEquals("清空凭据", cloudDriveRssClearCredentialsActionLabel().fallback)
+        assertEquals("登录并保存密码", cloudDriveRssLoginActionLabel().fallback)
+        assertEquals("处理中", cloudDriveRssLoginActionLabel(busy = true).fallback)
+        assertEquals("验证并保存 Key", cloudDriveRssSaveApiTokenActionLabel().fallback)
+        assertEquals("验证令牌", cloudDriveRssVerifyApiTokenActionLabel().fallback)
+        assertEquals("立即执行", cloudDriveRssRunNowActionLabel().fallback)
+        assertEquals("执行中", cloudDriveRssRunNowActionLabel(busy = true).fallback)
+        assertEquals("保存并立即执行", cloudDriveRssSaveAndRunNowActionLabel().fallback)
+        assertEquals("执行中", cloudDriveRssSaveAndRunNowActionLabel(busy = true).fallback)
+        assertEquals("CloudDrive2 Key 已保存在加密存储中。", cloudDriveRssTokenStatusMessage(true).fallback)
         assertEquals(
             "CloudDrive2 密码已保存，执行时会自动登录刷新 Key。",
-            cloudDriveRssTokenStatusMessage(tokenConfigured = false, passwordConfigured = true),
+            cloudDriveRssTokenStatusMessage(tokenConfigured = false, passwordConfigured = true).fallback,
         )
         assertEquals(
             "CloudDrive2 Key 和用户名密码已保存在加密存储中。",
-            cloudDriveRssTokenStatusMessage(tokenConfigured = true, passwordConfigured = true),
+            cloudDriveRssTokenStatusMessage(tokenConfigured = true, passwordConfigured = true).fallback,
         )
-        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveRssTokenStatusMessage(false))
-        assertEquals("同步路径", cloudDriveRssSyncPathTitleLabel())
-        assertEquals("运行状态", cloudDriveRssRuntimeTitleLabel())
-        assertEquals("目录", cloudDriveRssDirectoryBadgeLabel())
-        assertEquals("路径", cloudDriveRssPathBadgeLabel())
-        assertEquals("运行", cloudDriveRssRunBadgeLabel())
-        assertEquals("启用", cloudDriveRssEnabledBadgeLabel(true))
-        assertEquals("停用", cloudDriveRssEnabledBadgeLabel(false))
-        assertEquals("已启用", cloudDriveRssCloudDriveEnabledValue(true))
-        assertEquals("未启用", cloudDriveRssCloudDriveEnabledValue(false))
-        assertEquals("填写 CloudDrive2 地址", cloudDriveRssEndpointFallbackLabel())
-        assertEquals("未配置端点", cloudDriveRssUnconfiguredEndpointLabel())
-        assertEquals("调度器待命", cloudDriveRssSchedulerIdleLabel())
-        assertEquals("同步后扫描", cloudDriveRssPostSyncScanSummaryLabel())
-        assertEquals("选择目录", cloudDriveRssChooseDirectoryActionLabel())
-        assertEquals("使用当前目录", cloudDriveRssUseCurrentDirectoryActionLabel())
-        assertEquals("返回上级", cloudDriveRssParentDirectoryActionLabel())
-        assertEquals("关闭", cloudDriveRssCloseActionLabel())
-        assertEquals("个目录", cloudDriveRssDirectoryPageUnitLabel())
-        assertEquals("正在读取 CloudDrive2 目录...", cloudDriveRssLoadingDirectoriesMessage())
-        assertEquals("当前目录没有可进入的子目录。", cloudDriveRssEmptyDirectoryMessage())
-        assertEquals("选择下载目录 A", cloudDriveRssInboxDirectoryPickerTitle())
-        assertEquals("选择整理目录 B", cloudDriveRssLibraryDirectoryPickerTitle())
-        assertEquals("下载目录 A", cloudDriveRssInboxDirectorySelectedLabel())
-        assertEquals("整理目录 B", cloudDriveRssLibraryDirectorySelectedLabel())
-        assertEquals("已选择下载目录 A：/Anime", cloudDriveRssDirectorySelectedStatus("下载目录 A", "/Anime"))
-        assertEquals("正在浏览 CloudDrive2 目录：/Anime", cloudDriveRssDirectoryBrowsingStatus("/Anime"))
-        assertEquals(" 到 ", cloudDriveRssPathPairSeparator())
-        assertEquals("入库后扫描的 WebDAV 媒体源", cloudDriveRssScanSourceTitleLabel())
-        assertEquals("还没有 WebDAV 媒体源，请先在媒体源里添加 CloudDrive WebDAV 地址。", cloudDriveRssNoWebDavSourceMessage())
-        assertEquals("暂不扫描", cloudDriveRssNoScanSourceOptionLabel())
-        assertEquals("使用当前源", cloudDriveRssUseActiveSourceActionLabel())
-        assertEquals("清除扫描源", cloudDriveRssClearScanSourceActionLabel())
-        assertEquals("同步后扫描源：", cloudDriveRssPostSyncSourceLabel())
-        assertEquals("启动调度", cloudDriveRssStartSchedulerActionLabel())
-        assertEquals("停止调度", cloudDriveRssStopSchedulerActionLabel())
+        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveRssTokenStatusMessage(false).fallback)
+        assertEquals("同步路径", cloudDriveRssSyncPathTitleLabel().fallback)
+        assertEquals("运行状态", cloudDriveRssRuntimeTitleLabel().fallback)
+        assertEquals("目录", cloudDriveRssDirectoryBadgeLabel().fallback)
+        assertEquals("路径", cloudDriveRssPathBadgeLabel().fallback)
+        assertEquals("运行", cloudDriveRssRunBadgeLabel().fallback)
+        assertEquals("启用", cloudDriveRssEnabledBadgeLabel(true).fallback)
+        assertEquals("停用", cloudDriveRssEnabledBadgeLabel(false).fallback)
+        assertEquals("已启用", cloudDriveRssCloudDriveEnabledValue(true).fallback)
+        assertEquals("未启用", cloudDriveRssCloudDriveEnabledValue(false).fallback)
+        assertEquals("填写 CloudDrive2 地址", cloudDriveRssEndpointFallbackLabel().fallback)
+        assertEquals("未配置端点", cloudDriveRssUnconfiguredEndpointLabel().fallback)
+        assertEquals("调度器待命", cloudDriveRssSchedulerIdleLabel().fallback)
+        assertEquals("同步后扫描", cloudDriveRssPostSyncScanSummaryLabel().fallback)
+        assertEquals("选择目录", cloudDriveRssChooseDirectoryActionLabel().fallback)
+        assertEquals("使用当前目录", cloudDriveRssUseCurrentDirectoryActionLabel().fallback)
+        assertEquals("返回上级", cloudDriveRssParentDirectoryActionLabel().fallback)
+        assertEquals("关闭", cloudDriveRssCloseActionLabel().fallback)
+        assertEquals("个目录", cloudDriveRssDirectoryPageUnitLabel().fallback)
+        assertEquals("正在读取 CloudDrive2 目录...", cloudDriveRssLoadingDirectoriesMessage().fallback)
+        assertEquals("当前目录没有可进入的子目录。", cloudDriveRssEmptyDirectoryMessage().fallback)
+        assertEquals("选择下载目录 A", cloudDriveRssInboxDirectoryPickerTitle().fallback)
+        assertEquals("选择整理目录 B", cloudDriveRssLibraryDirectoryPickerTitle().fallback)
+        assertEquals("下载目录 A", cloudDriveRssInboxDirectorySelectedLabel().fallback)
+        assertEquals("整理目录 B", cloudDriveRssLibraryDirectorySelectedLabel().fallback)
+        assertEquals("已选择下载目录 A：/Anime", cloudDriveRssDirectorySelectedStatus(rawUiText("下载目录 A"), "/Anime").fallback)
+        assertEquals("正在浏览 CloudDrive2 目录：/Anime", cloudDriveRssDirectoryBrowsingStatus("/Anime").fallback)
+        assertEquals(" 到 ", cloudDriveRssPathPairSeparator().fallback)
+        assertEquals("入库后扫描的 WebDAV 媒体源", cloudDriveRssScanSourceTitleLabel().fallback)
+        assertEquals("还没有 WebDAV 媒体源，请先在媒体源里添加 CloudDrive WebDAV 地址。", cloudDriveRssNoWebDavSourceMessage().fallback)
+        assertEquals("暂不扫描", cloudDriveRssNoScanSourceOptionLabel().fallback)
+        assertEquals("使用当前源", cloudDriveRssUseActiveSourceActionLabel().fallback)
+        assertEquals("清除扫描源", cloudDriveRssClearScanSourceActionLabel().fallback)
+        assertEquals("同步后扫描源：", cloudDriveRssPostSyncSourceLabel().fallback)
+        assertEquals("启动调度", cloudDriveRssStartSchedulerActionLabel().fallback)
+        assertEquals("停止调度", cloudDriveRssStopSchedulerActionLabel().fallback)
     }
 
     @Test
     fun `rss subscription labels are shared`() {
-        assertEquals("RSS 订阅", rssSubscriptionsTitleLabel())
-        assertEquals("个订阅", rssSubscriptionPageUnitLabel())
-        assertEquals("订阅名称", rssSubscriptionNameFieldLabel())
-        assertEquals("RSS 地址", rssSubscriptionUrlFieldLabel())
-        assertEquals("标题过滤正则（可选）", rssSubscriptionFilterRegexFieldLabel())
-        assertEquals("新增后启用", rssSubscriptionNewEnabledLabel(true))
-        assertEquals("新增后停用", rssSubscriptionNewEnabledLabel(false))
-        assertEquals("添加订阅", rssSubscriptionAddActionLabel())
-        assertEquals("保存 RSS", rssSubscriptionSaveActionLabel())
-        assertEquals("删除订阅", rssSubscriptionDeleteActionLabel())
-        assertEquals("还没有 RSS 订阅。", rssSubscriptionEmptyMessage())
-        assertEquals("暂无订阅", rssSubscriptionPreviewFallbackLabel())
-        assertEquals("保存订阅后在这里显示", rssSubscriptionFormPreviewFallbackLabel())
-        assertEquals("启用", rssSubscriptionStateLabel(true))
-        assertEquals("停用", rssSubscriptionStateLabel(false))
-        assertEquals("停用", rssSubscriptionStateActionLabel(true))
-        assertEquals("启用", rssSubscriptionStateActionLabel(false))
-        assertEquals("RSS", rssSubscriptionFallbackTitleLabel())
-        assertEquals("上次检查 05-22 10:30", rssSubscriptionLastCheckedLabel("05-22 10:30"))
-        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(null))
-        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(""))
-        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(0L))
-        assertTrue(rssSubscriptionLastCheckedLabel(1_700_000_000_000L).startsWith("上次检查 "))
+        assertEquals("RSS 订阅", rssSubscriptionsTitleLabel().fallback)
+        assertEquals("个订阅", rssSubscriptionPageUnitLabel().fallback)
+        assertEquals("订阅名称", rssSubscriptionNameFieldLabel().fallback)
+        assertEquals("RSS 地址", rssSubscriptionUrlFieldLabel().fallback)
+        assertEquals("标题过滤正则（可选）", rssSubscriptionFilterRegexFieldLabel().fallback)
+        assertEquals("新增后启用", rssSubscriptionNewEnabledLabel(true).fallback)
+        assertEquals("新增后停用", rssSubscriptionNewEnabledLabel(false).fallback)
+        assertEquals("添加订阅", rssSubscriptionAddActionLabel().fallback)
+        assertEquals("保存 RSS", rssSubscriptionSaveActionLabel().fallback)
+        assertEquals("删除订阅", rssSubscriptionDeleteActionLabel().fallback)
+        assertEquals("还没有 RSS 订阅。", rssSubscriptionEmptyMessage().fallback)
+        assertEquals("暂无订阅", rssSubscriptionPreviewFallbackLabel().fallback)
+        assertEquals("保存订阅后在这里显示", rssSubscriptionFormPreviewFallbackLabel().fallback)
+        assertEquals("启用", rssSubscriptionStateLabel(true).fallback)
+        assertEquals("停用", rssSubscriptionStateLabel(false).fallback)
+        assertEquals("停用", rssSubscriptionStateActionLabel(true).fallback)
+        assertEquals("启用", rssSubscriptionStateActionLabel(false).fallback)
+        assertEquals("RSS", rssSubscriptionFallbackTitleLabel().fallback)
+        assertEquals("上次检查 05-22 10:30", rssSubscriptionLastCheckedLabel("05-22 10:30").fallback)
+        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(null).fallback)
+        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel("").fallback)
+        assertEquals("尚未检查", rssSubscriptionLastCheckedLabel(0L).fallback)
+        assertTrue(rssSubscriptionLastCheckedLabel(1_700_000_000_000L).fallback.startsWith("上次检查 "))
     }
 
     @Test
@@ -133,13 +135,13 @@ class CloudDriveRssStatusConventionsTest {
 
         assertEquals(12, cloudRssSubscriptionPageStartForIndex(index = 99, itemCount = 14))
         assertEquals(6, cloudRssSubscriptionCoercedPageStart(pageStart = 10, itemCount = 14))
-        assertEquals("显示 13-14 / 14 个订阅，按上/下继续翻页。", cloudRssSubscriptionPageSummary(12, 2, 14))
-        assertEquals(null, cloudRssSubscriptionPageSummary(0, 4, 4))
+        assertEquals("显示 13-14 / 14 个订阅，按上/下继续翻页。", cloudRssSubscriptionPageSummary(12, 2, 14)?.fallback)
+        assertNull(cloudRssSubscriptionPageSummary(0, 4, 4))
 
         assertEquals(12, cloudDriveDirectoryPageStartForIndex(index = 20, itemCount = 13))
         assertEquals(6, cloudDriveDirectoryCoercedPageStart(pageStart = 9, itemCount = 13))
-        assertEquals("显示 13-13 / 13 个目录，按上/下继续翻页。", cloudDriveDirectoryPageSummary(12, 1, 13))
-        assertEquals(null, cloudDriveDirectoryPageSummary(0, 5, 5))
+        assertEquals("显示 13-13 / 13 个目录，按上/下继续翻页。", cloudDriveDirectoryPageSummary(12, 1, 13)?.fallback)
+        assertNull(cloudDriveDirectoryPageSummary(0, 5, 5))
     }
 
     @Test
@@ -167,22 +169,22 @@ class CloudDriveRssStatusConventionsTest {
         val subscriptionPreview = rssSubscriptionPreview(subscription, maxLength = 42)
 
         assertEquals(
-            listOf(cloudDriveRssTitleLabel(), rssSubscriptionsTitleLabel(), cloudDriveRssPostSyncScanSummaryLabel()),
-            tiles.map { it.label },
+            listOf(cloudDriveRssTitleLabel().fallback, rssSubscriptionsTitleLabel().fallback, cloudDriveRssPostSyncScanSummaryLabel().fallback),
+            tiles.map { it.label.fallback },
         )
         assertEquals(settingsCloudRssOverviewValue(true), tiles[0].value)
         assertEquals(settingsCloudRssSubscriptionsValue(1), tiles[1].value)
         assertEquals(settingsCloudRssLinkedSourceValue("Cloud WebDAV · WebDAV"), tiles[2].value)
-        assertTrue(tiles[0].detail.length <= 58)
-        assertTrue(tiles[1].detail.contains(rssSubscriptionStateLabel(true)))
-        assertTrue(tiles[1].detail.contains("Bangumi Feed"))
-        assertTrue(tiles[2].detail.contains("调度器运行中"))
-        assertTrue(tiles[2].detail.length <= 58)
+        assertTrue(tiles[0].detail.fallback.length <= 58)
+        assertTrue(tiles[1].detail.fallback.contains(rssSubscriptionStateLabel(true).fallback))
+        assertTrue(tiles[1].detail.fallback.contains("Bangumi Feed"))
+        assertTrue(tiles[2].detail.fallback.contains("调度器运行中"))
+        assertTrue(tiles[2].detail.fallback.length <= 58)
         assertTrue(pathPreview.length <= 46)
         assertTrue(pathPreview.contains("..."))
-        assertTrue(pathPreview.contains(cloudDriveRssPathPairSeparator()))
+        assertTrue(pathPreview.contains(cloudDriveRssPathPairSeparator().fallback))
         assertTrue(subscriptionPreview.length <= 42)
-        assertTrue(subscriptionPreview.startsWith(rssSubscriptionStateLabel(true)))
+        assertTrue(subscriptionPreview.startsWith(rssSubscriptionStateLabel(true).fallback))
         assertTrue(subscriptionPreview.contains("..."))
     }
 
@@ -190,41 +192,41 @@ class CloudDriveRssStatusConventionsTest {
     fun `scheduler status uses shared TV facing Chinese copy`() {
         assertEquals(
             "调度器待命，尚未检查。",
-            CloudDriveRssSchedulerUiState().tvStatus(),
+            CloudDriveRssSchedulerUiState().tvStatus().fallback,
         )
         assertEquals(
             "调度器运行中，上次检查失败：network down",
-            CloudDriveRssSchedulerUiState(running = true, lastError = "network down").tvStatus(),
+            CloudDriveRssSchedulerUiState(running = true, lastError = "network down").tvStatus().fallback,
         )
         assertEquals(
             "调度器待命，上次运行：提交 2 个，跳过 1 个，失败 1 个，整理 4 个。",
             CloudDriveRssSchedulerUiState(
                 lastSummary = CloudDriveRssRunSummary(submitted = 2, skipped = 1, failed = 1, organized = 4),
-            ).tvStatus(),
+            ).tvStatus().fallback,
         )
     }
 
     @Test
     fun `credential and token statuses are shared`() {
-        assertEquals("Cloud/RSS 自动化设置已保存。", cloudRssConfigSavedStatus())
-        assertEquals("加载或保存 Cloud/RSS 自动化设置。", cloudRssInitialStatus())
-        assertEquals("CloudDrive 凭据已保存。", cloudDriveCredentialsSavedStatus())
-        assertEquals("CloudDrive 凭据已清空。", cloudDriveCredentialsClearedStatus())
-        assertEquals("请先填写 CloudDrive2 地址、用户名和密码。", cloudDriveLoginRequiredStatus())
-        assertEquals("正在登录 CloudDrive2...", cloudDriveLoginStartedStatus())
-        assertEquals("CloudDrive2 登录成功，令牌已保存。", cloudDriveLoginSucceededStatus())
-        assertEquals("请先填写 CloudDrive2 地址。", cloudDriveEndpointRequiredStatus())
-        assertEquals("请填写 CloudDrive2 API Token 或 Key。", cloudDriveApiTokenRequiredStatus())
-        assertEquals("请先填写 CloudDrive2 地址和 API 令牌。", cloudDriveTokenRequiredStatus())
-        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveTokenLoginRequiredStatus())
-        assertEquals("正在验证 CloudDrive2 API 令牌...", cloudDriveTokenValidationStartedStatus())
+        assertEquals("Cloud/RSS 自动化设置已保存。", cloudRssConfigSavedStatus().fallback)
+        assertEquals("加载或保存 Cloud/RSS 自动化设置。", cloudRssInitialStatus().fallback)
+        assertEquals("CloudDrive 凭据已保存。", cloudDriveCredentialsSavedStatus().fallback)
+        assertEquals("CloudDrive 凭据已清空。", cloudDriveCredentialsClearedStatus().fallback)
+        assertEquals("请先填写 CloudDrive2 地址、用户名和密码。", cloudDriveLoginRequiredStatus().fallback)
+        assertEquals("正在登录 CloudDrive2...", cloudDriveLoginStartedStatus().fallback)
+        assertEquals("CloudDrive2 登录成功，令牌已保存。", cloudDriveLoginSucceededStatus().fallback)
+        assertEquals("请先填写 CloudDrive2 地址。", cloudDriveEndpointRequiredStatus().fallback)
+        assertEquals("请填写 CloudDrive2 API Token 或 Key。", cloudDriveApiTokenRequiredStatus().fallback)
+        assertEquals("请先填写 CloudDrive2 地址和 API 令牌。", cloudDriveTokenRequiredStatus().fallback)
+        assertEquals("请先登录并保存密码，或验证并保存 Key。", cloudDriveTokenLoginRequiredStatus().fallback)
+        assertEquals("正在验证 CloudDrive2 API 令牌...", cloudDriveTokenValidationStartedStatus().fallback)
         assertEquals(
             "CloudDrive2 API 令牌已验证并保存：MiruPlay。",
-            cloudDriveTokenVerifiedStatus(friendlyName = "MiruPlay", rootDir = "/Anime"),
+            cloudDriveTokenVerifiedStatus(friendlyName = "MiruPlay", rootDir = "/Anime").fallback,
         )
         assertEquals(
             "CloudDrive2 API 令牌已验证并保存：/Anime。",
-            cloudDriveTokenVerifiedStatus(friendlyName = "", rootDir = "/Anime"),
+            cloudDriveTokenVerifiedStatus(friendlyName = "", rootDir = "/Anime").fallback,
         )
     }
 
@@ -232,23 +234,23 @@ class CloudDriveRssStatusConventionsTest {
     fun `run scheduler source and RSS statuses are shared`() {
         val summary = CloudDriveRssRunSummary(submitted = 3, skipped = 2, failed = 1, organized = 4)
 
-        assertEquals("正在执行 Cloud/RSS 同步...", cloudRssRunStartedStatus())
-        assertEquals("同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。", summary.completeStatus())
-        assertEquals("启动调度前请先启用并保存 Cloud/RSS 同步。", cloudRssSchedulerDisabledStatus())
-        assertEquals("Cloud/RSS 调度器已启动。", cloudRssSchedulerStartStatus(started = true))
-        assertEquals("Cloud/RSS 调度器已经在运行。", cloudRssSchedulerStartStatus(started = false))
-        assertEquals("Cloud/RSS 调度器已停止。", cloudRssSchedulerStoppedStatus())
-        assertEquals("定时同步完成。", cloudRssScheduledSyncCompleteStatus())
-        assertEquals("请先打开已保存的媒体源，再绑定 Cloud/RSS 扫描。", cloudRssScanSourceRequiredStatus())
-        assertEquals("未找到已绑定的扫描源，请清除或重新绑定 Cloud/RSS 扫描源。", cloudRssScanSourceMissingStatus())
-        assertEquals("已绑定同步后扫描源：Cloud WebDAV。请保存同步配置。", cloudRssLinkedScanSourceStatus("Cloud WebDAV"))
-        assertEquals("定时同步完成，正在重扫 Cloud WebDAV...", cloudRssRescanStartedStatus("定时同步完成。", "Cloud WebDAV"))
-        assertEquals("同步后扫描源已清除，请保存同步配置。", cloudRssScanSourceClearedStatus())
-        assertEquals("请先填写 RSS 地址。", rssUrlRequiredStatus())
-        assertEquals("RSS 订阅已保存：Anime", rssSubscriptionSavedStatus("Anime"))
-        assertEquals("已选择 RSS 订阅：Anime", rssSubscriptionSelectedStatus("Anime"))
-        assertEquals("请先选择一个 RSS 订阅。", rssSubscriptionRequiredStatus())
-        assertEquals("RSS 订阅已删除。", rssSubscriptionDeletedStatus())
+        assertEquals("正在执行 Cloud/RSS 同步...", cloudRssRunStartedStatus().fallback)
+        assertEquals("同步完成：提交 3 个，跳过 2 个，失败 1 个，整理 4 个。", summary.completeStatus().fallback)
+        assertEquals("启动调度前请先启用并保存 Cloud/RSS 同步。", cloudRssSchedulerDisabledStatus().fallback)
+        assertEquals("Cloud/RSS 调度器已启动。", cloudRssSchedulerStartStatus(started = true).fallback)
+        assertEquals("Cloud/RSS 调度器已经在运行。", cloudRssSchedulerStartStatus(started = false).fallback)
+        assertEquals("Cloud/RSS 调度器已停止。", cloudRssSchedulerStoppedStatus().fallback)
+        assertEquals("定时同步完成。", cloudRssScheduledSyncCompleteStatus().fallback)
+        assertEquals("请先打开已保存的媒体源，再绑定 Cloud/RSS 扫描。", cloudRssScanSourceRequiredStatus().fallback)
+        assertEquals("未找到已绑定的扫描源，请清除或重新绑定 Cloud/RSS 扫描源。", cloudRssScanSourceMissingStatus().fallback)
+        assertEquals("已绑定同步后扫描源：Cloud WebDAV。请保存同步配置。", cloudRssLinkedScanSourceStatus("Cloud WebDAV").fallback)
+        assertEquals("定时同步完成，正在重扫 Cloud WebDAV...", cloudRssRescanStartedStatus("定时同步完成。", "Cloud WebDAV").fallback)
+        assertEquals("同步后扫描源已清除，请保存同步配置。", cloudRssScanSourceClearedStatus().fallback)
+        assertEquals("请先填写 RSS 地址。", rssUrlRequiredStatus().fallback)
+        assertEquals("RSS 订阅已保存：Anime", rssSubscriptionSavedStatus("Anime").fallback)
+        assertEquals("已选择 RSS 订阅：Anime", rssSubscriptionSelectedStatus("Anime").fallback)
+        assertEquals("请先选择一个 RSS 订阅。", rssSubscriptionRequiredStatus().fallback)
+        assertEquals("RSS 订阅已删除。", rssSubscriptionDeletedStatus().fallback)
     }
 
     @Test
@@ -256,14 +258,14 @@ class CloudDriveRssStatusConventionsTest {
         val selected = RssSubscriptionInfo(id = 10L, name = "Season A", url = "https://rss.example.test/a.xml")
         val refreshed = selected.copy(enabled = false)
 
-        assertEquals("尚未配置 RSS 订阅。", rssSubscriptionsLoadedStatus(0))
-        assertEquals("已加载 2 个 RSS 订阅。", rssSubscriptionsLoadedStatus(2))
-        assertEquals("尚未配置 RSS 订阅。", rssSubscriptionsShowingStatus(0))
-        assertEquals("正在显示 2 个 RSS 订阅。", rssSubscriptionsShowingStatus(2))
-        assertEquals("RSS 订阅加载失败。", rssSubscriptionsLoadFailedStatus(null))
-        assertEquals("load failed", rssSubscriptionsLoadFailedStatus("load failed"))
-        assertEquals("RSS 订阅刷新失败。", rssSubscriptionsRefreshFailedStatus(null))
-        assertEquals("refresh failed", rssSubscriptionsRefreshFailedStatus("refresh failed"))
+        assertEquals("尚未配置 RSS 订阅。", rssSubscriptionsLoadedStatus(0).fallback)
+        assertEquals("已加载 2 个 RSS 订阅。", rssSubscriptionsLoadedStatus(2).fallback)
+        assertEquals("尚未配置 RSS 订阅。", rssSubscriptionsShowingStatus(0).fallback)
+        assertEquals("正在显示 2 个 RSS 订阅。", rssSubscriptionsShowingStatus(2).fallback)
+        assertEquals("RSS 订阅加载失败。", rssSubscriptionsLoadFailedStatus(null).fallback)
+        assertEquals("load failed", rssSubscriptionsLoadFailedStatus("load failed").fallback)
+        assertEquals("RSS 订阅刷新失败。", rssSubscriptionsRefreshFailedStatus(null).fallback)
+        assertEquals("refresh failed", rssSubscriptionsRefreshFailedStatus("refresh failed").fallback)
         assertEquals(refreshed, selected.retainedSelectionInRssSubscriptions(listOf(refreshed)))
         assertEquals(null, selected.retainedSelectionInRssSubscriptions(listOf(selected.copy(id = 11L))))
         assertEquals(null, null.retainedSelectionInRssSubscriptions(listOf(refreshed)))

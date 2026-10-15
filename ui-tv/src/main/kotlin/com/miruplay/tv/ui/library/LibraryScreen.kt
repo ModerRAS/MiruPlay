@@ -38,12 +38,14 @@ import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.libraryAddSourceActionLabel
 import com.miruplay.tv.model.libraryCancelScanActionLabel
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.libraryContinueWatchingSubtitle
 import com.miruplay.tv.model.libraryCollectedCountLabel
 import com.miruplay.tv.model.libraryContinueWatchingSectionTitle
 import com.miruplay.tv.model.libraryFeaturedSectionTitle
 import com.miruplay.tv.model.libraryFilesScannedLabel
 import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
+import com.miruplay.tv.core.common.UiMessage
 import com.miruplay.tv.model.libraryManualScanActionLabel
 import com.miruplay.tv.model.libraryNoSourcesMessage
 import com.miruplay.tv.model.libraryPosterWallSectionTitle
@@ -144,23 +146,23 @@ fun LibraryScreen(
                 
                 is LibraryUiState.NoSources -> {
                     EmptyState(
-                        message = libraryNoSourcesMessage(),
-                        buttonText = libraryAddSourceActionLabel(),
+                        message = libraryNoSourcesMessage().resolve(),
+                        buttonText = libraryAddSourceActionLabel().resolve(),
                         onClick = onNavigateToSettings
                     )
                 }
                 
                 is LibraryUiState.HasSources -> {
                     EmptyState(
-                        message = libraryHasSourcesEmptyMessage(),
-                        buttonText = libraryScanNowActionLabel(),
+                        message = libraryHasSourcesEmptyMessage().resolve(),
+                        buttonText = libraryScanNowActionLabel().resolve(),
                         onClick = { viewModel.scanNow() }
                     )
                 }
                 is LibraryUiState.ScanError -> {
                     EmptyState(
-                        message = state.message,
-                        buttonText = libraryManualScanActionLabel(),
+                        message = state.message.resolve(),
+                        buttonText = libraryManualScanActionLabel().resolve(),
                         onClick = { viewModel.scanNow() }
                     )
                 }
@@ -205,13 +207,13 @@ private fun LibraryHeader(
             modifier = Modifier.widthIn(min = 188.dp)
         ) {
             Text(
-                text = libraryTitleLabel(),
+                text = libraryTitleLabel().resolve(),
                 style = TvTypography.title,
                 color = TextPrimary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = librarySubtitleLabel(),
+                text = librarySubtitleLabel().resolve(),
                 style = TvTypography.body,
                 color = TextSecondary,
                 maxLines = 1,
@@ -267,7 +269,7 @@ private fun LibraryHeader(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (activeScan == null) {
                 TvButton(
-                    text = libraryScanActionLabel(),
+                    text = libraryScanActionLabel().resolve(),
                     icon = Icons.Filled.Refresh,
                     onClick = onScan,
                     modifier = Modifier.width(132.dp)
@@ -277,7 +279,7 @@ private fun LibraryHeader(
             // focus into the top-right actions after the user starts navigating
             // feels like focus theft and breaks D-pad flow.
             TvButton(
-                text = librarySettingsActionLabel(),
+                text = librarySettingsActionLabel().resolve(),
                 onClick = onNavigateToSettings,
                 modifier = Modifier.width(132.dp)
             )
@@ -343,7 +345,7 @@ private fun ScanProgressBanner(
             modifier = Modifier.weight(1f)
         ) {
             Text(
-                text = libraryScanningTitle(),
+                text = libraryScanningTitle().resolve(),
                 color = TextPrimary,
                 style = TvTypography.body,
                 maxLines = 1,
@@ -361,7 +363,7 @@ private fun ScanProgressBanner(
         if (state.canCancel) {
             Spacer(Modifier.width(12.dp))
             TvButton(
-                text = libraryCancelScanActionLabel(),
+                text = libraryCancelScanActionLabel().resolve(),
                 onClick = onCancel,
                 modifier = Modifier
                     .width(132.dp)
@@ -372,8 +374,9 @@ private fun ScanProgressBanner(
     }
 }
 
+@androidx.compose.runtime.Composable
 private fun scanProgressDetail(state: LibraryScanState.Scanning): String {
-    val files = libraryFilesScannedLabel(state.filesScanned)
+    val files = libraryFilesScannedLabel(state.filesScanned).resolve()
     val path = state.currentPath.trim()
     return if (path.isBlank()) files else "$files · $path"
 }
@@ -384,7 +387,7 @@ private fun LibraryContent(
     recentlyAdded: List<Anime>,
     allAnime: List<Anime>,
     posterWallArrangement: PosterWallArrangement,
-    scanNotice: String?,
+    scanNotice: UiMessage?,
     searchQuery: String,
     initialContentFocus: InitialFocusHandle,
     onPrimaryDirectionUp: () -> Unit,
@@ -410,8 +413,8 @@ private fun LibraryContent(
     val initialContentModifier = initialContentFocus.modifier()
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        scanNotice?.takeIf(String::isNotBlank)?.let { notice ->
-            val noticeColor = if ("失败" in notice || "未找到" in notice) WarningYellow else ProgressGreen
+        scanNotice?.let { notice ->
+            val noticeColor = if (notice is UiMessage.Error) WarningYellow else ProgressGreen
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -419,7 +422,7 @@ private fun LibraryContent(
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
                 Text(
-                    text = notice,
+                    text = notice.text.resolve(),
                     style = TvTypography.body,
                     color = TextPrimary,
                     maxLines = 3,
@@ -430,7 +433,7 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isNotEmpty()) {
-            SectionHeader(title = "搜索结果", trailing = libraryCollectedCountLabel(library.size))
+            SectionHeader(title = "搜索结果", trailing = libraryCollectedCountLabel(library.size).resolve())
             if (library.isEmpty()) {
                 Text(text = "没有匹配的内容", style = TvTypography.body, color = TextSecondary)
             } else {
@@ -460,7 +463,7 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isEmpty() && featured.isNotEmpty()) {
-            SectionHeader(title = libraryFeaturedSectionTitle(), trailing = libraryCollectedCountLabel(library.size))
+            SectionHeader(title = libraryFeaturedSectionTitle().resolve(), trailing = libraryCollectedCountLabel(library.size).resolve())
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -482,7 +485,7 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isEmpty() && continueWatching.isNotEmpty()) {
-            SectionHeader(title = libraryContinueWatchingSectionTitle())
+            SectionHeader(title = libraryContinueWatchingSectionTitle().resolve())
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -504,7 +507,7 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isEmpty() && recentlyAdded.isNotEmpty()) {
-            SectionHeader(title = libraryRecentlyAddedSectionTitle())
+            SectionHeader(title = libraryRecentlyAddedSectionTitle().resolve())
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(end = 24.dp),
@@ -520,12 +523,12 @@ private fun LibraryContent(
         }
 
         if (normalizedQuery.isEmpty() && posterWallSections.isNotEmpty()) {
-            SectionHeader(title = libraryPosterWallSectionTitle())
+            SectionHeader(title = libraryPosterWallSectionTitle().resolve())
             posterWallSections.forEach { section ->
                 val sectionTitle = section.title
-                if (!sectionTitle.isNullOrBlank()) {
+                if (sectionTitle != null && sectionTitle.fallback.isNotBlank()) {
                     Text(
-                        text = sectionTitle,
+                        text = sectionTitle.resolve(),
                         style = TvTypography.body,
                         color = TextSecondary,
                         modifier = Modifier.padding(bottom = 10.dp)

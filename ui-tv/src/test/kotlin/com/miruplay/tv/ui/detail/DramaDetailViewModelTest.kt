@@ -103,7 +103,7 @@ class DramaDetailViewModelTest {
         assertEquals(1, viewModel.selectedSeason.value)
         assertEquals(1, viewModel.episodesWithProgress.value.size)
         assertEquals(15_000L, viewModel.episodesWithProgress.value.single().second?.positionMs)
-        assertEquals("继续观看 1", viewModel.primaryActionLabel.value)
+        assertEquals("继续观看 1", viewModel.primaryActionLabel.value.fallback)
         assertEquals("示例剧", viewModel.heroTitle.value)
         assertNull(viewModel.actionMessage.value)
         assertFalse(viewModel.isRefreshingMetadata.value)
@@ -260,7 +260,7 @@ class DramaDetailViewModelTest {
         assertEquals(null, viewModel.series.value)
         assertTrue(viewModel.seasons.value.isEmpty())
         assertTrue(viewModel.episodesWithProgress.value.isEmpty())
-        assertEquals("播放", viewModel.primaryActionLabel.value)
+        assertEquals("播放", viewModel.primaryActionLabel.value.fallback)
         assertEquals("", viewModel.heroTitle.value)
         assertNull(viewModel.actionMessage.value)
     }
@@ -473,7 +473,7 @@ class DramaDetailViewModelTest {
         advanceUntilIdle()
 
         assertNull(viewModel.continueEpisode.value)
-        assertEquals("播放", viewModel.primaryActionLabel.value)
+        assertEquals("播放", viewModel.primaryActionLabel.value.fallback)
         assertEquals("9:/drama/series-1/s01e01.mkv", viewModel.primaryActionEpisode.value?.id)
         assertTrue(viewModel.hasPlayableEpisodes.value)
     }

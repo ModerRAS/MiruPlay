@@ -85,6 +85,8 @@ import com.miruplay.tv.model.metadataSearchResultsPageLabel
 import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressFraction
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.withVersion
 import com.miruplay.tv.ui.components.EpisodeVersionDialog
 import com.miruplay.tv.ui.components.LoadingIndicator
@@ -200,7 +202,7 @@ private fun DetailContent(
     selectedSeason: Int,
     episodes: List<Pair<Episode, ProgressRecord?>>,
     extras: List<Pair<Episode, ProgressRecord?>>,
-    actionMessage: String?,
+    actionMessage: UiMessage?,
     isSyncing: Boolean,
     onPlayEpisode: (Episode) -> Unit,
     onSelectSeason: (Int) -> Unit,
@@ -289,7 +291,7 @@ private fun DetailContent(
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         val continueTarget = episodes.continueEpisode()
                         TvButton(
-                            text = episodes.continueActionLabel(),
+                            text = episodes.continueActionLabel().resolve(),
                             onClick = { continueTarget?.let(onPlayEpisode) },
                             enabled = continueTarget != null,
                             modifier = Modifier
@@ -298,7 +300,7 @@ private fun DetailContent(
                         )
                         if (!anime.id.startsWith("mlip:")) {
                             TvButton(
-                                text = detailRescrapeActionLabel(),
+                                text = detailRescrapeActionLabel().resolve(),
                                 icon = Icons.Filled.Refresh,
                                 enabled = !isSyncing,
                                 onClick = onRescrape,
@@ -306,18 +308,18 @@ private fun DetailContent(
                             )
                         }
                         TvButton(
-                            text = detailSyncProgressActionLabel(isSyncing),
+                            text = detailSyncProgressActionLabel(isSyncing).resolve(),
                             icon = Icons.Filled.Sync,
                             enabled = !isSyncing,
                             onClick = onSyncBangumi,
                             modifier = Modifier.width(210.dp)
                         )
                     }
-                    if (!actionMessage.isNullOrBlank()) {
+                    actionMessage?.let { message ->
                         Spacer(Modifier.height(14.dp))
                         Text(
-                            text = actionMessage,
-                            color = if (actionMessage.contains("完成") || actionMessage.contains("已更新")) ProgressGreen else WarningYellow,
+                            text = message.text.resolve(),
+                            color = if (message is UiMessage.Error) WarningYellow else ProgressGreen,
                             style = TvTypography.body,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
@@ -353,7 +355,7 @@ private fun DetailContent(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 seasons.forEach { season ->
                     TvButton(
-                        text = detailSeasonLabel(season),
+                        text = detailSeasonLabel(season).resolve(),
                         onClick = { onSelectSeason(season) },
                         modifier = Modifier.width(132.dp),
                         secondary = selectedSeason != season,
@@ -363,13 +365,13 @@ private fun DetailContent(
             Spacer(Modifier.height(18.dp))
         }
 
-        Text(text = detailEpisodeSectionTitle(), style = TvTypography.subtitle, color = TextPrimary)
+        Text(text = detailEpisodeSectionTitle().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(12.dp))
         episodes.forEach { (episode, progress) ->
             EpisodeListItem(
                 episode = episode,
                 progress = episode.progressFraction(progress),
-                progressText = episode.progressLabel(progress),
+                progressText = episode.progressLabel(progress).resolve(),
                 isWatched = episode.isCompleted(progress),
                 onPlay = { onPlayEpisode(episode) }
             )
@@ -382,7 +384,7 @@ private fun DetailContent(
                 EpisodeListItem(
                     episode = extra,
                     progress = extra.progressFraction(progress),
-                    progressText = extra.progressLabel(progress),
+                    progressText = extra.progressLabel(progress).resolve(),
                     isWatched = extra.isCompleted(progress),
                     isExtra = true,
                     onPlay = { onPlayEpisode(extra) },
@@ -427,13 +429,13 @@ private fun BangumiManualMatchDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = detailBangumiManualMatchTitleLabel(),
+                    text = detailBangumiManualMatchTitleLabel().resolve(),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = detailBangumiManualCloseActionLabel(),
+                    text = detailBangumiManualCloseActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -450,7 +452,7 @@ private fun BangumiManualMatchDialog(
             ) {
                 item(key = "candidate-title") {
                     Text(
-                        text = detailBangumiCandidateTermsSectionTitle(),
+                        text = detailBangumiCandidateTermsSectionTitle().resolve(),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary
                     )
@@ -458,7 +460,7 @@ private fun BangumiManualMatchDialog(
                 if (state.candidateTerms.isEmpty()) {
                     item(key = "candidate-empty") {
                         Text(
-                            text = detailBangumiManualSearchRequiredMessage(),
+                            text = detailBangumiManualSearchRequiredMessage().resolve(),
                             style = TvTypography.body,
                             color = TextSecondary
                         )
@@ -484,11 +486,11 @@ private fun BangumiManualMatchDialog(
                         TvTextField(
                             value = state.query,
                             onValueChange = onQueryChange,
-                            label = metadataQueryFieldLabel(),
+                            label = metadataQueryFieldLabel().resolve(),
                             modifier = Modifier.weight(1f)
                         )
                         TvButton(
-                            text = metadataSearchActionLabel(),
+                            text = metadataSearchActionLabel().resolve(),
                             icon = Icons.Filled.Search,
                             enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
                             onClick = onSearch,
@@ -499,7 +501,7 @@ private fun BangumiManualMatchDialog(
 
                 item(key = "results-title") {
                     Text(
-                        text = metadataSearchResultsPageLabel(),
+                        text = metadataSearchResultsPageLabel().resolve(),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary
                     )
@@ -507,7 +509,7 @@ private fun BangumiManualMatchDialog(
                 if (state.results.isEmpty()) {
                     item(key = "results-empty") {
                         Text(
-                            text = metadataEmptyResultsMessage(),
+                            text = metadataEmptyResultsMessage().resolve(),
                             style = TvTypography.body,
                             color = TextSecondary
                         )
@@ -524,19 +526,12 @@ private fun BangumiManualMatchDialog(
                     }
                 }
 
-                if (!state.statusMessage.isNullOrBlank()) {
+                state.statusMessage?.let { status ->
                     item(key = "status-message") {
                         Text(
-                            text = state.statusMessage,
+                            text = status.text.resolve(),
                             style = TvTypography.body,
-                            color = if (state.statusMessage.contains("找到") ||
-                                state.statusMessage.contains("已选择") ||
-                                state.statusMessage.contains("已更新")
-                            ) {
-                                ProgressGreen
-                            } else {
-                                WarningYellow
-                            },
+                            color = if (status is UiMessage.Error) WarningYellow else ProgressGreen,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -546,14 +541,14 @@ private fun BangumiManualMatchDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = metadataApplyMatchActionLabel(),
+                    text = metadataApplyMatchActionLabel().resolve(),
                     icon = Icons.Filled.CheckCircle,
                     enabled = !busy && state.selectedResult != null,
                     onClick = onApply,
                     modifier = Modifier.width(180.dp)
                 )
                 TvButton(
-                    text = detailBangumiManualCloseActionLabel(),
+                    text = detailBangumiManualCloseActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -690,16 +685,16 @@ private fun ManualResultItem(
 private fun DetailStats(anime: Anime) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         if (anime.rating > 0) {
-            StatPill(detailRatingLabel(anime.rating), WarningYellow)
+            StatPill(detailRatingLabel(anime.rating).resolve(), WarningYellow)
         }
         if (anime.episodeCount > 0) {
-            StatPill(detailEpisodeCountLabel(anime.episodeCount), TextSecondary)
+            StatPill(detailEpisodeCountLabel(anime.episodeCount).resolve(), TextSecondary)
         }
         anime.airDate?.takeIf { it.isNotBlank() }?.let {
             StatPill(it, TextSecondary)
         }
         anime.bangumiCollectionType?.let {
-            StatPill(detailBangumiCollectionPillLabel(it), AnimeRed)
+            StatPill(detailBangumiCollectionPillLabel(it).resolve(), AnimeRed)
         }
     }
 }
@@ -798,7 +793,7 @@ private fun EpisodeListItem(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = if (isExtra) episode.title.ifBlank { episode.fileName } else {
-                    detailEpisodeTitleLabel(episode.episodeNumber, episode.title)
+                    detailEpisodeTitleLabel(episode.episodeNumber, episode.title).resolve()
                 },
                 color = TextPrimary,
                 fontSize = 17.sp,

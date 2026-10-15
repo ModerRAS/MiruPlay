@@ -1,6 +1,7 @@
 package com.miruplay.tv.sync
 
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.ScraperResult
 import com.miruplay.tv.repository.MediaIndexEntry
 import com.miruplay.tv.repository.MediaIndexRepository
@@ -53,25 +54,25 @@ data class BangumiMetadataSearchActionResult(
     val query: String,
     val results: List<ScraperResult>,
     val selectedResult: ScraperResult?,
-    val status: String,
+    val status: UiText,
 )
 
 data class BangumiMetadataBatchPreviewActionResult(
     val matches: List<MetadataBatchMatch>,
     val plan: MetadataBatchPlan?,
     val selectedMatch: MetadataBatchMatch?,
-    val status: String,
+    val status: UiText,
 )
 
 data class BangumiMetadataBatchApplyActionResult(
     val plan: MetadataBatchPlan?,
     val write: MetadataBatchWriteResult,
-    val status: String,
+    val status: UiText,
 )
 
 data class BangumiMetadataBatchUndoActionResult(
     val restore: MetadataBatchUndoResult,
-    val status: String,
+    val status: UiText,
 )
 
 data class BangumiMetadataBatchCandidateActionResult(
@@ -79,12 +80,12 @@ data class BangumiMetadataBatchCandidateActionResult(
     val updatedMatches: List<MetadataBatchMatch>,
     val plan: MetadataBatchPlan?,
     val selectedResult: ScraperResult,
-    val status: String,
+    val status: UiText,
 )
 
 data class BangumiMetadataEntryActionResult(
     val updatedEntry: MediaIndexEntry?,
-    val status: String,
+    val status: UiText,
 )
 
 class BangumiIndexMetadataCoordinator(
@@ -119,7 +120,7 @@ class BangumiIndexMetadataCoordinator(
             )
         }
 
-        onSearchStarted(metadataSearchStartedStatus(resolvedQuery, sourceName))
+        onSearchStarted(metadataSearchStartedStatus(resolvedQuery, sourceName).fallback)
         return when (
             val result = bangumiScraper.searchPreferredResults(
                 query = resolvedQuery,
@@ -162,7 +163,7 @@ class BangumiIndexMetadataCoordinator(
                     return Result.success(emptyBatchPreviewResult(noMetadataBatchEntriesStatus(sourceName)))
                 }
 
-                onSearchStarted(metadataBatchSearchingStatus(queryCount, sourceName))
+                onSearchStarted(metadataBatchSearchingStatus(queryCount, sourceName).fallback)
                 val preview = MetadataBatchPlanner.previewFor(
                     entries = entries,
                     queryLimit = queryLimit,
@@ -430,7 +431,7 @@ class BangumiIndexMetadataCoordinator(
         }
     }
 
-    private fun emptyBatchPreviewResult(status: String): BangumiMetadataBatchPreviewActionResult =
+    private fun emptyBatchPreviewResult(status: UiText): BangumiMetadataBatchPreviewActionResult =
         BangumiMetadataBatchPreviewActionResult(
             matches = emptyList(),
             plan = null,
@@ -440,7 +441,7 @@ class BangumiIndexMetadataCoordinator(
 
     private fun emptyBatchApplyResult(
         plan: MetadataBatchPlan? = null,
-        status: String,
+        status: UiText,
     ): BangumiMetadataBatchApplyActionResult =
         BangumiMetadataBatchApplyActionResult(
             plan = plan,
@@ -451,7 +452,7 @@ class BangumiIndexMetadataCoordinator(
             status = status,
         )
 
-    private fun emptyBatchUndoResult(status: String): BangumiMetadataBatchUndoActionResult =
+    private fun emptyBatchUndoResult(status: UiText): BangumiMetadataBatchUndoActionResult =
         BangumiMetadataBatchUndoActionResult(
             restore = MetadataBatchUndoResult(
                 rollbackEntries = emptyList(),

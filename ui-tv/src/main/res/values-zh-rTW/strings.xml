@@ -86,4 +86,10 @@
     <string name="subtitle_background_current">目前：%1$s</string>
     <string name="perf_monitor_current">目前：%1$s</string>
     <string name="picture_default_backend">預設後端</string>
+    <string name="join_1">%1$s</string>
+    <string name="join_2">%1$s · %2$s</string>
+    <string name="join_3">%1$s · %2$s · %3$s</string>
+    <string name="join_4">%1$s · %2$s · %3$s · %4$s</string>
+    <string name="join_5">%1$s · %2$s · %3$s · %4$s · %5$s</string>
+    <string name="join_6">%1$s · %2$s · %3$s · %4$s · %5$s · %6$s</string>
 </resources>

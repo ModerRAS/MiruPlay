@@ -173,7 +173,7 @@ fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
     when (this) {
         is Result.Success -> SourceTestResponse(
             connected = data,
-            message = if (data) "连接正常" else mediaSourceConnectionFailedMessage(),
+            message = if (data) "连接正常" else mediaSourceConnectionFailedMessage().fallback,
         )
         is Result.Error -> SourceTestResponse(
             connected = false,

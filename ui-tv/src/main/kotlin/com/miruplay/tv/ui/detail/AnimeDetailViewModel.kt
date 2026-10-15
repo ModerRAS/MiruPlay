@@ -3,6 +3,12 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.asInfo
+import com.miruplay.tv.core.common.errorMessage
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.BANGUMI_RESULT_LIMIT
 import com.miruplay.tv.model.Anime
@@ -91,8 +97,8 @@ class AnimeDetailViewModel @Inject constructor(
     private val _isLoading = MutableStateFlow(true)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
-    private val _actionMessage = MutableStateFlow<String?>(null)
-    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
+    private val _actionMessage = MutableStateFlow<UiMessage?>(null)
+    val actionMessage: StateFlow<UiMessage?> = _actionMessage.asStateFlow()
 
     private val _isSyncing = MutableStateFlow(false)
     val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
@@ -131,7 +137,7 @@ class AnimeDetailViewModel @Inject constructor(
     fun openRescrapeMatcher() {
         val current = _anime.value ?: return
         if (current.id.startsWith("mlip:")) {
-            _actionMessage.value = mlipMetadataReadOnlyStatus()
+            _actionMessage.value = mlipMetadataReadOnlyStatus().asError()
             return
         }
         val localEpisodes = allEpisodesWithProgress.map { it.first }
@@ -167,7 +173,7 @@ class AnimeDetailViewModel @Inject constructor(
         val currentState = _manualMatch.value
         val queries = manualMatchQueries(currentState)
         if (queries.isEmpty()) {
-            _manualMatch.value = currentState.copy(statusMessage = detailBangumiManualSearchRequiredMessage())
+            _manualMatch.value = currentState.copy(statusMessage = detailBangumiManualSearchRequiredMessage().asError())
             return
         }
 
@@ -175,7 +181,7 @@ class AnimeDetailViewModel @Inject constructor(
             _isSyncing.value = true
             _manualMatch.value = _manualMatch.value.copy(
                 isSearching = true,
-                statusMessage = detailBangumiManualSearchStartedMessage(queries.size),
+                statusMessage = detailBangumiManualSearchStartedMessage(queries.size).asError(),
             )
 
             try {
@@ -213,22 +219,23 @@ class AnimeDetailViewModel @Inject constructor(
                     selectedResult = distinctMatches.firstOrNull(),
                     isSearching = false,
                     statusMessage = if (distinctMatches.isEmpty()) {
-                        "没有找到更合适的聚合候选。"
+                        uiText("anime_search_no_better", "没有找到更合适的聚合候选。").asError()
                     } else {
-                        "找到 ${distinctMatches.size} 个聚合候选。"
+                        val count = distinctMatches.size
+                        UiText("anime_search_found_count", listOf(count), "找到 $count 个聚合候选。").asInfo()
                     },
                 )
             } catch (error: TimeoutCancellationException) {
                 _manualMatch.value = _manualMatch.value.copy(
                     isSearching = false,
-                    statusMessage = "搜索超时，请减少关键词或检查网络/代理。",
+                    statusMessage = uiText("anime_search_timeout", "搜索超时，请减少关键词或检查网络/代理。").asError(),
                 )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 _manualMatch.value = _manualMatch.value.copy(
                     isSearching = false,
-                    statusMessage = "搜索失败：${error.message ?: error::class.simpleName.orEmpty()}",
+                    statusMessage = UiText("anime_search_failed", listOf(error.message ?: error::class.simpleName.orEmpty()), "搜索失败：${error.message ?: error::class.simpleName.orEmpty()}").asError(),
                 )
             } finally {
                 _isSyncing.value = false
@@ -239,33 +246,33 @@ class AnimeDetailViewModel @Inject constructor(
     fun selectManualMatchResult(result: ScraperResult) {
         _manualMatch.value = _manualMatch.value.copy(
             selectedResult = result,
-            statusMessage = metadataSelectedResultTvStatus(result.displayTitle()),
+            statusMessage = metadataSelectedResultTvStatus(result.displayTitle()).asInfo(),
         )
     }
 
     fun applyManualMatch() {
         val current = _anime.value ?: return
         if (current.id.startsWith("mlip:")) {
-            _manualMatch.value = _manualMatch.value.copy(statusMessage = mlipMetadataReadOnlyStatus())
+            _manualMatch.value = _manualMatch.value.copy(statusMessage = mlipMetadataReadOnlyStatus().asError())
             return
         }
         val match = _manualMatch.value.selectedResult
         if (match == null) {
-            _manualMatch.value = _manualMatch.value.copy(statusMessage = detailBangumiManualSelectionRequiredMessage())
+            _manualMatch.value = _manualMatch.value.copy(statusMessage = detailBangumiManualSelectionRequiredMessage().asError())
             return
         }
 
         viewModelScope.launch {
             val scraper = scraperFor(match)
             if (scraper == null) {
-                _manualMatch.value = _manualMatch.value.copy(statusMessage = "${match.source.name} 刮削器不可用")
+                _manualMatch.value = _manualMatch.value.copy(statusMessage = UiText("anime_scraper_unavailable", listOf(match.source.name), "${match.source.name} 刮削器不可用").asError())
                 return@launch
             }
 
             _isSyncing.value = true
             val applyingMessage = detailBangumiManualApplyStartedMessage(match.displayTitle())
-            _actionMessage.value = applyingMessage
-            _manualMatch.value = _manualMatch.value.copy(isApplying = true, statusMessage = applyingMessage)
+            _actionMessage.value = applyingMessage.asError()
+            _manualMatch.value = _manualMatch.value.copy(isApplying = true, statusMessage = applyingMessage.asError())
 
             val localEpisodes = metadataRepository.getCachedEpisodes(current.id).getOrNull()
                 ?.takeIf { it.isNotEmpty() }
@@ -274,9 +281,9 @@ class AnimeDetailViewModel @Inject constructor(
             if (indexedEntries.any(MediaIndexEntry::isMlipManagedMetadata)) {
                 _manualMatch.value = _manualMatch.value.copy(
                     isApplying = false,
-                    statusMessage = mlipMetadataReadOnlyStatus(),
+                    statusMessage = mlipMetadataReadOnlyStatus().asError(),
                 )
-                _actionMessage.value = mlipMetadataReadOnlyStatus()
+                _actionMessage.value = mlipMetadataReadOnlyStatus().asError()
                 _isSyncing.value = false
                 return@launch
             }
@@ -323,9 +330,9 @@ class AnimeDetailViewModel @Inject constructor(
                 is Result.Error -> {
                     _manualMatch.value = _manualMatch.value.copy(
                         isApplying = false,
-                        statusMessage = refreshed.error.toUserMessage(),
+                        statusMessage = errorMessage(refreshed.error.toUserMessage()),
                     )
-                    _actionMessage.value = refreshed.error.toUserMessage()
+                    _actionMessage.value = errorMessage(refreshed.error.toUserMessage())
                     _isSyncing.value = false
                     return@launch
                 }
@@ -333,7 +340,7 @@ class AnimeDetailViewModel @Inject constructor(
             }
 
             _manualMatch.value = BangumiManualMatchUiState()
-            _actionMessage.value = detailBangumiMetadataUpdatedMessage()
+            _actionMessage.value = detailBangumiMetadataUpdatedMessage().asInfo()
             _isSyncing.value = false
             loadAnime(reloadAnimeId)
         }
@@ -387,7 +394,7 @@ class AnimeDetailViewModel @Inject constructor(
         val current = _anime.value ?: return
         viewModelScope.launch {
             _isSyncing.value = true
-            _actionMessage.value = detailBangumiSyncStartedMessage()
+            _actionMessage.value = detailBangumiSyncStartedMessage().asError()
             PerformanceLog.measureSuspendResult(
                 tag = DETAIL_PERFORMANCE_TAG,
                 operation = "detail.bangumi.sync",
@@ -395,10 +402,10 @@ class AnimeDetailViewModel @Inject constructor(
             ) {
                 bangumiSyncEngine.syncAnime(current.id)
             }.onSuccess { summary ->
-                _actionMessage.value = detailBangumiSyncCompleteMessage(summary.pushedEpisodes, summary.pulledEpisodes)
+                _actionMessage.value = detailBangumiSyncCompleteMessage(summary.pushedEpisodes, summary.pulledEpisodes).asInfo()
                 loadAnime(current.id)
             }.onError { error ->
-                _actionMessage.value = error.toUserMessage()
+                _actionMessage.value = errorMessage(error.toUserMessage())
             }
             _isSyncing.value = false
         }
@@ -434,5 +441,5 @@ data class BangumiManualMatchUiState(
     val selectedResult: ScraperResult? = null,
     val isSearching: Boolean = false,
     val isApplying: Boolean = false,
-    val statusMessage: String? = null,
+    val statusMessage: UiMessage? = null,
 )

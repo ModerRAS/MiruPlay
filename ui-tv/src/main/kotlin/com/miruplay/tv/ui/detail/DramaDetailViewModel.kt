@@ -3,6 +3,8 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.model.playbackPlayLabel
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeason
@@ -81,8 +83,8 @@ class DramaDetailViewModel @Inject constructor(
     private val _hasPlayableEpisodes = MutableStateFlow(false)
     val hasPlayableEpisodes: StateFlow<Boolean> = _hasPlayableEpisodes.asStateFlow()
 
-    private val _primaryActionLabel = MutableStateFlow("播放")
-    val primaryActionLabel: StateFlow<String> = _primaryActionLabel.asStateFlow()
+    private val _primaryActionLabel = MutableStateFlow(playbackPlayLabel())
+    val primaryActionLabel: StateFlow<UiText> = _primaryActionLabel.asStateFlow()
 
     private val _actionMessage = MutableStateFlow<String?>(null)
     val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()

@@ -21,7 +21,7 @@ class LibraryScanNoticeTest {
 
         assertEquals(
             "MLIP：259 部动漫，2672 集，4177 个文件；library.db 生成于 2026-07-22T07:55:30Z",
-            notice,
+            notice?.text?.fallback,
         )
     }
 
@@ -40,7 +40,7 @@ class LibraryScanNoticeTest {
             sourceFailures = emptyList(),
         )
 
-        assertEquals("MLIP：259 部动漫，2672 集，4177 个文件；扫描完成：8 个文件", notice)
+        assertEquals("MLIP：259 部动漫，2672 集，4177 个文件 · 扫描完成：8 个文件", notice?.text?.fallback)
     }
 
     @Test
@@ -50,6 +50,6 @@ class LibraryScanNoticeTest {
             sourceFailures = listOf("未找到媒体库索引：library.db"),
         )
 
-        assertEquals("扫描失败：未找到媒体库索引：library.db", notice)
+        assertEquals("扫描失败：未找到媒体库索引：library.db", notice?.text?.fallback)
     }
 }

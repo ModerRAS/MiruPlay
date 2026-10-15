@@ -21,18 +21,18 @@ import org.junit.Test
 class SettingsLogUploadParityTest {
     @Test
     fun `android tv log upload menu summary reflects runtime state`() {
-        assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary())
+        assertEquals("未启用", settingsAndroidTvLogUploadMenuSummary().fallback)
         assertEquals(
             "等待 Token",
-            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = false, isUploading = false),
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = false, isUploading = false).fallback,
         )
         assertEquals(
             "自动上报",
-            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = false),
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = false).fallback,
         )
         assertEquals(
             "上报中",
-            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = true),
+            settingsAndroidTvLogUploadMenuSummary(enabled = true, tokenConfigured = true, isUploading = true).fallback,
         )
     }
 
@@ -46,9 +46,9 @@ class SettingsLogUploadParityTest {
             lastUploadStatus = "后台自动上报中",
         )
 
-        val status = androidTvLogUploadStatusMessage(snapshot)
+        val status = androidTvLogUploadStatusMessage(snapshot).fallback
 
-        assertTrue(status.startsWith(settingsAndroidTvLogUploadStatusMessage()))
+        assertTrue(status.startsWith(settingsAndroidTvLogUploadStatusMessage().fallback))
         assertFalse(status.contains("Web 控制端"))
         assertTrue(status.contains("待上报 2 条"))
         assertTrue(status.contains("上报中"))
@@ -109,7 +109,7 @@ class SettingsLogUploadParityTest {
             tokenConfigured = snapshot.tokenConfigured,
             lastUploadAt = snapshot.lastUploadAt,
             lastUploadStatus = snapshot.lastUploadStatus,
-        )
+        ).fallback
 
         assertEquals(1, repository.uploadCalls)
         assertEquals(0, snapshot.pendingCount)

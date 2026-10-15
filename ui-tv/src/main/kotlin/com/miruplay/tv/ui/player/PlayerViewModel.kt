@@ -5,6 +5,8 @@ import android.view.View
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.rawUiText
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.EpisodeVersion
@@ -121,8 +123,8 @@ class PlayerViewModel @Inject constructor(
     private val _activePlaybackSource = MutableStateFlow<PlaybackSource?>(null)
     val activePlaybackSource: StateFlow<PlaybackSource?> = _activePlaybackSource.asStateFlow()
 
-    private val _displayTitle = MutableStateFlow("")
-    val displayTitle: StateFlow<String> = _displayTitle.asStateFlow()
+    private val _displayTitle = MutableStateFlow<UiText>(rawUiText(""))
+    val displayTitle: StateFlow<UiText> = _displayTitle.asStateFlow()
 
     private val _displaySubtitle = MutableStateFlow("")
     val displaySubtitle: StateFlow<String> = _displaySubtitle.asStateFlow()
@@ -805,7 +807,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun startPresentationResolution(source: PlaybackSource) {
         presentationJob?.cancel()
-        _displayTitle.value = source.displayTitle()
+        _displayTitle.value = rawUiText(source.displayTitle())
         _displaySubtitle.value = source.mediaSourceId
         presentationJob = viewModelScope.launch {
             val episodeId = source.episodeId ?: return@launch
@@ -849,7 +851,7 @@ class PlayerViewModel @Inject constructor(
         pendingSelectionExitsPlayback = false
         _canPlayPreviousEpisode.value = false
         _canPlayNextEpisode.value = false
-        _displayTitle.value = ""
+        _displayTitle.value = rawUiText("")
         _displaySubtitle.value = ""
         allEpisodeComments = emptyList()
         episodeCommentsGeneration += 1

@@ -13,6 +13,13 @@ import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.PosterWallArrangement
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.asInfo
+import com.miruplay.tv.core.common.joinUiText
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.model.libraryNoContentAfterScanMessage
 import com.miruplay.tv.model.mergeSameAnimeForDisplay
 import com.miruplay.tv.repository.LibraryEpisodeResolver
@@ -59,9 +66,9 @@ sealed class LibraryUiState {
         val recentlyAdded: List<Anime>,
         val allAnime: List<Anime>,
         val posterWallArrangement: PosterWallArrangement,
-        val scanNotice: String? = null,
+        val scanNotice: UiMessage? = null,
     ) : LibraryUiState()
-    data class ScanError(val message: String) : LibraryUiState()
+    data class ScanError(val message: UiText) : LibraryUiState()
 }
 
 @HiltViewModel
@@ -139,7 +146,8 @@ class LibraryViewModel @Inject constructor(
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError(
-                                scanState.sourceFailures.firstOrNull() ?: libraryNoContentAfterScanMessage()
+                                scanState.sourceFailures.firstOrNull()?.let { rawUiText(it) }
+                                    ?: libraryNoContentAfterScanMessage()
                             )
                         } else {
                             applyScanNotice(libraryScanNotice(scanState.results, scanState.sourceFailures))
@@ -150,13 +158,13 @@ class LibraryViewModel @Inject constructor(
                         MiruLog.w(
                             "LibraryViewModel",
                             "Scan task state failed",
-                            attributes = mapOf("message" to scanState.message)
+                            attributes = mapOf("message" to scanState.message.fallback)
                         )
                         val snapshot = loadLibraryContent(showLoading = false)
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = LibraryUiState.ScanError(scanState.message)
                         } else {
-                            applyScanNotice("扫描失败：${scanState.message}")
+                            applyScanNotice(UiText("library_scan_failed_state", listOf(scanState.message), "扫描失败：${scanState.message}").asError())
                         }
                     }
                     is LibraryScanState.Cancelled -> {
@@ -274,14 +282,13 @@ class LibraryViewModel @Inject constructor(
         return metadataRepository.getCachedMetadata(metadataKeys).getOrNull().orEmpty()
     }
 
-    private fun applyScanNotice(message: String?) {
+    private fun applyScanNotice(message: UiMessage?) {
         val content = _state.value as? LibraryUiState.HasContent ?: return
         _state.value = content.copy(scanNotice = message)
     }
 
-    private fun libraryLoadErrorMessage(): String {
-        return "加载媒体库失败，请稍后重试"
-    }
+    private fun libraryLoadErrorMessage(): UiText =
+        uiText("library_load_error", "加载媒体库失败，请稍后重试")
 
     fun cancelScan() {
         libraryScanTask.cancel()
@@ -296,18 +303,30 @@ private data class LibraryLoadSnapshot(
 internal fun libraryScanNotice(
     results: List<ScanResult>,
     sourceFailures: List<String>,
-): String? {
-    val summarized = results.mapNotNull(ScanResult::summary)
+): UiMessage? {
+    val summarized = results.mapNotNull(ScanResult::summary).map { rawUiText(it) }
     val unsummarized = results.filter { it.summary.isNullOrBlank() }
     val success = summarized + unsummarized
         .takeIf(List<ScanResult>::isNotEmpty)
-        ?.let { listOf("扫描完成：${it.sumOf(ScanResult::episodesFound)} 个文件") }
+        ?.let {
+            val count = it.sumOf(ScanResult::episodesFound)
+            listOf(UiText("library_scan_done_files", listOf(count), "扫描完成：$count 个文件"))
+        }
         .orEmpty()
     val failure = sourceFailures.takeIf(List<String>::isNotEmpty)?.let {
-        val suffix = if (it.size > 1) "（共 ${it.size} 个源失败）" else ""
-        "扫描失败：${it.first()}$suffix"
+        val suffix = if (it.size > 1) {
+            val size = it.size
+            UiText("library_scan_failed_suffix", listOf(size), "（共 $size 个源失败）")
+        } else {
+            rawUiText("")
+        }
+        val first = it.first()
+        UiText("library_scan_failed", listOf(first, suffix), "扫描失败：$first${suffix.fallback}")
     }
-    return (success + listOfNotNull(failure)).joinToString("；").takeIf(String::isNotBlank)
+    val parts = success + listOfNotNull(failure)
+    if (parts.isEmpty()) return null
+    val joined = joinUiText(parts)
+    return if (failure != null) joined.asError() else joined.asInfo()
 }
 
 private const val SCAN_CONTENT_REFRESH_DELAY_MS = 500L

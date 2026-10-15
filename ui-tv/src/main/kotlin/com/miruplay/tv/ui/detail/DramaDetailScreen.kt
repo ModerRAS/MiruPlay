@@ -66,7 +66,10 @@ import com.miruplay.tv.model.dramaMetadataStatusMessage
 import com.miruplay.tv.model.dramaRefreshActionLabel
 import com.miruplay.tv.model.dramaSeasonCountLabel
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.isCompleted
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.providerDisplayLabel
 import com.miruplay.tv.model.providerStableKey
 import com.miruplay.tv.ui.drama.DramaBackdropArtworkPlaceholder
@@ -205,7 +208,7 @@ private fun DramaDetailContent(
     isRefreshingMetadata: Boolean,
     hasTmdbTokenConfigured: Boolean,
     canRefreshBoundMetadata: Boolean,
-    primaryActionLabel: String,
+    primaryActionLabel: UiText,
     actionMessage: String?,
     primaryActionEpisode: DramaEpisode?,
     hasPlayableEpisodes: Boolean,
@@ -296,7 +299,7 @@ private fun DramaDetailContent(
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TvButton(
-                            text = primaryActionLabel,
+                            text = primaryActionLabel.resolve(),
                             onClick = { primaryActionEpisode?.let(onPlayEpisode) },
                             enabled = primaryActionEpisode != null,
                             modifier = Modifier
@@ -304,7 +307,7 @@ private fun DramaDetailContent(
                                 .then(primaryActionFocus.modifier()),
                         )
                         TvButton(
-                            text = dramaRefreshActionLabel(isRefreshingMetadata),
+                            text = dramaRefreshActionLabel(isRefreshingMetadata).resolve(),
                             icon = Icons.Filled.Refresh,
                             onClick = onRefreshMetadata,
                             enabled = !isRefreshingMetadata,
@@ -344,7 +347,7 @@ private fun DramaDetailContent(
                 isRefreshing = isRefreshingMetadata,
                 boundProviderLabel = series.boundMetadataProviderRef()?.source,
                 canRefreshBoundMetadata = canRefreshBoundMetadata,
-            ),
+            ).resolve(),
             highlightColor = when {
                 isRefreshingMetadata -> AccentBlue
                 series.boundMetadataProviderRef() != null -> ProgressGreen
@@ -376,7 +379,7 @@ private fun DramaDetailContent(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 seasons.forEach { season ->
                     TvButton(
-                        text = detailSeasonLabel(season),
+                        text = detailSeasonLabel(season).resolve(),
                         onClick = { onSelectSeason(season) },
                         modifier = Modifier.width(132.dp),
                         secondary = selectedSeason != season,
@@ -387,7 +390,7 @@ private fun DramaDetailContent(
         }
 
         Text(
-            text = detailEpisodeSectionTitle(),
+            text = detailEpisodeSectionTitle().resolve(),
             style = TvTypography.subtitle,
             color = TextPrimary,
         )
@@ -402,8 +405,8 @@ private fun DramaDetailContent(
                 DramaEpisodeListItem(
                     episode = episode,
                     progress = dramaEpisodeProgressIndicatorFraction(episode, progress),
-                    progressText = episode.toPlaybackEpisode().progressLabel(progress),
-                    isWatched = episode.toPlaybackEpisode().progressLabel(progress) == "已看",
+                    progressText = episode.toPlaybackEpisode().progressLabel(progress).resolve(),
+                    isWatched = episode.toPlaybackEpisode().isCompleted(progress),
                     onPlay = { onPlayEpisode(episode) },
                 )
             }
@@ -786,8 +789,8 @@ private fun DramaDetailStats(
     series: com.miruplay.tv.model.DramaSeries,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        DramaStatPill(dramaEpisodeCountLabel(series.episodeCount), TextSecondary)
-        DramaStatPill(dramaSeasonCountLabel(series.seasonCount), TextSecondary)
+        DramaStatPill(dramaEpisodeCountLabel(series.episodeCount).resolve(), TextSecondary)
+        DramaStatPill(dramaSeasonCountLabel(series.seasonCount).resolve(), TextSecondary)
         series.firstAirDate?.takeIf { it.isNotBlank() }?.let {
             DramaStatPill(it, WarningYellow)
         }
@@ -873,7 +876,7 @@ private fun DramaEpisodeListItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title),
+                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title).resolve(),
                 color = TextPrimary,
                 fontSize = 17.sp,
                 maxLines = 1,

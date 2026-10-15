@@ -1,6 +1,7 @@
 package com.miruplay.tv.ui.settings
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.DocumentsContract
@@ -117,8 +118,11 @@ import androidx.compose.ui.res.stringResource
 import com.miruplay.tv.repository.AppLanguage
 import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.canRunNow
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.ui.tv.R
+import com.miruplay.tv.core.common.UiMessage
 import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.playbackSubtitlesMenuTitle
 import com.miruplay.tv.repository.AppMode
@@ -130,7 +134,9 @@ import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.normalizeSupportedBackend
 import com.miruplay.tv.model.supportedPlaybackRenderBackends
 import com.miruplay.tv.model.PosterWallArrangement
-import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
+import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_PATH
+import com.miruplay.tv.model.localStorageRootDisplayName
+import com.miruplay.tv.model.cloudDriveRootDisplayName
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspConfig
@@ -247,6 +253,8 @@ import com.miruplay.tv.model.settingsAppModeOptionLabel
 import com.miruplay.tv.model.settingsAppModeStatus
 import com.miruplay.tv.model.settingsAppModeTitleLabel
 import com.miruplay.tv.model.settingsAppUpdateCheckActionLabel
+import com.miruplay.tv.model.settingsAppUpdateAvailableStatus
+import com.miruplay.tv.model.settingsAppUpdateBusyStatus
 import com.miruplay.tv.model.settingsAppUpdateChannelLabel
 import com.miruplay.tv.model.settingsAppUpdateInstallActionLabel
 import com.miruplay.tv.model.settingsAppUpdateMenuSummary
@@ -410,6 +418,7 @@ fun AddSourceScreen(
     onExitApp: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val testResult by viewModel.testResult.collectAsStateWithLifecycle()
     val savedToken by viewModel.bangumiToken.collectAsStateWithLifecycle()
@@ -454,7 +463,7 @@ fun AddSourceScreen(
     var selectedType by remember { mutableStateOf(MediaSourceType.LOCAL) }
     var selectedContentMode by remember { mutableStateOf(MediaContentMode.ANIME) }
     var selectedRecognitionMode by remember { mutableStateOf(MediaRecognitionMode.DIRECTORY) }
-    var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL)) }
+    var name by remember { mutableStateOf(sourceNameOrDefault("", MediaSourceType.LOCAL, context)) }
     var location by remember { mutableStateOf(DEFAULT_LOCAL_PATH) }
     var locationDisplayName by remember { mutableStateOf(mediaSourceLocalPathDisplayName(DEFAULT_LOCAL_PATH)) }
     var username by remember { mutableStateOf("") }
@@ -540,7 +549,7 @@ fun AddSourceScreen(
         selectedType = type
         selectedContentMode = currentAppMode.toMediaContentMode()
         selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
-        name = sourceNameOrDefault("", type)
+        name = sourceNameOrDefault("", type, context)
         location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
         locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
         username = ""
@@ -564,10 +573,10 @@ fun AddSourceScreen(
         selectedType = source.type
         selectedContentMode = source.contentMode
         selectedRecognitionMode = source.recognitionMode()
-        name = source.name.ifBlank { sourceNameOrDefault("", source.type) }
+        name = source.name.ifBlank { sourceNameOrDefault("", source.type, context) }
         location = source.sourceLocation().orEmpty()
         locationDisplayName = source.connectionDisplayName().ifBlank {
-            if (source.type == MediaSourceType.LOCAL) displayNameForLocation(location) else ""
+            if (source.type == MediaSourceType.LOCAL) displayNameForLocation(location, context) else ""
         }
         username = source.connectionUsername()
         password = ""
@@ -584,7 +593,7 @@ fun AddSourceScreen(
         }
         val source = MediaSourceInfo(
             id = editingSourceId ?: 0L,
-            name = sourceNameOrDefault(name, selectedType),
+            name = sourceNameOrDefault(name, selectedType, context),
             type = selectedType,
             contentMode = selectedContentMode,
             connectionInfo = MediaSourceInfoConventions.sourceConnectionInfo(
@@ -676,7 +685,7 @@ fun AddSourceScreen(
                             selectedType = type
                             selectedContentMode = currentAppMode.toMediaContentMode()
                             selectedRecognitionMode = MediaRecognitionMode.DIRECTORY
-                            name = sourceNameOrDefault("", type)
+                            name = sourceNameOrDefault("", type, context)
                             location = type.defaultSourceLocation(DEFAULT_LOCAL_PATH)
                             locationDisplayName = if (type == MediaSourceType.LOCAL) mediaSourceLocalPathDisplayName(location) else ""
                             username = ""
@@ -972,7 +981,7 @@ fun AddSourceScreen(
                         location = it
                         locationDisplayName = mediaSourceLocalPathDisplayName(it)
                         if (name.isBlank() || name == "本地下载") {
-                            name = locationDisplayName.ifBlank { mediaSourceLocalLibraryFallbackName() }
+                            name = locationDisplayName.ifBlank { mediaSourceLocalLibraryFallbackName().resolve(context) }
                         }
                         viewModel.clearTestResult()
                         viewModel.closeLocalDirectoryPicker()
@@ -1006,19 +1015,19 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
     ) {
         Column {
             Text(
-                text = settingsScreenTitleLabel(),
+                text = settingsScreenTitleLabel().resolve(),
                 style = TvTypography.title,
                 color = TextPrimary
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = settingsScreenSubtitleLabel(),
+                text = settingsScreenSubtitleLabel().resolve(),
                 style = TvTypography.body,
                 color = TextSecondary
             )
         }
         TvButton(
-            text = settingsBackActionLabel(),
+            text = settingsBackActionLabel().resolve(),
             icon = Icons.AutoMirrored.Filled.ArrowBack,
             onClick = onNavigateBack,
             modifier = Modifier.width(180.dp)
@@ -1059,7 +1068,16 @@ private fun SettingsMenuPanel(
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
-        playbackSummary = "${playbackEndAction.playbackEndMenuSummary().resolve()} · ${preferredSubtitleLanguage.displayLabel().resolve()}${playbackSubtitlesMenuTitle().resolve()} · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend).resolve()}",
+        playbackSummary = UiText(
+            "settings_menu_playback_summary",
+            listOf(
+                playbackEndAction.playbackEndMenuSummary().resolve(),
+                preferredSubtitleLanguage.displayLabel().resolve(),
+                playbackSubtitlesMenuTitle().resolve(),
+                playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend).resolve(),
+            ),
+            "${playbackEndAction.playbackEndMenuSummary().fallback} · ${preferredSubtitleLanguage.displayLabel().fallback}${playbackSubtitlesMenuTitle().fallback} · ${playbackBackendLabel(formatAwareToneMappingPreferences.defaultBackend).fallback}",
+        ),
         audioDspEnabled = audioDspEnabled,
         cloudDriveEnabled = cloudDriveEnabled,
         rssCount = rssCount,
@@ -1081,21 +1099,21 @@ private fun SettingsMenuPanel(
             isUploading = logUploadUploading,
         ),
         appUpdateSummary = when {
-            appUpdateBusy -> "处理中"
-            appUpdateAvailable -> "可更新"
+            appUpdateBusy -> settingsAppUpdateBusyStatus()
+            appUpdateAvailable -> settingsAppUpdateAvailableStatus()
             else -> settingsAppUpdateMenuSummary()
         },
     )
 
     SettingsPanel(modifier = modifier) {
         Text(
-            text = settingsMenuPanelTitle(),
+            text = settingsMenuPanelTitle().resolve(),
             style = TvTypography.subtitle,
             color = TextPrimary
         )
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsMenuPanelDescriptionAndroidTv(),
+            text = settingsMenuPanelDescriptionAndroidTv().resolve(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -1124,7 +1142,7 @@ private fun SettingsMenuPanel(
 @Composable
 private fun SettingsMenuItem(
     section: MiruPlaySettingsSection,
-    summary: String,
+    summary: UiText,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
@@ -1168,13 +1186,13 @@ private fun SettingsMenuItem(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = section.androidTvTitle,
+                text = section.androidTvTitle.resolve(),
                 style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                 color = TextPrimary,
                 maxLines = 1
             )
             Text(
-                text = summary,
+                text = summary.resolve(),
                 style = TvTypography.caption,
                 color = if (selected) TextPrimary.copy(alpha = 0.78f) else TextSecondary,
                 maxLines = 1,
@@ -1295,7 +1313,7 @@ private fun SettingsContent(
     cloudDriveTokenConfigured: Boolean,
     cloudDrivePasswordConfigured: Boolean,
     cloudDriveBusy: Boolean,
-    cloudDriveActionMessage: String?,
+    cloudDriveActionMessage: UiMessage?,
     canPickCloudDriveDirectory: Boolean,
     onPickCloudInboxPath: () -> Unit,
     onPickCloudLibraryPath: () -> Unit,
@@ -1305,7 +1323,7 @@ private fun SettingsContent(
     onRssProxyHostChange: (String) -> Unit,
     rssProxyPort: String,
     onRssProxyPortChange: (String) -> Unit,
-    proxyStatusMessage: String,
+    proxyStatusMessage: UiMessage,
     rssSubscriptions: List<RssSubscriptionInfo>,
     rssName: String,
     onRssNameChange: (String) -> Unit,
@@ -1328,7 +1346,7 @@ private fun SettingsContent(
     logUploadEndpoint: String,
     onLogUploadEndpointChange: (String) -> Unit,
     logUploadTokenConfigured: Boolean,
-    logUploadStatusMessage: String,
+    logUploadStatusMessage: UiMessage,
     onSaveLogUploadSettings: () -> Unit,
     onClearLogUploadToken: () -> Unit,
     onRunLogUploadNow: () -> Unit,
@@ -1639,14 +1657,14 @@ private fun SettingsSectionHeader(section: MiruPlaySettingsSection) {
             )
             Spacer(Modifier.width(10.dp))
             Text(
-                text = section.androidTvTitle,
+                text = section.androidTvTitle.resolve(),
                 style = TvTypography.title,
                 color = TextPrimary
             )
         }
         Spacer(Modifier.height(4.dp))
         Text(
-            text = section.androidTvDescription,
+            text = section.androidTvDescription.resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -1678,15 +1696,15 @@ private fun SourceListPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = mediaSourceListTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = mediaSourceListTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(8.dp))
         Text(
             text = if (sources.isEmpty()) {
-                mediaSourceEmptyListMessage()
+                mediaSourceEmptyListMessage().resolve()
             } else {
-                mediaSourceConfiguredCountLabel(sources.size)
+                mediaSourceConfiguredCountLabel(sources.size).resolve()
             },
             style = TvTypography.body,
             color = TextSecondary
@@ -1792,7 +1810,7 @@ private fun SourceListItem(
         )
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = source.tvDisplayName(fallbackName = source.type.tvLabel()),
+                text = source.tvDisplayName(fallbackName = source.type.tvLabel().resolve()),
                 color = TextPrimary,
                 style = TvTypography.body,
                 maxLines = 1,
@@ -1800,7 +1818,7 @@ private fun SourceListItem(
             )
             Spacer(Modifier.height(3.dp))
             Text(
-                text = source.tvDisplayStatusLabel(),
+                text = source.tvDisplayStatusLabel().resolve(),
                 color = if (source.isConnected) ProgressGreen else WarningYellow,
                 style = TvTypography.caption
             )
@@ -1884,12 +1902,12 @@ private fun WebUiPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = settingsWebUiPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsWebUiPanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsWebUiPanelDescription(),
+            text = settingsWebUiPanelDescription().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -1897,20 +1915,20 @@ private fun WebUiPanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = settingsWebUiToggleActionLabel(enabled),
+                text = settingsWebUiToggleActionLabel(enabled).resolve(),
                 icon = Icons.Filled.WifiTethering,
                 onClick = onToggleEnabled,
                 modifier = Modifier.width(156.dp)
             )
             TvButton(
-                text = settingsWebUiRotateTokenActionLabel(),
+                text = settingsWebUiRotateTokenActionLabel().resolve(),
                 icon = Icons.Filled.Key,
                 onClick = onRotateToken,
                 enabled = enabled,
                 modifier = Modifier.width(150.dp)
             )
             TvButton(
-                text = settingsWebUiRefreshAddressActionLabel(),
+                text = settingsWebUiRefreshAddressActionLabel().resolve(),
                 icon = Icons.Filled.Refresh,
                 onClick = onRefresh,
                 enabled = enabled,
@@ -1927,7 +1945,7 @@ private fun WebUiPanel(
 
         Spacer(Modifier.height(12.dp))
         Text(
-            text = settingsWebUiAccessTokenLabel(displayedAccessToken),
+            text = settingsWebUiAccessTokenLabel(displayedAccessToken).resolve(),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 2,
@@ -1937,13 +1955,13 @@ private fun WebUiPanel(
         if (!enabled) {
             StatusMessage(
                 icon = Icons.Filled.Close,
-                text = settingsWebUiDisabledStatus(),
+                text = settingsWebUiDisabledStatus().resolve(),
                 color = WarningYellow
             )
         } else if (urls.isEmpty()) {
             StatusMessage(
                 icon = Icons.Filled.Refresh,
-                text = settingsWebUiNoLanAddressStatus(),
+                text = settingsWebUiNoLanAddressStatus().resolve(),
                 color = WarningYellow
             )
         } else {
@@ -1958,14 +1976,14 @@ private fun WebUiPanel(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = settingsWebUiAvailableAddressesLabel(),
+                        text = settingsWebUiAvailableAddressesLabel().resolve(),
                         style = TvTypography.caption,
                         color = TextSecondary
                     )
                     urls.forEachIndexed { index, url ->
                         WebUiMenuItem(
                             url = url,
-                            label = settingsWebUiAddressLabel(index),
+                            label = settingsWebUiAddressLabel(index).resolve(),
                             selected = url == activeUrl,
                             onClick = { onUrlSelected(url) }
                         )
@@ -1982,7 +2000,7 @@ private fun WebUiPanel(
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = settingsWebUiQrOpenLabel(),
+                        text = settingsWebUiQrOpenLabel().resolve(),
                         style = TvTypography.caption,
                         color = TextSecondary,
                         maxLines = 1
@@ -2121,17 +2139,17 @@ private fun CloudDriveDirectoryPickerDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = if (state.target == CloudDriveDirectoryTarget.INBOX) {
+                    text = (if (state.target == CloudDriveDirectoryTarget.INBOX) {
                         cloudDriveRssInboxDirectoryPickerTitle()
                     } else {
                         cloudDriveRssLibraryDirectoryPickerTitle()
-                    },
+                    }).resolve(),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = cloudDriveRssCloseActionLabel(),
+                    text = cloudDriveRssCloseActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
@@ -2140,7 +2158,7 @@ private fun CloudDriveDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
-                    text = cloudDriveRssParentDirectoryActionLabel(),
+                    text = cloudDriveRssParentDirectoryActionLabel().resolve(),
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
@@ -2148,7 +2166,11 @@ private fun CloudDriveDirectoryPickerDialog(
                     modifier = Modifier.width(140.dp)
                 )
                 Text(
-                    text = state.displayPath.ifBlank { CLOUD_DRIVE_ROOT_DISPLAY_NAME },
+                    text = if (state.path.isBlank()) {
+                        localStorageRootDisplayName().resolve()
+                    } else {
+                        state.displayPath.ifBlank { localStorageRootDisplayName().resolve() }
+                    },
                     style = TvTypography.body,
                     color = TextSecondary,
                     maxLines = 1,
@@ -2158,9 +2180,9 @@ private fun CloudDriveDirectoryPickerDialog(
             }
 
             if (state.isLoading) {
-                Text(text = cloudDriveRssLoadingDirectoriesMessage(), color = TextSecondary, style = TvTypography.body)
+                Text(text = cloudDriveRssLoadingDirectoriesMessage().resolve(), color = TextSecondary, style = TvTypography.body)
             } else if (state.entries.isEmpty()) {
-                Text(text = cloudDriveRssEmptyDirectoryMessage(), color = TextSecondary, style = TvTypography.body)
+                Text(text = cloudDriveRssEmptyDirectoryMessage().resolve(), color = TextSecondary, style = TvTypography.body)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -2179,7 +2201,7 @@ private fun CloudDriveDirectoryPickerDialog(
                 }
             }
 
-            val cloudDirectoryMessage = state.message
+            val cloudDirectoryMessage = state.message?.resolve()
             if (!cloudDirectoryMessage.isNullOrBlank()) {
                 Text(
                     text = cloudDirectoryMessage,
@@ -2192,13 +2214,13 @@ private fun CloudDriveDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = cloudDriveRssCloseActionLabel(),
+                    text = cloudDriveRssCloseActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
                 )
                 TvButton(
-                    text = cloudDriveRssUseCurrentDirectoryActionLabel(),
+                    text = cloudDriveRssUseCurrentDirectoryActionLabel().resolve(),
                     icon = Icons.Filled.CheckCircle,
                     enabled = canSelectCurrent,
                     onClick = { onSelectCurrent(state.path) }
@@ -2236,13 +2258,13 @@ private fun LocalDirectoryPickerDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = directoryBrowserTitleLabel(isLocal = true),
+                    text = directoryBrowserTitleLabel(isLocal = true).resolve(),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = directoryBrowserCloseActionLabel(),
+                    text = directoryBrowserCloseActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
@@ -2251,7 +2273,7 @@ private fun LocalDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 ScanOptionChip(
-                    text = directoryBrowserParentActionLabel(isLocal = true),
+                    text = directoryBrowserParentActionLabel(isLocal = true).resolve(),
                     icon = Icons.AutoMirrored.Filled.ArrowBack,
                     selected = false,
                     enabled = state.parentPath != null,
@@ -2259,7 +2281,11 @@ private fun LocalDirectoryPickerDialog(
                     modifier = Modifier.width(140.dp)
                 )
                 Text(
-                    text = state.displayPath.ifBlank { directoryBrowserRootDisplayName(isLocal = true) },
+                    text = if (state.path == CLOUD_DRIVE_ROOT_PATH) {
+                        cloudDriveRootDisplayName().resolve()
+                    } else {
+                        state.displayPath.ifBlank { cloudDriveRootDisplayName().resolve() }
+                    },
                     style = TvTypography.body,
                     color = TextSecondary,
                     maxLines = 1,
@@ -2269,9 +2295,9 @@ private fun LocalDirectoryPickerDialog(
             }
 
             if (state.isLoading) {
-                Text(text = directoryBrowserLoadingMessage(isLocal = true), color = TextSecondary, style = TvTypography.body)
+                Text(text = directoryBrowserLoadingMessage(isLocal = true).resolve(), color = TextSecondary, style = TvTypography.body)
             } else if (state.entries.isEmpty()) {
-                Text(text = directoryBrowserEmptyMessage(isLocal = true), color = TextSecondary, style = TvTypography.body)
+                Text(text = directoryBrowserEmptyMessage(isLocal = true).resolve(), color = TextSecondary, style = TvTypography.body)
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -2290,7 +2316,7 @@ private fun LocalDirectoryPickerDialog(
                 }
             }
 
-            val localDirectoryMessage = state.message
+            val localDirectoryMessage = state.message?.resolve()
             if (!localDirectoryMessage.isNullOrBlank()) {
                 Text(
                     text = localDirectoryMessage,
@@ -2303,13 +2329,13 @@ private fun LocalDirectoryPickerDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = directoryBrowserCancelActionLabel(),
+                    text = directoryBrowserCancelActionLabel().resolve(),
                     icon = Icons.Filled.Close,
                     enabled = true,
                     onClick = onDismiss
                 )
                 TvButton(
-                    text = directoryBrowserUseCurrentActionLabel(isLocal = true),
+                    text = directoryBrowserUseCurrentActionLabel(isLocal = true).resolve(),
                     icon = Icons.Filled.CheckCircle,
                     enabled = canSelectCurrent,
                     onClick = { onSelectCurrent(state.path) }
@@ -2345,7 +2371,7 @@ private fun CloudDriveAutomationPanel(
     tokenConfigured: Boolean,
     passwordConfigured: Boolean,
     busy: Boolean,
-    actionMessage: String?,
+    actionMessage: UiMessage?,
     canPickCloudDriveDirectory: Boolean,
     onPickCloudInboxPath: () -> Unit,
     onPickCloudLibraryPath: () -> Unit,
@@ -2367,12 +2393,12 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = cloudDriveRssTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = cloudDriveRssTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = cloudDriveRssDescriptionLabel(),
+            text = cloudDriveRssDescriptionLabel().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -2380,7 +2406,7 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = cloudDriveRssScheduledChipLabel(enabled),
+                text = cloudDriveRssScheduledChipLabel(enabled).resolve(),
                 icon = Icons.Filled.Refresh,
                 selected = enabled,
                 enabled = true,
@@ -2388,7 +2414,7 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.width(150.dp)
             )
             ScanOptionChip(
-                text = cloudDriveRssCredentialsBadgeLabel(tokenConfigured, passwordConfigured),
+                text = cloudDriveRssCredentialsBadgeLabel(tokenConfigured, passwordConfigured).resolve(),
                 icon = Icons.Filled.CheckCircle,
                 selected = credentialConfigured,
                 enabled = false,
@@ -2400,7 +2426,7 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(10.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = cloudDriveRssPasswordCredentialLabel(passwordConfigured),
+                text = cloudDriveRssPasswordCredentialLabel(passwordConfigured).resolve(),
                 icon = Icons.Filled.Key,
                 selected = passwordConfigured,
                 enabled = false,
@@ -2408,7 +2434,7 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.weight(1f)
             )
             ScanOptionChip(
-                text = cloudDriveRssApiTokenCredentialLabel(tokenConfigured),
+                text = cloudDriveRssApiTokenCredentialLabel(tokenConfigured).resolve(),
                 icon = Icons.Filled.Key,
                 selected = tokenConfigured,
                 enabled = false,
@@ -2421,7 +2447,7 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = endpoint,
             onValueChange = onEndpointChange,
-            label = cloudDriveRssEndpointFieldLabel(),
+            label = cloudDriveRssEndpointFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -2430,13 +2456,13 @@ private fun CloudDriveAutomationPanel(
             TvTextField(
                 value = username,
                 onValueChange = onUsernameChange,
-                label = cloudDriveRssUsernameFieldLabel(),
+                label = cloudDriveRssUsernameFieldLabel().resolve(),
                 modifier = Modifier.weight(1f)
             )
             TvTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = cloudDriveRssPasswordFieldLabel(),
+                label = cloudDriveRssPasswordFieldLabel().resolve(),
                 isPassword = true,
                 modifier = Modifier.weight(1f)
             )
@@ -2446,7 +2472,7 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = apiToken,
             onValueChange = onApiTokenChange,
-            label = cloudDriveRssApiTokenFieldLabel(),
+            label = cloudDriveRssApiTokenFieldLabel().resolve(),
             isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -2454,7 +2480,7 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(12.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = cloudDriveRssLibraryModeOrganizedLabel(),
+                text = cloudDriveRssLibraryModeOrganizedLabel().resolve(),
                 icon = Icons.Filled.Folder,
                 selected = cloudLibraryMode == CloudDriveLibraryMode.ORGANIZED_LIBRARY,
                 enabled = true,
@@ -2462,7 +2488,7 @@ private fun CloudDriveAutomationPanel(
                 modifier = Modifier.weight(1f)
             )
             ScanOptionChip(
-                text = cloudDriveRssLibraryModeSingleDirectoryLabel(),
+                text = cloudDriveRssLibraryModeSingleDirectoryLabel().resolve(),
                 icon = Icons.Filled.Storage,
                 selected = cloudLibraryMode == CloudDriveLibraryMode.SINGLE_DIRECTORY,
                 enabled = true,
@@ -2475,7 +2501,7 @@ private fun CloudDriveAutomationPanel(
         CloudDrivePathSelectorField(
             value = inboxPath,
             onValueChange = onInboxPathChange,
-            label = cloudDriveRssInboxPathFieldLabel(),
+            label = cloudDriveRssInboxPathFieldLabel().resolve(),
             canPick = canPickCloudDriveDirectory,
             onPick = onPickCloudInboxPath,
             modifier = Modifier.fillMaxWidth()
@@ -2485,7 +2511,7 @@ private fun CloudDriveAutomationPanel(
             CloudDrivePathSelectorField(
                 value = libraryPath,
                 onValueChange = onLibraryPathChange,
-                label = cloudDriveRssLibraryPathFieldLabel(),
+                label = cloudDriveRssLibraryPathFieldLabel().resolve(),
                 canPick = canPickCloudDriveDirectory,
                 onPick = onPickCloudLibraryPath,
                 modifier = Modifier.fillMaxWidth()
@@ -2496,7 +2522,7 @@ private fun CloudDriveAutomationPanel(
         TvTextField(
             value = intervalMinutes,
             onValueChange = onIntervalMinutesChange,
-            label = cloudDriveRssIntervalMinutesFieldLabel(),
+            label = cloudDriveRssIntervalMinutesFieldLabel().resolve(),
             modifier = Modifier.width(220.dp)
         )
 
@@ -2510,25 +2536,25 @@ private fun CloudDriveAutomationPanel(
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = cloudDriveRssSaveConfigActionLabel(),
+                text = cloudDriveRssSaveConfigActionLabel().resolve(),
                 icon = Icons.Filled.Save,
                 enabled = endpoint.isNotBlank(),
                 onClick = onSave
             )
             TvButton(
-                text = cloudDriveRssLoginActionLabel(busy),
+                text = cloudDriveRssLoginActionLabel(busy).resolve(),
                 icon = Icons.Filled.Key,
                 enabled = !busy && endpoint.isNotBlank() && username.isNotBlank() && password.isNotBlank(),
                 onClick = onLogin
             )
             TvButton(
-                text = cloudDriveRssSaveApiTokenActionLabel(),
+                text = cloudDriveRssSaveApiTokenActionLabel().resolve(),
                 icon = Icons.Filled.Key,
                 enabled = apiToken.isNotBlank(),
                 onClick = onSaveApiToken
             )
             TvButton(
-                text = cloudDriveRssSaveAndRunNowActionLabel(busy),
+                text = cloudDriveRssSaveAndRunNowActionLabel(busy).resolve(),
                 icon = Icons.Filled.Refresh,
                 enabled = !busy && endpoint.isNotBlank() && runnableCredentials,
                 onClick = onRunNow
@@ -2537,14 +2563,14 @@ private fun CloudDriveAutomationPanel(
 
         StatusMessage(
             icon = if (credentialConfigured) Icons.Filled.CheckCircle else Icons.Filled.Cloud,
-            text = cloudDriveRssTokenStatusMessage(tokenConfigured, passwordConfigured),
+            text = cloudDriveRssTokenStatusMessage(tokenConfigured, passwordConfigured).resolve(),
             color = if (credentialConfigured) ProgressGreen else TextSecondary
         )
-        if (!actionMessage.isNullOrBlank()) {
+        actionMessage?.let { message ->
             StatusMessage(
                 icon = Icons.Filled.Refresh,
-                text = actionMessage,
-                color = if ("失败" in actionMessage || "请" in actionMessage) WarningYellow else ProgressGreen
+                text = message.text.resolve(),
+                color = if (message is UiMessage.Error) WarningYellow else ProgressGreen
             )
         }
     }
@@ -2568,7 +2594,7 @@ private fun CloudDrivePathSelectorField(
         )
         Spacer(Modifier.height(8.dp))
         ScanOptionChip(
-            text = cloudDriveRssChooseDirectoryActionLabel(),
+            text = cloudDriveRssChooseDirectoryActionLabel().resolve(),
             icon = Icons.Filled.FolderOpen,
             selected = false,
             enabled = canPick,
@@ -2586,7 +2612,7 @@ private fun CloudDriveWebDavSourceSelector(
 ) {
     Column {
         Text(
-            text = cloudDriveRssScanSourceTitleLabel(),
+            text = cloudDriveRssScanSourceTitleLabel().resolve(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -2594,13 +2620,13 @@ private fun CloudDriveWebDavSourceSelector(
         if (sources.isEmpty()) {
             StatusMessage(
                 icon = Icons.Filled.Storage,
-                text = cloudDriveRssNoWebDavSourceMessage(),
+                text = cloudDriveRssNoWebDavSourceMessage().resolve(),
                 color = WarningYellow
             )
         } else {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 CloudDriveWebDavSourceChip(
-                    text = cloudDriveRssNoScanSourceOptionLabel(),
+                    text = cloudDriveRssNoScanSourceOptionLabel().resolve(),
                     selected = selectedSourceId == null,
                     onClick = { onSelected(null) },
                     modifier = Modifier.width(130.dp)
@@ -2658,42 +2684,42 @@ private fun RssSubscriptionsPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = rssSubscriptionsTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = rssSubscriptionsTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(14.dp))
         TvTextField(
             value = name,
             onValueChange = onNameChange,
-            label = rssSubscriptionNameFieldLabel(),
+            label = rssSubscriptionNameFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
         TvTextField(
             value = url,
             onValueChange = onUrlChange,
-            label = rssSubscriptionUrlFieldLabel(),
+            label = rssSubscriptionUrlFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(12.dp))
         TvTextField(
             value = filterRegex,
             onValueChange = onFilterRegexChange,
-            label = rssSubscriptionFilterRegexFieldLabel(),
+            label = rssSubscriptionFilterRegexFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = rssSubscriptionNewEnabledLabel(enabled),
+                text = rssSubscriptionNewEnabledLabel(enabled).resolve(),
                 selected = enabled,
                 enabled = true,
                 onClick = onToggleEnabled,
                 modifier = Modifier.width(150.dp)
             )
             TvButton(
-                text = rssSubscriptionAddActionLabel(),
+                text = rssSubscriptionAddActionLabel().resolve(),
                 icon = Icons.Filled.Add,
                 enabled = url.isNotBlank(),
                 onClick = onAdd
@@ -2703,7 +2729,7 @@ private fun RssSubscriptionsPanel(
         Spacer(Modifier.height(18.dp))
         if (subscriptions.isEmpty()) {
             Text(
-                text = rssSubscriptionEmptyMessage(),
+                text = rssSubscriptionEmptyMessage().resolve(),
                 style = TvTypography.body,
                 color = TextSecondary
             )
@@ -2772,13 +2798,13 @@ private fun RssSubscriptionRow(
             Text(
                 text = rssSubscriptionLastCheckedLabel(
                     subscription.lastCheckedAt.takeIf { it > 0 }?.let(::formatTimestamp)
-                ),
+                ).resolve(),
                 style = TvTypography.caption,
                 color = TextSecondary
             )
         }
         TvButton(
-            text = rssSubscriptionStateActionLabel(subscription.enabled),
+            text = rssSubscriptionStateActionLabel(subscription.enabled).resolve(),
             icon = Icons.Filled.Refresh,
             onClick = onToggle,
             modifier = Modifier.width(112.dp)
@@ -2811,6 +2837,7 @@ private fun SourceFormPanel(
     onTestConnection: () -> Unit,
     onSave: () -> Unit
 ) {
+    val context = LocalContext.current
     SettingsPanel {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -2819,20 +2846,20 @@ private fun SourceFormPanel(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = mediaSourceFormTitleLabel(isEditing),
+                    text = mediaSourceFormTitleLabel(isEditing).resolve(),
                     style = TvTypography.subtitle,
                     color = TextPrimary
                 )
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = mediaSourceFormDescriptionLabel(isEditing),
+                    text = mediaSourceFormDescriptionLabel(isEditing).resolve(),
                     style = TvTypography.body,
                     color = TextSecondary
                 )
             }
             if (isEditing) {
                 TvButton(
-                    text = mediaSourceNewActionLabel(),
+                    text = mediaSourceNewActionLabel().resolve(),
                     icon = Icons.Filled.Add,
                     onClick = onNewSource,
                     modifier = Modifier.width(128.dp)
@@ -2859,14 +2886,14 @@ private fun SourceFormPanel(
         TvTextField(
             value = name,
             onValueChange = onNameChange,
-            label = mediaSourceDisplayNameFieldLabel(),
+            label = mediaSourceDisplayNameFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
 
         Spacer(Modifier.height(12.dp))
 
         Text(
-            text = mediaSourceContentModeTitleLabel(),
+            text = mediaSourceContentModeTitleLabel().resolve(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -2874,7 +2901,7 @@ private fun SourceFormPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             MediaContentMode.entries.forEach { mode ->
                 ScanOptionChip(
-                    text = mediaSourceContentModeLabel(mode),
+                    text = mediaSourceContentModeLabel(mode).resolve(),
                     icon = Icons.Filled.Storage,
                     selected = selectedContentMode == mode,
                     enabled = true,
@@ -2885,7 +2912,7 @@ private fun SourceFormPanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = mediaSourceContentModeHint(selectedContentMode),
+            text = mediaSourceContentModeHint(selectedContentMode).resolve(),
             color = ProgressGreen
         )
 
@@ -2937,7 +2964,7 @@ private fun SourceFormPanel(
 
         if (selectedType == MediaSourceType.LOCAL) {
             LocalFolderPickerRow(
-                displayName = locationDisplayName.ifBlank { displayNameForLocation(location) },
+                displayName = locationDisplayName.ifBlank { displayNameForLocation(location, context) },
                 location = location,
                 onPickFolder = onPickLocalFolder
             )
@@ -2945,7 +2972,7 @@ private fun SourceFormPanel(
             TvTextField(
                 value = location,
                 onValueChange = onLocationChange,
-                label = selectedType.tvLocationLabel(),
+                label = selectedType.tvLocationLabel().resolve(),
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -2955,14 +2982,14 @@ private fun SourceFormPanel(
             TvTextField(
                 value = username,
                 onValueChange = onUsernameChange,
-                label = mediaSourceUsernameOptionalFieldLabel(),
+                label = mediaSourceUsernameOptionalFieldLabel().resolve(),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(12.dp))
             TvTextField(
                 value = password,
                 onValueChange = onPasswordChange,
-                label = mediaSourcePasswordOptionalFieldLabel(isEditing),
+                label = mediaSourcePasswordOptionalFieldLabel(isEditing).resolve(),
                 isPassword = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -2972,14 +2999,14 @@ private fun SourceFormPanel(
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = mediaSourceTestConnectionActionLabel(testResult is ConnectionTestResult.Testing),
+                text = mediaSourceTestConnectionActionLabel(testResult is ConnectionTestResult.Testing).resolve(),
                 icon = Icons.Filled.WifiTethering,
                 enabled = testResult !is ConnectionTestResult.Testing,
                 onClick = onTestConnection,
                 modifier = Modifier.weight(1f)
             )
             TvButton(
-                text = mediaSourceSaveActionLabel(isEditing),
+                text = mediaSourceSaveActionLabel(isEditing).resolve(),
                 icon = Icons.Filled.Save,
                 enabled = location.isNotBlank(),
                 onClick = onSave,
@@ -2999,7 +3026,7 @@ private fun LocalFolderPickerRow(
 ) {
     Column {
         Text(
-            text = MediaSourceType.LOCAL.tvLocationLabel(),
+            text = MediaSourceType.LOCAL.tvLocationLabel().resolve(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -3028,14 +3055,14 @@ private fun LocalFolderPickerRow(
                 Spacer(Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = displayName.ifBlank { mediaSourceLocalFolderEmptyLabel() },
+                        text = displayName.ifBlank { mediaSourceLocalFolderEmptyLabel().resolve() },
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = if (location.startsWith("content://")) mediaSourceLocalFolderAuthorizedLabel() else location,
+                        text = if (location.startsWith("content://")) mediaSourceLocalFolderAuthorizedLabel().resolve() else location,
                         style = TvTypography.caption,
                         color = TextSecondary,
                         maxLines = 1,
@@ -3044,7 +3071,7 @@ private fun LocalFolderPickerRow(
                 }
             }
             TvButton(
-                text = mediaSourceChooseFolderActionLabel(),
+                text = mediaSourceChooseFolderActionLabel().resolve(),
                 icon = Icons.Filled.FolderOpen,
                 onClick = onPickFolder,
                 modifier = Modifier.width(170.dp)
@@ -3090,14 +3117,14 @@ private fun SourceTypeChip(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = type.tvLabel(),
+            text = type.tvLabel().resolve(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = type.tvSourceHint(),
+            text = type.tvSourceHint().resolve(),
             style = TvTypography.caption,
             color = TextSecondary,
             maxLines = 1,
@@ -3111,17 +3138,17 @@ private fun ConnectionStatus(result: ConnectionTestResult?) {
     when (result) {
         is ConnectionTestResult.Success -> StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = mediaSourceConnectionSuccessMessage(),
+            text = mediaSourceConnectionSuccessMessage().resolve(),
             color = ProgressGreen
         )
         is ConnectionTestResult.Failed -> StatusMessage(
             icon = Icons.Filled.Refresh,
-            text = result.message,
+            text = result.message.resolve(),
             color = WarningYellow
         )
         is ConnectionTestResult.Testing -> StatusMessage(
             icon = Icons.Filled.WifiTethering,
-            text = mediaSourceConnectionTestingMessage(),
+            text = mediaSourceConnectionTestingMessage().resolve(),
             color = TextSecondary
         )
         null -> Unit
@@ -3188,19 +3215,19 @@ private fun ScanPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = settingsScanPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsScanPanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsScanPanelDescription(),
+            text = settingsScanPanelDescription().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
 
         Spacer(Modifier.height(16.dp))
         Text(
-            text = settingsAppModeTitleLabel(),
+            text = settingsAppModeTitleLabel().resolve(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
         )
@@ -3208,7 +3235,7 @@ private fun ScanPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             AppMode.entries.forEach { mode ->
                 ScanOptionChip(
-                    text = settingsAppModeOptionLabel(mode.storageValue),
+                    text = settingsAppModeOptionLabel(mode.storageValue).resolve(),
                     icon = Icons.Filled.Storage,
                     selected = currentAppMode == mode,
                     enabled = true,
@@ -3219,12 +3246,12 @@ private fun ScanPanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsAppModeStatus(currentAppMode.storageValue),
+            text = settingsAppModeStatus(currentAppMode.storageValue).resolve(),
             color = ProgressGreen
         )
         StatusMessage(
             icon = Icons.Filled.Info,
-            text = settingsAppModeHint(),
+            text = settingsAppModeHint().resolve(),
             color = TextSecondary
         )
 
@@ -3233,7 +3260,7 @@ private fun ScanPanel(
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = settingsAutoScanToggleLabel(autoScanEnabled),
+                text = settingsAutoScanToggleLabel(autoScanEnabled).resolve(),
                 icon = Icons.Filled.Refresh,
                 selected = autoScanEnabled,
                 enabled = true,
@@ -3245,7 +3272,7 @@ private fun ScanPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanPreferencesManager.INTERVAL_OPTIONS_HOURS.forEach { hours ->
                 ScanOptionChip(
-                    text = settingsScanIntervalOptionLabel(hours),
+                    text = settingsScanIntervalOptionLabel(hours).resolve(),
                     selected = autoScanEnabled && hours == autoScanIntervalHours,
                     enabled = autoScanEnabled,
                     onClick = { onIntervalSelected(hours) },
@@ -3256,19 +3283,19 @@ private fun ScanPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, formatLastScanAt(lastScanAt)),
+            text = settingsCurrentScanIntervalStatus(autoScanIntervalHours, lastScanAt).resolve(),
             color = if (autoScanEnabled) ProgressGreen else TextSecondary
         )
 
         Spacer(Modifier.height(18.dp))
         Text(
-            text = settingsLibraryDisplayTitleLabel(),
+            text = settingsLibraryDisplayTitleLabel().resolve(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary
         )
         Spacer(Modifier.height(10.dp))
         Text(
-            text = settingsPosterWallArrangementTitleLabel(),
+            text = settingsPosterWallArrangementTitleLabel().resolve(),
             style = TvTypography.caption,
             color = TextSecondary
         )
@@ -3276,7 +3303,7 @@ private fun ScanPanel(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             PosterWallArrangement.entries.forEach { arrangement ->
                 ScanOptionChip(
-                    text = posterWallArrangementLabel(arrangement),
+                    text = posterWallArrangementLabel(arrangement).resolve(),
                     icon = Icons.Filled.Storage,
                     selected = posterWallArrangement == arrangement,
                     enabled = true,
@@ -3287,14 +3314,14 @@ private fun ScanPanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = posterWallArrangementStatus(posterWallArrangement),
+            text = posterWallArrangementStatus(posterWallArrangement).resolve(),
             color = if (posterWallArrangement == PosterWallArrangement.RELEASE_SEASON) ProgressGreen else TextSecondary
         )
 
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled),
+                text = settingsMergeSameAnimeToggleLabel(mergeSameAnimeEnabled).resolve(),
                 icon = Icons.Filled.Dns,
                 selected = mergeSameAnimeEnabled,
                 enabled = true,
@@ -3304,7 +3331,7 @@ private fun ScanPanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled),
+            text = settingsMergeSameAnimeStatus(mergeSameAnimeEnabled).resolve(),
             color = if (mergeSameAnimeEnabled) ProgressGreen else TextSecondary
         )
     }
@@ -4209,18 +4236,18 @@ private fun AppUpdatePanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = settingsAppUpdatePanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsAppUpdatePanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsAppUpdatePanelDescription(),
+            text = settingsAppUpdatePanelDescription().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
 
         Spacer(Modifier.height(14.dp))
-        Text(text = settingsAppUpdateChannelLabel(), style = TvTypography.body, color = TextSecondary)
+        Text(text = settingsAppUpdateChannelLabel().resolve(), style = TvTypography.body, color = TextSecondary)
         Spacer(Modifier.height(6.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -4243,21 +4270,21 @@ private fun AppUpdatePanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvButton(
-                text = settingsAppUpdateCheckActionLabel(),
+                text = settingsAppUpdateCheckActionLabel().resolve(),
                 icon = Icons.Filled.Refresh,
                 enabled = !state.isBusy,
                 onClick = onCheck,
                 modifier = Modifier.fillMaxWidth()
             )
             TvButton(
-                text = settingsAppUpdateInstallActionLabel(),
+                text = settingsAppUpdateInstallActionLabel().resolve(),
                 icon = Icons.Filled.Save,
                 enabled = !state.isBusy && state.latest != null,
                 onClick = onDownloadAndInstall,
                 modifier = Modifier.fillMaxWidth()
             )
             TvButton(
-                text = settingsAppUpdatePermissionActionLabel(),
+                text = settingsAppUpdatePermissionActionLabel().resolve(),
                 icon = Icons.Filled.Key,
                 enabled = !state.isBusy,
                 onClick = onOpenInstallPermission,
@@ -4269,7 +4296,7 @@ private fun AppUpdatePanel(
         if (latest != null) {
             StatusMessage(
                 icon = if (state.updateAvailable) Icons.Filled.Refresh else Icons.Filled.CheckCircle,
-                text = "${latest.releaseName} · ${latest.assetName} · ${formatByteSize(latest.assetSizeBytes)}",
+                text = "${latest.releaseName} · ${latest.assetName} · ${formatByteSize(latest.assetSizeBytes).resolve()}",
                 color = if (state.updateAvailable) WarningYellow else ProgressGreen
             )
         }
@@ -4279,9 +4306,9 @@ private fun AppUpdatePanel(
                 state.updateAvailable -> Icons.Filled.Refresh
                 else -> Icons.Filled.CheckCircle
             },
-            text = state.statusMessage,
+            text = state.statusMessage.text.resolve(),
             color = when {
-                state.statusMessage.contains("失败") || state.statusMessage.contains("无法") -> WarningYellow
+                state.statusMessage is UiMessage.Error -> WarningYellow
                 state.updateAvailable -> WarningYellow
                 else -> ProgressGreen
             }
@@ -4311,12 +4338,12 @@ private fun AboutPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = settingsAboutPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsAboutPanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsAboutPanelDescription(),
+            text = settingsAboutPanelDescription().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -4328,7 +4355,7 @@ private fun AboutPanel(
             }
             AboutInfoRow(
                 label = settingsAboutPackageNameLabel(),
-                value = info.packageName.ifBlank { settingsAboutUnknownValue() },
+                value = info.packageName.ifBlank { "" }.ifBlank { settingsAboutUnknownValue().fallback }.let { rawUiText(it) },
             )
         }
 
@@ -4353,7 +4380,7 @@ private fun AboutPanel(
 
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = settingsAboutStatusMessage(info.versionName, info.versionCode),
+            text = settingsAboutStatusMessage(info.versionName, info.versionCode).resolve(),
             color = ProgressGreen
         )
     }
@@ -4361,8 +4388,8 @@ private fun AboutPanel(
 
 @Composable
 private fun AboutInfoRow(
-    label: String,
-    value: String,
+    label: UiText,
+    value: UiText,
 ) {
     Row(
         modifier = Modifier
@@ -4371,7 +4398,7 @@ private fun AboutInfoRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = label,
+            text = label.resolve(),
             style = TvTypography.caption,
             color = TextSecondary,
             modifier = Modifier.width(112.dp),
@@ -4379,7 +4406,7 @@ private fun AboutInfoRow(
             overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = value.ifBlank { settingsAboutUnknownValue() },
+            text = value.resolve(),
             style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
             color = TextPrimary,
             maxLines = 1,
@@ -4397,7 +4424,7 @@ private fun ProxySettingsPanel(
     onHostChange: (String) -> Unit,
     port: String,
     onPortChange: (String) -> Unit,
-    statusMessage: String,
+    statusMessage: UiMessage,
     onSave: () -> Unit,
 ) {
     SettingsPanel {
@@ -4409,19 +4436,19 @@ private fun ProxySettingsPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = settingsProxyPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = settingsProxyPanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = settingsProxyPanelDescription(),
+            text = settingsProxyPanelDescription().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
 
         Spacer(Modifier.height(16.dp))
         ScanOptionChip(
-            text = settingsProxyToggleLabel(enabled),
+            text = settingsProxyToggleLabel(enabled).resolve(),
             icon = Icons.Filled.Dns,
             selected = enabled,
             enabled = true,
@@ -4434,20 +4461,20 @@ private fun ProxySettingsPanel(
             TvTextField(
                 value = host,
                 onValueChange = onHostChange,
-                label = settingsProxyHostFieldLabel(),
+                label = settingsProxyHostFieldLabel().resolve(),
                 modifier = Modifier.weight(1f)
             )
             TvTextField(
                 value = port,
                 onValueChange = onPortChange,
-                label = settingsProxyPortFieldLabel(),
+                label = settingsProxyPortFieldLabel().resolve(),
                 modifier = Modifier.width(160.dp)
             )
         }
 
         Spacer(Modifier.height(16.dp))
         TvButton(
-            text = settingsProxySaveActionLabel(),
+            text = settingsProxySaveActionLabel().resolve(),
             icon = Icons.Filled.Save,
             enabled = !enabled || host.isNotBlank(),
             onClick = onSave
@@ -4455,13 +4482,13 @@ private fun ProxySettingsPanel(
 
         StatusMessage(
             icon = if (enabled) Icons.Filled.CheckCircle else Icons.Filled.Dns,
-            text = settingsProxyCurrentStatus(enabled, host, parseRssProxyPort(port)),
+            text = settingsProxyCurrentStatus(enabled, host, parseRssProxyPort(port)).resolve(),
             color = if (enabled && host.isBlank()) WarningYellow else TextSecondary
         )
         StatusMessage(
             icon = Icons.Filled.Refresh,
-            text = statusMessage,
-            color = if ("失败" in statusMessage || "请" in statusMessage) WarningYellow else ProgressGreen
+            text = statusMessage.text.resolve(),
+            color = if (statusMessage is UiMessage.Error) WarningYellow else ProgressGreen
         )
     }
 }
@@ -4495,12 +4522,12 @@ private fun MetadataPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = metadataPanelTitleLabel(), style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = metadataPanelTitleLabel().resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = metadataBangumiTokenOptionalHint(),
+            text = metadataBangumiTokenOptionalHint().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -4509,7 +4536,7 @@ private fun MetadataPanel(
         TvTextField(
             value = tokenInput,
             onValueChange = onTokenChange,
-            label = metadataBangumiTokenFieldLabel(),
+            label = metadataBangumiTokenFieldLabel().resolve(),
             isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -4517,13 +4544,13 @@ private fun MetadataPanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = settingsSaveTokenActionLabel(),
+                text = settingsSaveTokenActionLabel().resolve(),
                 icon = Icons.Filled.Save,
                 enabled = tokenInput.isNotBlank(),
                 onClick = onSaveToken
             )
             TvButton(
-                text = settingsClearTokenActionLabel(),
+                text = settingsClearTokenActionLabel().resolve(),
                 icon = Icons.Filled.Delete,
                 enabled = savedToken.isNotBlank(),
                 onClick = onClearToken
@@ -4533,7 +4560,7 @@ private fun MetadataPanel(
         val hasToken = savedToken.isNotBlank() || tokenSaved
         StatusMessage(
             icon = if (hasToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
-            text = if (hasToken) metadataBangumiTokenSavedStatus() else metadataBangumiTokenMissingStatus(),
+            text = if (hasToken) metadataBangumiTokenSavedStatus().resolve() else metadataBangumiTokenMissingStatus().resolve(),
             color = if (hasToken) ProgressGreen else TextSecondary
         )
 
@@ -4557,7 +4584,7 @@ private fun MetadataPanel(
 
         Spacer(Modifier.height(24.dp))
         Text(
-            text = metadataTmdbTokenOptionalHint(),
+            text = metadataTmdbTokenOptionalHint().resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -4566,7 +4593,7 @@ private fun MetadataPanel(
         TvTextField(
             value = tmdbTokenInput,
             onValueChange = onTmdbTokenChange,
-            label = metadataTmdbTokenFieldLabel(),
+            label = metadataTmdbTokenFieldLabel().resolve(),
             isPassword = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -4574,13 +4601,13 @@ private fun MetadataPanel(
         Spacer(Modifier.height(14.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             TvButton(
-                text = settingsSaveTokenActionLabel(),
+                text = settingsSaveTokenActionLabel().resolve(),
                 icon = Icons.Filled.Save,
                 enabled = tmdbTokenInput.isNotBlank(),
                 onClick = onSaveTmdbToken
             )
             TvButton(
-                text = settingsClearTokenActionLabel(),
+                text = settingsClearTokenActionLabel().resolve(),
                 icon = Icons.Filled.Delete,
                 enabled = savedTmdbToken.isNotBlank(),
                 onClick = onClearTmdbToken
@@ -4590,7 +4617,7 @@ private fun MetadataPanel(
         val hasTmdbToken = savedTmdbToken.isNotBlank() || tmdbTokenSaved
         StatusMessage(
             icon = if (hasTmdbToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
-            text = if (hasTmdbToken) metadataTmdbTokenSavedStatus() else metadataTmdbTokenMissingStatus(),
+            text = if (hasTmdbToken) metadataTmdbTokenSavedStatus().resolve() else metadataTmdbTokenMissingStatus().resolve(),
             color = if (hasTmdbToken) ProgressGreen else TextSecondary
         )
     }
@@ -4650,13 +4677,13 @@ private fun BangumiArchivePanel(
         Spacer(Modifier.height(12.dp))
         StatusMessage(
             icon = Icons.Filled.Storage,
-            text = "版本 ${state.latestName ?: "未知"} · ${formatByteSize(state.subjectFileSizeBytes)} · ${formatArchiveTimestamp(state.latestUpdatedAt ?: state.latestCreatedAt)}",
+            text = UiText("archive_version_line", listOf(state.latestName?.takeIf { it.isNotBlank() }?.let { rawUiText(it) } ?: settingsAboutUnknownValue(), formatByteSize(state.subjectFileSizeBytes), formatArchiveTimestamp(state.latestUpdatedAt ?: state.latestCreatedAt)), "版本 ${state.latestName ?: settingsAboutUnknownValue().fallback} · ${formatByteSize(state.subjectFileSizeBytes).fallback} · ${formatArchiveTimestamp(state.latestUpdatedAt ?: state.latestCreatedAt).fallback}").resolve(),
             color = TextSecondary
         )
         if (state.isDownloading) {
             StatusMessage(
                 icon = Icons.Filled.Refresh,
-                text = archiveProgressLabel(state),
+                text = archiveProgressLabel(state).resolve(),
                 color = TextSecondary
             )
         }
@@ -4669,8 +4696,8 @@ private fun BangumiArchivePanel(
         }
         StatusMessage(
             icon = Icons.Filled.CheckCircle,
-            text = state.statusMessage,
-            color = if (state.statusMessage.contains("失败")) WarningYellow else ProgressGreen
+            text = state.statusMessage.resolve(),
+            color = if (state.lastError != null) WarningYellow else ProgressGreen
         )
 
         Spacer(Modifier.height(16.dp))
@@ -4698,7 +4725,7 @@ private fun LogUploadPanel(
     endpoint: String,
     onEndpointChange: (String) -> Unit,
     tokenConfigured: Boolean,
-    statusMessage: String,
+    statusMessage: UiMessage,
     onSaveSettings: () -> Unit,
     onClearToken: () -> Unit,
     onRunNow: () -> Unit,
@@ -4714,12 +4741,12 @@ private fun LogUploadPanel(
                 modifier = Modifier.size(26.dp)
             )
             Spacer(Modifier.width(10.dp))
-            Text(text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvTitle, style = TvTypography.subtitle, color = TextPrimary)
+            Text(text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvTitle.resolve(), style = TvTypography.subtitle, color = TextPrimary)
         }
 
         Spacer(Modifier.height(6.dp))
         Text(
-            text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvDescription,
+            text = MiruPlaySettingsSection.LOG_UPLOAD.androidTvDescription.resolve(),
             style = TvTypography.body,
             color = TextSecondary
         )
@@ -4727,7 +4754,7 @@ private fun LogUploadPanel(
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             ScanOptionChip(
-                text = settingsLogUploadAutoToggleLabel(),
+                text = settingsLogUploadAutoToggleLabel().resolve(),
                 icon = Icons.Filled.Refresh,
                 selected = enabled,
                 enabled = true,
@@ -4735,7 +4762,7 @@ private fun LogUploadPanel(
                 modifier = Modifier.width(170.dp)
             )
             ScanOptionChip(
-                text = settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+                text = settingsLogUploadTokenConfiguredStatus(tokenConfigured).resolve(),
                 icon = Icons.Filled.CheckCircle,
                 selected = tokenConfigured,
                 enabled = false,
@@ -4748,7 +4775,7 @@ private fun LogUploadPanel(
         TvTextField(
             value = endpoint,
             onValueChange = onEndpointChange,
-            label = settingsLogUploadEndpointFieldLabel(),
+            label = settingsLogUploadEndpointFieldLabel().resolve(),
             modifier = Modifier.fillMaxWidth()
         )
 
@@ -4756,14 +4783,14 @@ private fun LogUploadPanel(
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 TvButton(
-                    text = settingsLogUploadSaveSettingsActionLabel(),
+                    text = settingsLogUploadSaveSettingsActionLabel().resolve(),
                     icon = Icons.Filled.Save,
                     enabled = endpoint.isNotBlank(),
                     onClick = onSaveSettings,
                     modifier = Modifier.weight(1f)
                 )
                 TvButton(
-                    text = settingsLogUploadRunNowActionLabel(),
+                    text = settingsLogUploadRunNowActionLabel().resolve(),
                     icon = Icons.Filled.Upload,
                     enabled = canRunNow,
                     onClick = onRunNow,
@@ -4772,7 +4799,7 @@ private fun LogUploadPanel(
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 TvButton(
-                    text = settingsClearTokenActionLabel(),
+                    text = settingsClearTokenActionLabel().resolve(),
                     icon = Icons.Filled.Delete,
                     enabled = tokenConfigured,
                     onClick = onClearToken,
@@ -4783,17 +4810,17 @@ private fun LogUploadPanel(
 
         StatusMessage(
             icon = if (tokenConfigured) Icons.Filled.CheckCircle else Icons.Filled.Key,
-            text = settingsLogUploadTokenConfiguredStatus(tokenConfigured),
+            text = settingsLogUploadTokenConfiguredStatus(tokenConfigured).resolve(),
             color = if (tokenConfigured) ProgressGreen else TextSecondary
         )
         StatusMessage(
-            icon = if ("失败" in statusMessage) Icons.Filled.Close else Icons.Filled.Upload,
-            text = statusMessage,
-            color = if ("失败" in statusMessage) WarningYellow else ProgressGreen
+            icon = if (statusMessage is UiMessage.Error) Icons.Filled.Close else Icons.Filled.Upload,
+            text = statusMessage.text.resolve(),
+            color = if (statusMessage is UiMessage.Error) WarningYellow else ProgressGreen
         )
         StatusMessage(
             icon = Icons.Filled.Dns,
-            text = tiles.firstOrNull()?.detail.orEmpty(),
+            text = tiles.firstOrNull()?.detail?.resolve().orEmpty(),
             color = TextSecondary
         )
     }
@@ -4840,25 +4867,36 @@ private fun SettingsPanel(
     )
 }
 
-private fun sourceNameOrDefault(name: String, type: MediaSourceType): String =
-    name.ifBlank { type.defaultSourceName() }
+private fun sourceNameOrDefault(name: String, type: MediaSourceType, context: Context): String =
+    name.ifBlank { type.defaultSourceName().resolve(context) }
 
-private fun formatByteSize(sizeBytes: Long): String {
-    if (sizeBytes <= 0L) return "未知大小"
+private fun formatByteSize(sizeBytes: Long): UiText {
+    if (sizeBytes <= 0L) return uiText("format_byte_size_unknown", "未知大小")
     val mib = sizeBytes.toDouble() / 1024.0 / 1024.0
-    return String.format(Locale.US, "%.1f MB", mib)
+    val text = String.format(Locale.US, "%.1f MB", mib)
+    return UiText("format_byte_size", listOf(text), text)
 }
 
-private fun formatArchiveTimestamp(value: String?): String =
-    value?.takeIf { it.isNotBlank() }
+private fun formatArchiveTimestamp(value: String?): UiText {
+    val text = value?.takeIf { it.isNotBlank() }
         ?.take(16)
         ?.replace('T', ' ')
-        ?: "未知时间"
+        ?: return uiText("format_archive_time_unknown", "未知时间")
+    return UiText("format_archive_time", listOf(text), text)
+}
 
-private fun archiveProgressLabel(state: BangumiArchiveUiState): String {
+private fun archiveProgressLabel(state: BangumiArchiveUiState): UiText {
     val downloaded = formatByteSize(state.downloadedBytes)
     val total = state.totalBytes.takeIf { it > 0L }?.let(::formatByteSize)
-    return if (total == null) "正在下载：$downloaded" else "正在下载：$downloaded / $total"
+    return if (total == null) {
+        UiText("archive_progress_downloading", listOf(downloaded), "正在下载：${downloaded.fallback}")
+    } else {
+        UiText(
+            "archive_progress_downloading_total",
+            listOf(downloaded, total),
+            "正在下载：${downloaded.fallback} / ${total.fallback}",
+        )
+    }
 }
 
 internal fun settingsSourceListMenuBridgeIntent(
@@ -4889,10 +4927,7 @@ private fun createQrCodeMatrix(content: String): BitMatrix? {
     }.getOrNull()
 }
 
-private fun formatLastScanAt(lastScanAt: Long): String {
-    if (lastScanAt <= 0L) return "还没有扫描记录"
-    return "上次扫描 " + SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(lastScanAt))
-}
+
 
 private fun formatTimestamp(timestamp: Long): String =
     SimpleDateFormat("MM-dd HH:mm", Locale.getDefault()).format(Date(timestamp))
@@ -4903,19 +4938,19 @@ private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.SMB -> Icons.Filled.Dns
 }
 
-private fun displayNameForTreeUri(uri: Uri): String {
+private fun displayNameForTreeUri(uri: Uri, context: Context): String {
     val documentId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull()
     val name = documentId
         ?.substringAfter(':', "")
         ?.substringAfterLast('/')
         ?.takeIf { it.isNotBlank() }
     return name ?: uri.lastPathSegment?.substringAfterLast(':')?.substringAfterLast('/')
-        ?: mediaSourceLocalLibraryFallbackName()
+        ?: mediaSourceLocalLibraryFallbackName().resolve(context)
 }
 
-private fun displayNameForLocation(location: String): String =
+private fun displayNameForLocation(location: String, context: Context): String =
     if (location.startsWith("content://")) {
-        displayNameForTreeUri(Uri.parse(location))
+        displayNameForTreeUri(Uri.parse(location), context)
     } else {
         mediaSourceLocalPathDisplayName(location)
     }

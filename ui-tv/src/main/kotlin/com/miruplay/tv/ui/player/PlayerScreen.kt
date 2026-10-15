@@ -693,7 +693,7 @@ private fun PlayerScreenContent(
             exit = fadeOut()
         ) {
             PlayerChrome(
-                title = displayTitle.ifBlank { currentPlaybackSource.mediaSourceId },
+                title = displayTitle.resolve().ifBlank { currentPlaybackSource.mediaSourceId },
                 sourceLabel = displaySubtitle.ifBlank { currentPlaybackSource.mediaSourceId },
                 playbackState = playbackState,
                 currentPosition = currentPosition,
@@ -792,7 +792,7 @@ private fun PlayerScreenContent(
             PlayerInfoPanel(
                 tab = infoTab,
                 onTabChange = { infoTab = it },
-                title = displayTitle.ifBlank { currentPlaybackSource.mediaSourceId },
+                title = displayTitle.resolve().ifBlank { currentPlaybackSource.mediaSourceId },
                 sourceLabel = displaySubtitle.ifBlank { currentPlaybackSource.mediaSourceId },
                 source = currentPlaybackSource,
                 playbackState = playbackState,

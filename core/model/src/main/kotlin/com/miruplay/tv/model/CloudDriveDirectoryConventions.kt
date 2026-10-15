@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
+
 const val CLOUD_DRIVE_ROOT_PATH = "/"
 const val CLOUD_DRIVE_ROOT_DISPLAY_NAME = "CloudDrive 根目录"
 const val DIRECTORY_BROWSER_ROOT_DISPLAY_NAME = "设备存储"
@@ -69,28 +72,52 @@ fun cloudDriveDirectoryItems(
         .sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
         .toList()
 
-fun directoryBrowserTitleLabel(isLocal: Boolean): String =
-    if (isLocal) "选择本地媒体文件夹" else "选择目录"
+fun directoryBrowserTitleLabel(isLocal: Boolean): UiText =
+    if (isLocal) {
+        uiText("dir_browser_title_local", "选择本地媒体文件夹")
+    } else {
+        uiText("dir_browser_title_remote", "选择目录")
+    }
 
-fun directoryBrowserParentLabel(): String = "上一级"
+fun directoryBrowserParentLabel(): UiText =
+    uiText("dir_browser_parent", "上一级")
 
-fun directoryBrowserParentActionLabel(isLocal: Boolean): String =
-    if (isLocal) directoryBrowserParentLabel() else "返回上级"
+fun directoryBrowserParentActionLabel(isLocal: Boolean): UiText =
+    if (isLocal) {
+        directoryBrowserParentLabel()
+    } else {
+        uiText("dir_browser_parent_remote", "返回上级")
+    }
 
-fun directoryBrowserLoadingMessage(isLocal: Boolean): String =
-    if (isLocal) "正在读取目录..." else "正在读取 CloudDrive2 目录..."
+fun directoryBrowserLoadingMessage(isLocal: Boolean): UiText =
+    if (isLocal) {
+        uiText("dir_browser_loading_local", "正在读取目录...")
+    } else {
+        uiText("dir_browser_loading_remote", "正在读取 CloudDrive2 目录...")
+    }
 
-fun directoryBrowserEmptyMessage(isLocal: Boolean): String =
-    if (isLocal) "没有可进入的子文件夹。" else "当前目录没有可进入的子目录。"
+fun directoryBrowserEmptyMessage(isLocal: Boolean): UiText =
+    if (isLocal) {
+        uiText("dir_browser_empty_local", "没有可进入的子文件夹。")
+    } else {
+        uiText("dir_browser_empty_remote", "当前目录没有可进入的子目录。")
+    }
 
-fun directoryBrowserCancelActionLabel(): String = "取消"
+fun directoryBrowserCancelActionLabel(): UiText =
+    uiText("dir_browser_cancel", "取消")
 
-fun directoryBrowserCloseActionLabel(): String = "关闭"
+fun directoryBrowserCloseActionLabel(): UiText =
+    uiText("dir_browser_close", "关闭")
 
-fun directoryBrowserUseCurrentActionLabel(isLocal: Boolean): String =
-    if (isLocal) directoryBrowserSelectCurrentActionLabel() else "使用当前目录"
+fun directoryBrowserUseCurrentActionLabel(isLocal: Boolean): UiText =
+    if (isLocal) {
+        directoryBrowserSelectCurrentActionLabel()
+    } else {
+        uiText("dir_browser_use_current_remote", "使用当前目录")
+    }
 
-fun directoryBrowserSelectCurrentActionLabel(): String = "选择当前目录"
+fun directoryBrowserSelectCurrentActionLabel(): UiText =
+    uiText("dir_browser_use_current", "选择当前目录")
 
 fun directoryBrowserRootDisplayName(isLocal: Boolean): String =
     if (isLocal) DIRECTORY_BROWSER_ROOT_DISPLAY_NAME else CLOUD_DRIVE_ROOT_DISPLAY_NAME

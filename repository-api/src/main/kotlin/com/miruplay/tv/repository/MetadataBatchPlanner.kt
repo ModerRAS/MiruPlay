@@ -20,6 +20,8 @@ import com.miruplay.tv.model.metadataNoBatchEntriesTvStatus
 import com.miruplay.tv.model.metadataNoMatchLabel
 import com.miruplay.tv.model.metadataPlanSummaryTvStatus
 import com.miruplay.tv.model.metadataQueryRequiredTvStatus
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.model.metadataQuerySetFromIndexTvStatus
 import com.miruplay.tv.model.metadataReviewConflictTvStatus
 import com.miruplay.tv.model.metadataReviewNoMatchTvStatus
@@ -87,7 +89,7 @@ fun MetadataBatchMatch.withSelectedCandidate(candidate: ScraperResult): Metadata
         },
     )
 
-fun MetadataBatchMatch.selectedCandidateLabel(): String {
+fun MetadataBatchMatch.selectedCandidateLabel(): UiText {
     val selectedIndex = candidates.indexOfFirst { it.isSameCandidate(result) }
     return if (selectedIndex >= 0) {
         metadataSelectedCandidateLabel(selectedIndex, candidates.size)
@@ -104,81 +106,81 @@ fun ScraperResult.isSameCandidate(other: ScraperResult?): Boolean =
         animeId == other.animeId &&
         source == other.source
 
-fun MetadataBatchPreview.summaryStatus(): String =
+fun MetadataBatchPreview.summaryStatus(): UiText =
     plan?.let(MetadataBatchPlanner::displayPlanSummary)
         ?: noMetadataBatchEntriesStatus()
 
-fun MetadataBatchCandidateSelection.selectedStatus(): String =
+fun MetadataBatchCandidateSelection.selectedStatus(): UiText =
     updatedMatch.selectedCandidateStatus()
 
-fun MetadataBatchMatch.selectedCandidateStatus(): String =
+fun MetadataBatchMatch.selectedCandidateStatus(): UiText =
     metadataSelectedBatchCandidateTvStatus(query, result?.displayTitle().orEmpty())
 
-fun metadataInitialStatus(sourceName: String = "metadata"): String =
+fun metadataInitialStatus(sourceName: String = "metadata"): UiText =
     metadataInitialTvStatus(sourceName)
 
-fun metadataIndexedVideoRequiredStatus(): String =
+fun metadataIndexedVideoRequiredStatus(): UiText =
     metadataIndexedVideoRequiredTvStatus()
 
-fun metadataQuerySetFromIndexStatus(): String =
+fun metadataQuerySetFromIndexStatus(): UiText =
     metadataQuerySetFromIndexTvStatus()
 
-fun metadataQueryRequiredStatus(sourceName: String = "metadata"): String =
+fun metadataQueryRequiredStatus(sourceName: String = "metadata"): UiText =
     metadataQueryRequiredTvStatus(sourceName)
 
-fun metadataSearchStartedStatus(query: String, sourceName: String = "metadata"): String =
+fun metadataSearchStartedStatus(query: String, sourceName: String = "metadata"): UiText =
     metadataSearchStartedTvStatus(query, sourceName)
 
 fun metadataSearchResultStatus(
     query: String,
     resultCount: Int,
     sourceName: String = "metadata",
-): String =
+): UiText =
     metadataSearchResultTvStatus(query, resultCount, sourceName)
 
-fun metadataSourceRequiredStatus(): String =
+fun metadataSourceRequiredStatus(): UiText =
     metadataSourceRequiredTvStatus()
 
-fun mlipMetadataReadOnlyStatus(): String =
-    "MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。"
+fun mlipMetadataReadOnlyStatus(): UiText =
+    uiText("mlip_metadata_read_only", "MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。")
 
-fun MetadataBatchMatch.selectedReviewStatus(): String =
+fun MetadataBatchMatch.selectedReviewStatus(): UiText =
     metadataSelectedBatchReviewTvStatus(query)
 
-fun metadataBatchResultRequiredStatus(sourceName: String = "metadata"): String =
+fun metadataBatchResultRequiredStatus(sourceName: String = "metadata"): UiText =
     metadataBatchResultRequiredTvStatus(sourceName)
 
-fun MetadataBatchPlan.reviewConflictStatus(): String =
+fun MetadataBatchPlan.reviewConflictStatus(): UiText =
     metadataReviewConflictTvStatus(conflicts.size)
 
-fun metadataReviewNoMatchStatus(): String =
+fun metadataReviewNoMatchStatus(): UiText =
     metadataReviewNoMatchTvStatus()
 
-fun ScraperResult.selectedMetadataStatus(): String =
+fun ScraperResult.selectedMetadataStatus(): UiText =
     metadataSelectedResultTvStatus(displayTitle())
 
-fun metadataApplyEntryRequiredStatus(sourceName: String = "metadata"): String =
+fun metadataApplyEntryRequiredStatus(sourceName: String = "metadata"): UiText =
     metadataApplyEntryRequiredTvStatus(sourceName)
 
-fun metadataSearchSelectionRequiredStatus(sourceName: String = "metadata"): String =
+fun metadataSearchSelectionRequiredStatus(sourceName: String = "metadata"): UiText =
     metadataSearchSelectionRequiredTvStatus(sourceName)
 
-fun MediaIndexEntry.metadataAppliedStatus(sourceName: String = "metadata"): String =
+fun MediaIndexEntry.metadataAppliedStatus(sourceName: String = "metadata"): UiText =
     metadataAppliedTvStatus(sourceName, path)
 
-fun metadataClearEntryRequiredStatus(): String =
+fun metadataClearEntryRequiredStatus(): UiText =
     metadataClearEntryRequiredTvStatus()
 
-fun MediaIndexEntry.metadataClearedStatus(): String =
+fun MediaIndexEntry.metadataClearedStatus(): UiText =
     metadataClearedTvStatus(path)
 
 fun metadataBatchSearchingStatus(
     queryCount: Int,
     sourceName: String = "metadata",
-): String =
+): UiText =
     metadataBatchSearchingTvStatus(queryCount, sourceName)
 
-fun noMetadataBatchEntriesStatus(sourceName: String = "metadata"): String =
+fun noMetadataBatchEntriesStatus(sourceName: String = "metadata"): UiText =
     metadataNoBatchEntriesTvStatus(sourceName)
 
 object MetadataBatchPlanner {
@@ -331,19 +333,19 @@ object MetadataBatchPlanner {
             val status = if ((result?.confidence ?: 0f) >= READY_CONFIDENCE) "ready" else "review"
             append(match.query)
             append(": ")
-            append(result?.let(::displayCandidate) ?: metadataNoMatchLabel())
+            append(result?.let(::displayCandidate) ?: metadataNoMatchLabel().fallback)
             append(" [")
-            append(metadataBatchStatusLabel(status))
+            append(metadataBatchStatusLabel(status).fallback)
             append("]")
             if (match.candidates.size > 1) {
                 append(" ")
-                append(metadataCandidateCountLabel(match.candidates.size))
+                append(metadataCandidateCountLabel(match.candidates.size).fallback)
             }
             appendLine()
         }
     }
 
-    fun displayPlanSummary(plan: MetadataBatchPlan): String =
+    fun displayPlanSummary(plan: MetadataBatchPlan): UiText =
         metadataPlanSummaryTvStatus(
             readyCount = plan.readyUpdates.size,
             reviewCount = plan.reviewMatches.size,

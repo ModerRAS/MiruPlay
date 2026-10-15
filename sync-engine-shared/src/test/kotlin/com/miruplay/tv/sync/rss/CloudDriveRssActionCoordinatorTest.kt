@@ -69,7 +69,7 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals(true, saved.rssProxyEnabled)
         assertEquals("127.0.0.1", saved.rssProxyHost)
         assertEquals(65_535, saved.rssProxyPort)
-        assertEquals(cloudRssConfigSavedStatus(), result.status)
+        assertEquals(cloudRssConfigSavedStatus().fallback, result.status)
     }
 
     @Test
@@ -129,7 +129,7 @@ class CloudDriveRssActionCoordinatorTest {
             CloudDriveCredentialActionResult.Saved(
                 token = "token",
                 password = " secret ",
-                status = cloudDriveCredentialsSavedStatus(),
+                status = cloudDriveCredentialsSavedStatus().fallback,
             ),
             result,
         )
@@ -148,7 +148,7 @@ class CloudDriveRssActionCoordinatorTest {
             CloudDriveCredentialActionResult.Saved(
                 token = null,
                 password = null,
-                status = cloudDriveCredentialsSavedStatus(),
+                status = cloudDriveCredentialsSavedStatus().fallback,
             ),
             result,
         )
@@ -163,7 +163,7 @@ class CloudDriveRssActionCoordinatorTest {
 
         assertNull(credentials.cloudDriveToken)
         assertNull(credentials.cloudDrivePassword)
-        assertEquals(CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus()), result)
+        assertEquals(CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus().fallback), result)
     }
 
     @Test
@@ -192,7 +192,7 @@ class CloudDriveRssActionCoordinatorTest {
             onStarted = { throw AssertionError("Invalid login form must not start runner") },
         )
 
-        assertEquals(CloudDriveActionResult.Invalid(cloudDriveLoginRequiredStatus()), result)
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveLoginRequiredStatus().fallback), result)
         assertEquals(emptyList<String>(), runner.loginCalls)
     }
 
@@ -211,8 +211,8 @@ class CloudDriveRssActionCoordinatorTest {
             onStarted = { status -> startedStatus = status },
         )
 
-        assertEquals(CloudDriveActionResult.Success(cloudDriveLoginSucceededStatus(), token = "login-token"), result)
-        assertEquals(cloudDriveLoginStartedStatus(), startedStatus)
+        assertEquals(CloudDriveActionResult.Success(cloudDriveLoginSucceededStatus().fallback, token = "login-token"), result)
+        assertEquals(cloudDriveLoginStartedStatus().fallback, startedStatus)
         assertEquals(listOf("https://cloud.example.test|miru|secret"), runner.loginCalls)
     }
 
@@ -248,8 +248,8 @@ class CloudDriveRssActionCoordinatorTest {
             onStarted = { throw AssertionError("Invalid endpoint form must not start runner") },
         )
 
-        assertEquals(CloudDriveActionResult.Invalid(cloudDriveApiTokenRequiredStatus()), blankToken)
-        assertEquals(CloudDriveActionResult.Invalid(cloudDriveEndpointRequiredStatus()), blankEndpoint)
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveApiTokenRequiredStatus().fallback), blankToken)
+        assertEquals(CloudDriveActionResult.Invalid(cloudDriveEndpointRequiredStatus().fallback), blankEndpoint)
         assertEquals(emptyList<String>(), runner.tokenCalls)
     }
 
@@ -279,7 +279,7 @@ class CloudDriveRssActionCoordinatorTest {
 
         assertEquals(
             CloudDriveActionResult.Success(
-                status = cloudDriveTokenVerifiedStatus(friendlyName = "Miru", rootDir = "/Anime"),
+                status = cloudDriveTokenVerifiedStatus(friendlyName = "Miru", rootDir = "/Anime").fallback,
                 token = "api-token",
                 tokenInfo = CloudDriveTokenInfo(
                     rootDir = "/Anime",
@@ -294,7 +294,7 @@ class CloudDriveRssActionCoordinatorTest {
             ),
             result,
         )
-        assertEquals(cloudDriveTokenValidationStartedStatus(), startedStatus)
+        assertEquals(cloudDriveTokenValidationStartedStatus().fallback, startedStatus)
         assertEquals(listOf("https://cloud.example.test|api-token"), runner.tokenCalls)
     }
 
@@ -340,7 +340,7 @@ class CloudDriveRssActionCoordinatorTest {
             enabled = true,
         )
 
-        assertEquals(RssSubscriptionActionResult.Invalid(rssUrlRequiredStatus()), result)
+        assertEquals(RssSubscriptionActionResult.Invalid(rssUrlRequiredStatus().fallback), result)
         assertEquals(emptyList<RssSubscriptionInfo>(), repository.savedSubscriptions)
     }
 
@@ -360,7 +360,7 @@ class CloudDriveRssActionCoordinatorTest {
         assertEquals(1L, result.subscription.id)
         assertEquals("https://rss.example.test/feed.xml", result.subscription.url)
         assertEquals("1080p", result.subscription.filterRegex)
-        assertEquals(rssSubscriptionSavedStatus("Season"), result.status)
+        assertEquals(rssSubscriptionSavedStatus("Season").fallback, result.status)
         assertEquals(listOf(result.subscription.copy(id = 0L)), repository.savedSubscriptions)
     }
 
@@ -421,7 +421,7 @@ class CloudDriveRssActionCoordinatorTest {
 
         val result = coordinator.deleteRssSubscription(7L)
 
-        assertEquals(RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus()), result)
+        assertEquals(RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus().fallback), result)
         assertEquals(listOf(7L), repository.deletedSubscriptionIds)
     }
 
@@ -435,9 +435,9 @@ class CloudDriveRssActionCoordinatorTest {
             onStarted = { status -> startedStatus = status },
         ) as CloudDriveRunActionResult.Completed
 
-        assertEquals(cloudRssRunStartedStatus(), startedStatus)
+        assertEquals(cloudRssRunStartedStatus().fallback, startedStatus)
         assertEquals(CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3), result.summary)
-        assertEquals(result.summary.completeStatus(), result.status)
+        assertEquals(result.summary.completeStatus().fallback, result.status)
         assertEquals(1, runner.runCalls)
     }
 
@@ -481,7 +481,7 @@ class CloudDriveRssActionCoordinatorTest {
 
         assertEquals("https://cloud.example.test", savedConfig?.endpointUrl)
         assertEquals("/Inbox", repository.savedConfigs.single().inboxPath)
-        assertEquals(cloudRssRunStartedStatus(), startedStatus)
+        assertEquals(cloudRssRunStartedStatus().fallback, startedStatus)
         assertEquals(CloudDriveRssRunSummary(submitted = 1, skipped = 2, failed = 0, organized = 3), result.summary)
         assertEquals(1, runner.runCalls)
         assertEquals(emptyList<String>(), runner.loginCalls)
@@ -531,7 +531,7 @@ class CloudDriveRssActionCoordinatorTest {
             enabled = true,
         )
 
-        assertEquals(CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus()), result)
+        assertEquals(CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus().fallback), result)
         assertEquals(1, repository.savedConfigs.size)
         assertEquals(0, runner.runCalls)
     }

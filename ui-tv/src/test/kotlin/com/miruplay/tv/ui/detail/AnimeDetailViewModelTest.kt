@@ -108,7 +108,7 @@ class AnimeDetailViewModelTest {
         assertEquals("431767", viewModel.manualMatch.value.selectedResult?.animeId)
         assertEquals("葬送的芙莉莲", viewModel.manualMatch.value.selectedResult?.titleCn)
         assertEquals("Frieren", viewModel.manualMatch.value.selectedResult?.matchedTitle)
-        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage)
+        assertEquals("找到 1 个聚合候选。", viewModel.manualMatch.value.statusMessage?.text?.fallback)
     }
 
     @Test
@@ -167,7 +167,7 @@ class AnimeDetailViewModelTest {
         assertEquals(emptyList<MediaIndexEntry>(), indexRepository.upsertedEntries)
         assertEquals(
             "MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。",
-            viewModel.manualMatch.value.statusMessage,
+            viewModel.manualMatch.value.statusMessage?.text?.fallback,
         )
         assertEquals("Frieren", viewModel.anime.value?.id)
     }
@@ -184,7 +184,7 @@ class AnimeDetailViewModelTest {
 
         assertEquals(false, viewModel.manualMatch.value.isSearching)
         assertEquals(false, viewModel.isSyncing.value)
-        assertEquals("搜索失败：network stalled", viewModel.manualMatch.value.statusMessage)
+        assertEquals("搜索失败：network stalled", viewModel.manualMatch.value.statusMessage?.text?.fallback)
     }
 }
 

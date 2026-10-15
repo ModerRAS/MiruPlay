@@ -80,26 +80,26 @@ class MetadataBatchOperationsTest {
 
         assertEquals(
             "已将 Bangumi 批量元数据应用到 1 个索引条目，跳过 2 个冲突。",
-            write.appliedStatus(conflictCount = 2),
+            write.appliedStatus(conflictCount = 2).fallback,
         )
         assertEquals(
             "已接受复核的 Bangumi 匹配，更新 1 个索引条目。",
-            write.reviewAcceptedStatus(),
+            write.reviewAcceptedStatus().fallback,
         )
         assertEquals(
             "已从上一次 Bangumi 批量更改中恢复 2 个索引条目。",
             MetadataBatchUndoResult(
                 rollbackEntries = listOf(entry, entry.copy(path = "D:/Anime/Frieren/02.mkv")),
                 restoredCount = 2,
-            ).restoredStatus(),
+            ).restoredStatus().fallback,
         )
         assertEquals(
             "请先运行批量预览；当前没有可直接应用的高置信匹配。",
-            noMetadataBatchPreviewStatus(),
+            noMetadataBatchPreviewStatus().fallback,
         )
         assertEquals(
             "没有可撤销的 Bangumi 批量更改。",
-            noMetadataBatchUndoStatus(),
+            noMetadataBatchUndoStatus().fallback,
         )
     }
 

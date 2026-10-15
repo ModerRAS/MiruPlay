@@ -1,7 +1,12 @@
 package com.miruplay.tv.ui.mode
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaSeries
@@ -38,7 +43,7 @@ data class DramaProgressItem(
 )
 
 data class DramaBrowseSection(
-    val title: String?,
+    val title: UiText?,
     val series: List<DramaSeries>,
 )
 
@@ -46,7 +51,7 @@ sealed class DramaLibraryUiState {
     data object Loading : DramaLibraryUiState()
     data object NoSources : DramaLibraryUiState()
     data object HasSources : DramaLibraryUiState()
-    data class ScanError(val message: String) : DramaLibraryUiState()
+    data class ScanError(val message: UiText) : DramaLibraryUiState()
     data class Ready(
         val continueWatching: List<DramaProgressItem>,
         val featuredSeries: List<DramaSeries>,
@@ -54,7 +59,7 @@ sealed class DramaLibraryUiState {
         val browseSections: List<DramaBrowseSection>,
         val series: List<DramaSeries>,
         val totalSeriesCount: Int,
-        val scanNotice: String? = null,
+        val scanNotice: UiMessage? = null,
     ) : DramaLibraryUiState()
 }
 
@@ -134,7 +139,7 @@ class DramaLibraryViewModel @Inject constructor(
                         val sourceFailureMessage = currentScanState.sourceFailures.firstOrNull()
                         if (snapshot.hasSources && !snapshot.hasContent) {
                             _state.value = DramaLibraryUiState.ScanError(
-                                sourceFailureMessage ?: "未找到电视剧内容，请检查媒体源路径"
+                                sourceFailureMessage?.let { rawUiText(it) } ?: uiText("drama_library_no_content", "未找到电视剧内容，请检查媒体源路径")
                             )
                         } else if (!sourceFailureMessage.isNullOrBlank()) {
                             applyScanNotice(
@@ -254,7 +259,7 @@ class DramaLibraryViewModel @Inject constructor(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _state.value = DramaLibraryUiState.ScanError("加载电视剧媒体库失败，请稍后重试")
+            _state.value = DramaLibraryUiState.ScanError(uiText("drama_library_load_error", "加载电视剧媒体库失败，请稍后重试"))
             MiruLog.e(
                 "DramaLibraryViewModel",
                 "Drama library load failed",
@@ -288,7 +293,7 @@ class DramaLibraryViewModel @Inject constructor(
             .sortedByDescending { it.progress?.lastWatched ?: 0L }
     }
 
-    private fun applyScanNotice(message: String) {
+    private fun applyScanNotice(message: UiMessage) {
         val currentReadyState = _state.value as? DramaLibraryUiState.Ready ?: return
         _state.value = currentReadyState.copy(scanNotice = message)
     }
@@ -334,9 +339,10 @@ private fun monotonicNowMs(): Long =
 private fun buildScanNotice(
     firstFailure: String,
     failedSourceCount: Int,
-): String =
+): UiMessage =
     if (failedSourceCount <= 1) {
-        "有 1 个电视剧源扫描失败：$firstFailure"
+        UiText("drama_scan_failed_single", listOf(firstFailure), "有 1 个电视剧源扫描失败：$firstFailure").asError()
     } else {
-        "有 $failedSourceCount 个电视剧源扫描失败，先检查这个：$firstFailure"
+        val count = failedSourceCount
+        UiText("drama_scan_failed_multi", listOf(count, firstFailure), "有 $count 个电视剧源扫描失败，先检查这个：$firstFailure").asError()
     }

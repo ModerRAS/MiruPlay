@@ -54,7 +54,7 @@ private fun Result<Boolean>.toConnectionTestResult(): MediaSourceConnectionTestR
         is Result.Success -> if (data) {
             MediaSourceConnectionTestResult.Success
         } else {
-            MediaSourceConnectionTestResult.Failed(mediaSourceConnectionFailedMessage())
+            MediaSourceConnectionTestResult.Failed(mediaSourceConnectionFailedMessage().fallback)
         }
         is Result.Error -> MediaSourceConnectionTestResult.Failed(error.toUserMessage())
     }

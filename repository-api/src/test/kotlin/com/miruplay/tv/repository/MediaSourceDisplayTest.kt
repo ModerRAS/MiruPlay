@@ -33,7 +33,7 @@ class MediaSourceDisplayTest {
                 name = "Library",
                 type = MediaSourceType.LOCAL,
                 connectionInfo = mapOf("path" to "D:/Anime"),
-            ).displayLabel(),
+            ).displayLabel().fallback,
         )
         assertEquals(
             "SMB 共享 · SMB",
@@ -41,7 +41,7 @@ class MediaSourceDisplayTest {
                 name = "",
                 type = MediaSourceType.SMB,
                 connectionInfo = mapOf("url" to "smb://nas/anime"),
-            ).displayLabel(),
+            ).displayLabel().fallback,
         )
     }
 
@@ -81,35 +81,35 @@ class MediaSourceDisplayTest {
         val webDav = MediaSourceInfo(id = 2L, name = "Cloud", type = MediaSourceType.WEBDAV)
         val smb = MediaSourceInfo(id = 3L, name = "NAS", type = MediaSourceType.SMB)
 
-        assertEquals(mediaSourceLocalLibraryInitialStatus(), localLibraryInitialStatus())
-        assertEquals(mediaSourceRemoteBrowserInitialStatus(), remoteBrowserInitialStatus())
-        assertEquals("已载入媒体源：Library · 本地", local.loadedStatus())
-        assertEquals("已载入已保存媒体源：Library · 本地", local.loadedStatus(saved = true))
-        assertEquals("已载入媒体源：Cloud · WebDAV", webDav.loadedStatus())
-        assertEquals("已载入已保存媒体源：Cloud · WebDAV", webDav.loadedStatus(saved = true))
-        assertEquals("已载入媒体源：NAS · SMB", smb.loadedStatus())
-        assertEquals("已载入已保存媒体源：NAS · SMB", smb.loadedStatus(saved = true))
-        assertEquals("本地媒体源已就绪：Library", local.readyStatus())
-        assertEquals("WebDAV 媒体源已就绪：Cloud", webDav.readyStatus())
-        assertEquals("SMB 媒体源已就绪：NAS", smb.readyStatus())
+        assertEquals(mediaSourceLocalLibraryInitialStatus().fallback, localLibraryInitialStatus().fallback)
+        assertEquals(mediaSourceRemoteBrowserInitialStatus().fallback, remoteBrowserInitialStatus().fallback)
+        assertEquals("已载入媒体源：Library · 本地", local.loadedStatus().fallback)
+        assertEquals("已载入已保存媒体源：Library · 本地", local.loadedStatus(saved = true).fallback)
+        assertEquals("已载入媒体源：Cloud · WebDAV", webDav.loadedStatus().fallback)
+        assertEquals("已载入已保存媒体源：Cloud · WebDAV", webDav.loadedStatus(saved = true).fallback)
+        assertEquals("已载入媒体源：NAS · SMB", smb.loadedStatus().fallback)
+        assertEquals("已载入已保存媒体源：NAS · SMB", smb.loadedStatus(saved = true).fallback)
+        assertEquals("本地媒体源已就绪：Library", local.readyStatus().fallback)
+        assertEquals("WebDAV 媒体源已就绪：Cloud", webDav.readyStatus().fallback)
+        assertEquals("SMB 媒体源已就绪：NAS", smb.readyStatus().fallback)
     }
 
     @Test
     fun `source action statuses share TV facing wording`() {
-        assertEquals(mediaSourceLocalRootRequiredStatus(), localRootRequiredStatus())
-        assertEquals(mediaSourceWebDavUrlRequiredStatus(), webDavUrlRequiredStatus())
-        assertEquals(mediaSourceSmbUrlRequiredStatus(), smbUrlRequiredStatus())
-        assertEquals(mediaSourceOpenBeforeScanningStatus(), openSourceBeforeScanningStatus())
-        assertEquals(libraryScanningStatus("Library"), MediaSourceInfo(id = 1L, name = "Library", type = MediaSourceType.LOCAL).scanningStatus())
-        assertEquals(libraryScanCompleteStatus(12, 3), scanCompleteStatus(filesIndexed = 12, directoriesVisited = 3))
-        assertEquals(libraryRescanCompleteStatus(12, 3), rescanCompleteStatus(filesIndexed = 12, directoriesVisited = 3))
-        assertEquals(mediaSourceOpenBeforeSearchingStatus(), openSourceBeforeSearchingStatus())
-        assertEquals(mediaSourceOpenBeforeClearingIndexStatus(), openSourceBeforeClearingIndexStatus())
-        assertEquals(mediaSourceIndexClearedStatus(42L), indexClearedStatus(42L))
-        assertEquals(mediaSourceRemoveRequiredStatus(), sourceRemoveRequiredStatus())
-        assertEquals(mediaSourceRemovedStatus(), sourceRemovedStatus())
-        assertEquals(mediaSourceAlreadyAtRootStatus(), remoteRootStatus())
-        assertEquals(mediaSourceOpenRemoteBeforeBrowsingStatus(), openRemoteSourceBeforeBrowsingStatus())
+        assertEquals(mediaSourceLocalRootRequiredStatus().fallback, localRootRequiredStatus().fallback)
+        assertEquals(mediaSourceWebDavUrlRequiredStatus().fallback, webDavUrlRequiredStatus().fallback)
+        assertEquals(mediaSourceSmbUrlRequiredStatus().fallback, smbUrlRequiredStatus().fallback)
+        assertEquals(mediaSourceOpenBeforeScanningStatus().fallback, openSourceBeforeScanningStatus().fallback)
+        assertEquals(libraryScanningStatus("Library").fallback, MediaSourceInfo(id = 1L, name = "Library", type = MediaSourceType.LOCAL).scanningStatus().fallback)
+        assertEquals(libraryScanCompleteStatus(12, 3).fallback, scanCompleteStatus(filesIndexed = 12, directoriesVisited = 3).fallback)
+        assertEquals(libraryRescanCompleteStatus(12, 3).fallback, rescanCompleteStatus(filesIndexed = 12, directoriesVisited = 3).fallback)
+        assertEquals(mediaSourceOpenBeforeSearchingStatus().fallback, openSourceBeforeSearchingStatus().fallback)
+        assertEquals(mediaSourceOpenBeforeClearingIndexStatus().fallback, openSourceBeforeClearingIndexStatus().fallback)
+        assertEquals(mediaSourceIndexClearedStatus(42L).fallback, indexClearedStatus(42L).fallback)
+        assertEquals(mediaSourceRemoveRequiredStatus().fallback, sourceRemoveRequiredStatus().fallback)
+        assertEquals(mediaSourceRemovedStatus().fallback, sourceRemovedStatus().fallback)
+        assertEquals(mediaSourceAlreadyAtRootStatus().fallback, remoteRootStatus().fallback)
+        assertEquals(mediaSourceOpenRemoteBeforeBrowsingStatus().fallback, openRemoteSourceBeforeBrowsingStatus().fallback)
     }
 
     @Test
@@ -118,29 +118,29 @@ class MediaSourceDisplayTest {
         val entry = FileEntry(name = "Episode 01.mkv", path = "/Anime/Episode 01.mkv", isDirectory = false)
         val indexEntry = MediaIndexEntry(sourceId = 7L, path = "/Anime/Episode 01.mkv", animeName = "Frieren", episodeNumber = 1)
 
-        assertEquals("正在载入 WebDAV：/", source.loadingRemoteDirectoryStatus(""))
-        assertEquals("正在载入 WebDAV：/Anime", source.loadingRemoteDirectoryStatus("/Anime"))
-        assertEquals("Cloud 中显示 1 个条目。", source.showingRemoteDirectoryStatus(listOf(entry)))
-        assertEquals("已选择播放：Frieren EP1", indexEntry.selectedForPlaybackStatus())
+        assertEquals("正在载入 WebDAV：/", source.loadingRemoteDirectoryStatus("").fallback)
+        assertEquals("正在载入 WebDAV：/Anime", source.loadingRemoteDirectoryStatus("/Anime").fallback)
+        assertEquals("Cloud 中显示 1 个条目。", source.showingRemoteDirectoryStatus(listOf(entry)).fallback)
+        assertEquals("已选择播放：Frieren EP1", indexEntry.selectedForPlaybackStatus().fallback)
         assertEquals(
             "已选择远程媒体：Episode 01.mkv。mpv 将通过本地桥接串流。",
-            entry.selectedRemoteForPlaybackStatus(),
+            entry.selectedRemoteForPlaybackStatus().fallback,
         )
     }
 
     @Test
     fun `indexed search status uses trimmed query and displayed result count`() {
         assertEquals(
-            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = false, displayedResultCount = 0),
-            indexedSearchStatus(query = " frieren ", hasResults = false, displayedResultCount = 0),
+            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = false, displayedResultCount = 0).fallback,
+            indexedSearchStatus(query = " frieren ", hasResults = false, displayedResultCount = 0).fallback,
         )
         assertEquals(
-            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 24),
-            indexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 24),
+            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 24).fallback,
+            indexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 24).fallback,
         )
         assertEquals(
-            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 0),
-            indexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 0),
+            mediaSourceIndexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 0).fallback,
+            indexedSearchStatus(query = "frieren", hasResults = true, displayedResultCount = 0).fallback,
         )
     }
 }

@@ -1,58 +1,81 @@
 package com.miruplay.tv.model
 
-fun libraryTitleLabel(): String = "探索"
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 
-fun librarySubtitleLabel(): String = "本地媒体库 · Bangumi 元数据"
+fun libraryTitleLabel(): UiText = uiText("library_title", "探索")
 
-fun libraryScanActionLabel(): String = "扫描"
+fun librarySubtitleLabel(): UiText = uiText("library_subtitle", "本地媒体库 · Bangumi 元数据")
 
-fun librarySettingsActionLabel(): String = "设置"
+fun libraryScanActionLabel(): UiText = uiText("library_action_scan", "扫描")
 
-fun libraryAddSourceActionLabel(): String = "添加源"
+fun librarySettingsActionLabel(): UiText = uiText("library_action_settings", "设置")
 
-fun libraryScanNowActionLabel(): String = "扫描媒体库"
+fun libraryAddSourceActionLabel(): UiText = uiText("library_action_add_source", "添加源")
 
-fun libraryManualScanActionLabel(): String = "手动扫描"
+fun libraryScanNowActionLabel(): UiText = uiText("library_action_scan_now", "扫描媒体库")
 
-fun libraryCancelScanActionLabel(): String = "取消扫描"
+fun libraryManualScanActionLabel(): UiText = uiText("library_action_manual_scan", "手动扫描")
 
-fun libraryNoSourcesMessage(): String = "添加媒体源开始使用"
+fun libraryCancelScanActionLabel(): UiText = uiText("library_action_cancel_scan", "取消扫描")
 
-fun libraryHasSourcesEmptyMessage(): String = "已配置媒体源\n点击扫描建立媒体库"
+fun libraryNoSourcesMessage(): UiText = uiText("library_no_sources", "添加媒体源开始使用")
 
-fun libraryNoContentAfterScanMessage(): String = "未找到番剧内容，请检查媒体源路径"
+fun libraryHasSourcesEmptyMessage(): UiText =
+    uiText("library_sources_empty", "已配置媒体源\n点击扫描建立媒体库")
 
-fun libraryScanningTitle(): String = "正在扫描媒体库..."
+fun libraryNoContentAfterScanMessage(): UiText =
+    uiText("library_no_content_after_scan", "未找到番剧内容，请检查媒体源路径")
 
-fun libraryFilesScannedLabel(filesScanned: Int): String =
-    "已扫描 ${filesScanned.coerceAtLeast(0)} 个文件"
+fun libraryScanningTitle(): UiText = uiText("library_scanning_title", "正在扫描媒体库...")
 
-fun libraryScanFailedMessage(reason: String?): String {
+fun libraryFilesScannedLabel(filesScanned: Int): UiText {
+    val safe = filesScanned.coerceAtLeast(0)
+    return UiText("library_files_scanned", listOf(safe), "已扫描 $safe 个文件")
+}
+
+fun libraryScanFailedMessage(reason: String?): UiText {
     val cleanReason = reason?.trim().orEmpty()
     return if (cleanReason.isBlank()) {
-        "扫描失败"
+        uiText("library_scan_failed", "扫描失败")
     } else {
-        "扫描失败：$cleanReason"
+        UiText("library_scan_failed_detail", listOf(cleanReason), "扫描失败：$cleanReason")
     }
 }
 
-fun libraryScanningStatus(sourceName: String): String =
+fun libraryScanningStatus(sourceName: String): UiText =
     localizedLibraryScanningStatus(sourceName)
 
-fun libraryScanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+fun libraryScanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText =
     localizedLibraryScanCompleteStatus(filesIndexed, directoriesVisited)
 
-fun libraryRescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+fun libraryRescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText =
     localizedLibraryRescanCompleteStatus(filesIndexed, directoriesVisited)
 
-fun localizedLibraryScanningStatus(sourceName: String): String =
-    "正在扫描：${sourceName.trim().ifBlank { libraryTitleLabel() }}"
+fun localizedLibraryScanningStatus(sourceName: String): UiText {
+    val name = sourceName.trim().ifBlank { libraryTitleLabel().fallback }
+    return UiText("library_scanning_status", listOf(name), "正在扫描：$name")
+}
 
-fun localizedLibraryScanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
-    "扫描完成：${filesIndexed.coerceAtLeast(0)} 个视频，${directoriesVisited.coerceAtLeast(0)} 个目录。"
+fun localizedLibraryScanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText {
+    val files = filesIndexed.coerceAtLeast(0)
+    val dirs = directoriesVisited.coerceAtLeast(0)
+    return UiText(
+        "library_scan_complete_status",
+        listOf(files, dirs),
+        "扫描完成：$files 个视频，$dirs 个目录。",
+    )
+}
 
-fun localizedLibraryRescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
-    "重扫完成：${filesIndexed.coerceAtLeast(0)} 个视频，${directoriesVisited.coerceAtLeast(0)} 个目录。"
+fun localizedLibraryRescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText {
+    val files = filesIndexed.coerceAtLeast(0)
+    val dirs = directoriesVisited.coerceAtLeast(0)
+    return UiText(
+        "library_rescan_complete_status",
+        listOf(files, dirs),
+        "重扫完成：$files 个视频，$dirs 个目录。",
+    )
+}
 
 fun localizedLibraryScanStatusText(status: String): String? {
     val trimmed = status.trim()
@@ -60,56 +83,64 @@ fun localizedLibraryScanStatusText(status: String): String? {
         return trimmed
     }
     scanningStatusRegex.matchEntire(trimmed)?.let { match ->
-        return localizedLibraryScanningStatus(match.groupValues[1])
+        return localizedLibraryScanningStatus(match.groupValues[1]).fallback
     }
     scanCompleteStatusRegex.matchEntire(trimmed)?.let { match ->
         return localizedLibraryScanCompleteStatus(
             filesIndexed = match.groupValues[1].toIntOrNull() ?: 0,
             directoriesVisited = match.groupValues[2].toIntOrNull() ?: 0,
-        )
+        ).fallback
     }
     rescanCompleteStatusRegex.matchEntire(trimmed)?.let { match ->
         return localizedLibraryRescanCompleteStatus(
             filesIndexed = match.groupValues[1].toIntOrNull() ?: 0,
             directoriesVisited = match.groupValues[2].toIntOrNull() ?: 0,
-        )
+        ).fallback
     }
     return null
 }
 
-fun libraryCollectedCountLabel(count: Int): String =
-    "已收录 ${count.coerceAtLeast(0)} 部"
+fun libraryCollectedCountLabel(count: Int): UiText {
+    val safe = count.coerceAtLeast(0)
+    return UiText("library_collected_count", listOf(safe), "已收录 $safe 部")
+}
 
-fun librarySearchFieldLabel(): String = "搜索媒体库"
+fun librarySearchFieldLabel(): UiText = uiText("library_search_field", "搜索媒体库")
 
-fun librarySearchActionLabel(): String = "搜索"
+fun librarySearchActionLabel(): UiText = uiText("library_search_action", "搜索")
 
-fun librarySearchResultCountLabel(count: Int): String =
-    "${count.coerceAtLeast(0)} 部"
+fun librarySearchResultCountLabel(count: Int): UiText {
+    val safe = count.coerceAtLeast(0)
+    return UiText("library_search_result_count", listOf(safe), "$safe 部")
+}
 
-fun libraryFeaturedSectionTitle(): String = "最高热度"
+fun libraryFeaturedSectionTitle(): UiText = uiText("library_featured_title", "最高热度")
 
-fun libraryContinueWatchingSectionTitle(): String = "继续观看"
+fun libraryContinueWatchingSectionTitle(): UiText = uiText("library_continue_title", "继续观看")
 
-fun libraryContinueWatchingSubtitle(episodeNumber: Int?): String =
-    episodeNumber?.let { "${libraryContinueWatchingSectionTitle()} ${it.toString().padStart(2, '0')}" }
+fun libraryContinueWatchingSubtitle(episodeNumber: Int?): UiText =
+    episodeNumber?.let {
+        UiText("library_continue_subtitle", listOf(libraryContinueWatchingSectionTitle(), it), "${libraryContinueWatchingSectionTitle().fallback} ${it.toString().padStart(2, '0')}")
+    }
         ?: libraryContinueWatchingSectionTitle()
 
-fun recentPlaybackRefreshActionLabel(): String = "刷新"
+fun recentPlaybackRefreshActionLabel(): UiText = uiText("library_recent_refresh", "刷新")
 
-fun recentPlaybackClearActionLabel(): String = "清除条目"
+fun recentPlaybackClearActionLabel(): UiText = uiText("library_recent_clear", "清除条目")
 
-fun recentPlaybackEmptyMessage(): String = "开始播放后会在这里显示最近记录。"
+fun recentPlaybackEmptyMessage(): UiText =
+    uiText("library_recent_empty", "开始播放后会在这里显示最近记录。")
 
-fun mediaDetailsSectionTitle(): String = "媒体详情"
+fun mediaDetailsSectionTitle(): UiText = uiText("library_details_title", "媒体详情")
 
-fun mediaDetailsEmptyMessage(): String = "选择媒体后会在这里显示详细信息。"
+fun mediaDetailsEmptyMessage(): UiText =
+    uiText("library_details_empty", "选择媒体后会在这里显示详细信息。")
 
 data class RecentPlaybackLabels(
-    val title: String,
-    val refreshAction: String,
-    val clearAction: String,
-    val emptyState: String,
+    val title: UiText,
+    val refreshAction: UiText,
+    val clearAction: UiText,
+    val emptyState: UiText,
 )
 
 fun recentPlaybackLabels(): RecentPlaybackLabels =
@@ -121,8 +152,8 @@ fun recentPlaybackLabels(): RecentPlaybackLabels =
     )
 
 data class MediaDetailsLabels(
-    val title: String,
-    val emptyState: String,
+    val title: UiText,
+    val emptyState: UiText,
 )
 
 fun mediaDetailsLabels(): MediaDetailsLabels =
@@ -131,31 +162,31 @@ fun mediaDetailsLabels(): MediaDetailsLabels =
         emptyState = mediaDetailsEmptyMessage(),
     )
 
-fun libraryRecentlyAddedSectionTitle(): String = "最近添加"
+fun libraryRecentlyAddedSectionTitle(): UiText = uiText("library_recently_added", "最近添加")
 
-fun libraryPosterWallSectionTitle(): String = "海报墙"
+fun libraryPosterWallSectionTitle(): UiText = uiText("library_poster_wall", "海报墙")
 
 data class LibrarySourceLabels(
-    val localLibraryRoot: String,
-    val indexQuery: String,
-    val openLocal: String,
-    val scan: String,
-    val search: String,
-    val clearIndex: String,
-    val removeSource: String,
-    val webDavUrl: String,
-    val webDavUser: String,
-    val webDavPassword: String,
-    val openWebDav: String,
-    val smbUrl: String,
-    val smbDomain: String,
-    val smbUser: String,
-    val smbPassword: String,
-    val openSmb: String,
-    val scanSource: String,
-    val remoteBrowser: String,
-    val up: String,
-    val remoteEmpty: String,
+    val localLibraryRoot: UiText,
+    val indexQuery: UiText,
+    val openLocal: UiText,
+    val scan: UiText,
+    val search: UiText,
+    val clearIndex: UiText,
+    val removeSource: UiText,
+    val webDavUrl: UiText,
+    val webDavUser: UiText,
+    val webDavPassword: UiText,
+    val openWebDav: UiText,
+    val smbUrl: UiText,
+    val smbDomain: UiText,
+    val smbUser: UiText,
+    val smbPassword: UiText,
+    val openSmb: UiText,
+    val scanSource: UiText,
+    val remoteBrowser: UiText,
+    val up: UiText,
+    val remoteEmpty: UiText,
 )
 
 fun librarySourceLabels(): LibrarySourceLabels =

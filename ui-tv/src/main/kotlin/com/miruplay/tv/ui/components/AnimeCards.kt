@@ -37,10 +37,12 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.displayTitle
 import com.miruplay.tv.model.featureSubtitle
 import com.miruplay.tv.model.posterSubtitle
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.ui.theme.AnimeRed
 import com.miruplay.tv.ui.theme.CardBg
 import com.miruplay.tv.ui.theme.FocusBorder
@@ -55,7 +57,7 @@ fun AnimePosterCard(
     modifier: Modifier = Modifier,
     width: Dp = 180.dp,
     height: Dp = 270.dp,
-    subtitle: String? = null,
+    subtitle: UiText? = null,
     progress: Float? = null,
     imagePlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
 ) {
@@ -113,7 +115,7 @@ fun AnimePosterCard(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis
             )
-            val subtitleText = subtitle ?: anime.posterSubtitle()
+            val subtitleText = (subtitle ?: anime.posterSubtitle()).resolve()
             if (subtitleText.isNotBlank()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
@@ -148,7 +150,7 @@ fun FeatureAnimeCard(
     anime: Anime,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    subtitle: String? = null,
+    subtitle: UiText? = null,
     onDirectionUp: (() -> Unit)? = null,
     backdropPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
     posterPlaceholder: @Composable () -> Unit = { ImagePlaceholder() },
@@ -226,7 +228,7 @@ fun FeatureAnimeCard(
                 )
                 Spacer(Modifier.height(8.dp))
                 Text(
-                    text = subtitle ?: anime.featureSubtitle(),
+                    text = (subtitle ?: anime.featureSubtitle()).resolve(),
                     color = TextSecondary,
                     fontSize = 15.sp,
                     maxLines = 1,
