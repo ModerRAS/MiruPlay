@@ -75,7 +75,7 @@ class LibraryScanTaskTest {
             coEvery { mediaRepository.getSources() } returns Result.success(listOf(source))
             val coordinator = mockk<ScanCoordinator>(relaxed = true)
             coEvery { coordinator.scanSource(1L, false, any()) } coAnswers { awaitCancellation() }
-            val context = mockk<Context>()
+            val context = mockk<Context>(relaxed = true)
             every { context.cacheDir } returns java.io.File("build/tmp/library-scan-task-test")
             val status = LibraryScanStatus()
             val task = LibraryScanTask(

@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import android.content.Context
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.player.AudioTrack
 import com.miruplay.tv.core.common.rawUiText
@@ -161,7 +162,7 @@ class PlayerTimelineFocusTest {
         compose.onNodeWithTag(PLAYER_TIMELINE_TEST_TAG).performKeyInput {
             pressKey(Key.DirectionDown)
         }
-        compose.onNodeWithText("评论").assertIsFocused()
+        compose.onNodeWithText(uiText("player_comments", "评论").resolve(appContext)).assertIsFocused()
     }
 
 }
