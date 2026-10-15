@@ -1040,5 +1040,53 @@ internal fun uiTextResId(key: String): Int =
         "wizard_redetect" -> R.string.wizard_redetect
         "measure_cal_saved" -> R.string.measure_cal_saved
         "measure_cal_default_name" -> R.string.measure_cal_default_name
+        "player_press_again_to_exit" -> R.string.player_press_again_to_exit
+        "player_info_title" -> R.string.player_info_title
+        "player_prev_episode" -> R.string.player_prev_episode
+        "player_next_episode" -> R.string.player_next_episode
+        "player_comments" -> R.string.player_comments
+        "player_translate_into" -> R.string.player_translate_into
+        "player_reset_session" -> R.string.player_reset_session
+        "player_tab_info" -> R.string.player_tab_info
+        "player_tab_diagnostics" -> R.string.player_tab_diagnostics
+        "player_info_title_media" -> R.string.player_info_title_media
+        "player_info_metadata" -> R.string.player_info_metadata
+        "player_info_file" -> R.string.player_info_file
+        "player_info_source_type" -> R.string.player_info_source_type
+        "player_info_duration" -> R.string.player_info_duration
+        "player_info_video_signal" -> R.string.player_info_video_signal
+        "player_info_video_codec" -> R.string.player_info_video_codec
+        "player_info_bit_depth" -> R.string.player_info_bit_depth
+        "player_info_audio_track" -> R.string.player_info_audio_track
+        "player_info_subtitle_track" -> R.string.player_info_subtitle_track
+        "player_info_status" -> R.string.player_info_status
+        "player_info_position" -> R.string.player_info_position
+        "player_info_total_duration" -> R.string.player_info_total_duration
+        "player_info_speed" -> R.string.player_info_speed
+        "player_info_fallback_reason" -> R.string.player_info_fallback_reason
+        "player_info_transfer" -> R.string.player_info_transfer
+        "player_info_primaries" -> R.string.player_info_primaries
+        "player_info_hdr_static" -> R.string.player_info_hdr_static
+        "player_info_hdr10plus" -> R.string.player_info_hdr10plus
+        "player_info_subtitle_count" -> R.string.player_info_subtitle_count
+        "player_info_audio_count" -> R.string.player_info_audio_count
+        "player_source_local_file" -> R.string.player_source_local_file
+        "player_source_scheme" -> R.string.player_source_scheme
+        "player_state_idle" -> R.string.player_state_idle
+        "player_state_loading" -> R.string.player_state_loading
+        "player_state_playing" -> R.string.player_state_playing
+        "player_state_paused" -> R.string.player_state_paused
+        "player_state_buffering" -> R.string.player_state_buffering
+        "player_state_ended" -> R.string.player_state_ended
+        "player_state_error" -> R.string.player_state_error
+        "common_yes" -> R.string.common_yes
+        "common_no" -> R.string.common_no
+        "signal_dolby_vision_profile" -> R.string.signal_dolby_vision_profile
+        "drama_library_no_content" -> R.string.drama_library_no_content
+        "library_scan_progress" -> R.string.library_scan_progress
+        "library_scan_source_fallback" -> R.string.library_scan_source_fallback
+        "measure_download_failed" -> R.string.measure_download_failed
+        "notif_library_scan_preparing" -> R.string.notif_library_scan_preparing
+        "notif_library_scan_title" -> R.string.notif_library_scan_title
         else -> 0
     }

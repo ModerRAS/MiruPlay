@@ -111,6 +111,7 @@ import androidx.media3.ui.SubtitleView
 import androidx.annotation.LayoutRes
 import androidx.tv.material3.ExperimentalTvMaterial3Api
 import androidx.tv.material3.Text
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.PlaybackState
 import com.miruplay.tv.model.PLAYBACK_SEEK_BACK_SECONDS
@@ -158,6 +159,7 @@ import com.miruplay.tv.design.shouldRefreshTvPlaybackControls
 import com.miruplay.tv.design.tvPlaybackOverlayAction
 import com.miruplay.tv.ui.components.EpisodeVersionDialog
 import com.miruplay.tv.ui.components.rememberInitialFocusHandle
+import androidx.compose.ui.res.stringResource
 import com.miruplay.tv.ui.tv.R
 import com.miruplay.tv.ui.components.toMiruPlayInputIntent
 import com.miruplay.tv.ui.components.tvActivateKeyEvent
@@ -371,7 +373,7 @@ private fun PlayerScreenContent(
             navigateBack()
         } else {
             exitConfirmationStartedAt = now
-            Toast.makeText(context, "再按一次返回键退出播放", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.player_press_again_to_exit), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -703,7 +705,7 @@ private fun PlayerScreenContent(
                 selectedSubtitleTrackIndex = selectedSubtitleTrackIndex,
                 selectedAudioTrackIndex = selectedAudioTrackIndex,
                 playbackSpeed = playbackSpeed,
-                signalFormatLabel = currentVideoSignalDescriptor?.displayLabel().orEmpty(),
+                signalFormatLabel = currentVideoSignalDescriptor?.displayLabel(),
                 currentPicturePreset = viewModel.currentToneMappingPreset(),
                 timelineFocusRequester = timelineFocusRequester,
                 transportFocusRequester = transportFocusRequester,
@@ -905,7 +907,7 @@ private fun PlayerChrome(
     selectedSubtitleTrackIndex: Int?,
     selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
-    signalFormatLabel: String,
+    signalFormatLabel: UiText?,
     currentPicturePreset: ToneMappingProfilePreset,
     timelineFocusRequester: FocusRequester,
     transportFocusRequester: FocusRequester,
@@ -1058,7 +1060,7 @@ private fun PlayerTopBar(
         }
         PlayerIconButton(
             icon = Icons.Filled.Info,
-            label = "播放信息",
+            label = stringResource(R.string.player_info_title),
             onClick = onInfo,
             size = 54.dp,
         )
@@ -1090,7 +1092,7 @@ private fun TransportControls(
     ) {
         PlayerIconButton(
             icon = Icons.Filled.SkipPrevious,
-            label = "上一集",
+            label = stringResource(R.string.player_prev_episode),
             onClick = onPreviousEpisode,
             size = 54.dp,
             enabled = canPlayPreviousEpisode,
@@ -1118,7 +1120,7 @@ private fun TransportControls(
         )
         PlayerIconButton(
             icon = Icons.Filled.SkipNext,
-            label = "下一集",
+            label = stringResource(R.string.player_next_episode),
             onClick = onNextEpisode,
             size = 54.dp,
             enabled = canPlayNextEpisode,
@@ -1136,7 +1138,7 @@ internal fun PlayerBottomBar(
     selectedSubtitleTrackIndex: Int?,
     selectedAudioTrackIndex: Int?,
     playbackSpeed: Float,
-    signalFormatLabel: String,
+    signalFormatLabel: UiText?,
     openMenu: PlayerMenu?,
     timelineFocusRequester: FocusRequester,
     transportFocusRequester: FocusRequester,
@@ -1190,11 +1192,11 @@ internal fun PlayerBottomBar(
         ) {
             PlayerInfoChip(
                 icon = Icons.Filled.GraphicEq,
-                text = signalFormatLabel.ifBlank { playbackLocalSourceLabel().resolve() }
+                text = signalFormatLabel?.resolve() ?: playbackLocalSourceLabel().resolve()
             )
             PlayerActionChip(
                 icon = Icons.Filled.Forum,
-                text = "评论",
+                text = stringResource(R.string.player_comments),
                 selected = false,
                 onClick = onComments,
                 modifier = Modifier
@@ -1588,7 +1590,7 @@ internal fun PlayerOptionsPanel(
                 }
                 item {
                     PlayerOptionButton(
-                        text = "翻译成…",
+                        text = stringResource(R.string.player_translate_into),
                         selected = false,
                         onClick = onTranslateSubtitles,
                     )
@@ -1647,7 +1649,7 @@ internal fun PlayerOptionsPanel(
                         onClick = onSavePictureDefault,
                     )
                     PlayerOptionButton(
-                        text = "重置本次播放",
+                        text = stringResource(R.string.player_reset_session),
                         selected = false,
                         onClick = onResetPictureSession,
                     )
@@ -1699,20 +1701,20 @@ private fun PlayerInfoPanel(
             .padding(horizontal = 26.dp, vertical = 28.dp),
     ) {
         Text(
-            text = "播放信息",
+            text = stringResource(R.string.player_info_title),
             style = TvTypography.subtitle,
             color = TextPrimary,
         )
         Spacer(Modifier.height(18.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             PlayerOptionButton(
-                text = "信息",
+                text = stringResource(R.string.player_tab_info),
                 selected = tab == PlayerInfoTab.Information,
                 onClick = { onTabChange(PlayerInfoTab.Information) },
                 modifier = infoInitialFocus.modifier(),
             )
             PlayerOptionButton(
-                text = "播放 / 调试",
+                text = stringResource(R.string.player_tab_diagnostics),
                 selected = tab == PlayerInfoTab.Diagnostics,
                 onClick = { onTabChange(PlayerInfoTab.Diagnostics) },
             )
@@ -1726,31 +1728,31 @@ private fun PlayerInfoPanel(
         ) {
             when (tab) {
                 PlayerInfoTab.Information -> {
-                    PlayerInfoRow("番剧 / 剧集", title)
-                    PlayerInfoRow("元数据", sourceLabel)
-                    PlayerInfoRow("文件", sanitizedPlaybackSourceName(source.uri))
-                    PlayerInfoRow("来源类型", playbackSourceSchemeLabel(source.uri))
-                    PlayerInfoRow("时长", formatPlaybackPosition(duration))
-                    PlayerInfoRow("视频信号", signal?.displayLabel() ?: "—")
-                    PlayerInfoRow("视频编码", signal?.codecId?.takeIf(String::isNotBlank) ?: "—")
-                    PlayerInfoRow("位深", signal?.bitDepth?.let { "$it bit" } ?: "—")
-                    PlayerInfoRow("当前音轨", selectedAudio)
-                    PlayerInfoRow("当前字幕", selectedSubtitle)
+                    PlayerInfoRow(stringResource(R.string.player_info_title_media), title)
+                    PlayerInfoRow(stringResource(R.string.player_info_metadata), sourceLabel)
+                    PlayerInfoRow(stringResource(R.string.player_info_file), sanitizedPlaybackSourceName(source.uri))
+                    PlayerInfoRow(stringResource(R.string.player_info_source_type), playbackSourceSchemeLabel(source.uri).resolve())
+                    PlayerInfoRow(stringResource(R.string.player_info_duration), formatPlaybackPosition(duration))
+                    PlayerInfoRow(stringResource(R.string.player_info_video_signal), signal?.displayLabel()?.resolve() ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_video_codec), signal?.codecId?.takeIf(String::isNotBlank) ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_bit_depth), signal?.bitDepth?.let { "$it bit" } ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_audio_track), selectedAudio)
+                    PlayerInfoRow(stringResource(R.string.player_info_subtitle_track), selectedSubtitle)
                 }
                 PlayerInfoTab.Diagnostics -> {
-                    PlayerInfoRow("状态", playbackStateInfoLabel(playbackState))
-                    PlayerInfoRow("位置", formatPlaybackPosition(currentPosition))
-                    PlayerInfoRow("总时长", formatPlaybackPosition(duration))
-                    PlayerInfoRow("速度", playbackSpeedValueLabel(playbackSpeed))
+                    PlayerInfoRow(stringResource(R.string.player_info_status), playbackStateInfoLabel(playbackState).resolve())
+                    PlayerInfoRow(stringResource(R.string.player_info_position), formatPlaybackPosition(currentPosition))
+                    PlayerInfoRow(stringResource(R.string.player_info_total_duration), formatPlaybackPosition(duration))
+                    PlayerInfoRow(stringResource(R.string.player_info_speed), playbackSpeedValueLabel(playbackSpeed))
                     PlayerInfoRow("请求后端", playbackBackendLabel(requestedBackend).resolve())
                     PlayerInfoRow("活动后端", playbackBackendLabel(activeBackend).resolve())
-                    PlayerInfoRow("回退原因", fallbackReason?.takeIf(String::isNotBlank) ?: "—")
-                    PlayerInfoRow("传递函数", signal?.transfer?.name ?: "—")
-                    PlayerInfoRow("色彩原色", signal?.colorPrimaries?.name ?: "—")
-                    PlayerInfoRow("HDR 静态元数据", signal?.hasHdrStaticMetadata?.yesNoLabel() ?: "—")
-                    PlayerInfoRow("HDR10+ 元数据", signal?.hasHdr10PlusMetadata?.yesNoLabel() ?: "—")
-                    PlayerInfoRow("字幕轨", subtitles.size.toString())
-                    PlayerInfoRow("音轨", audioTracks.size.toString())
+                    PlayerInfoRow(stringResource(R.string.player_info_fallback_reason), fallbackReason?.takeIf(String::isNotBlank) ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_transfer), signal?.transfer?.name ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_primaries), signal?.colorPrimaries?.name ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_hdr_static), signal?.hasHdrStaticMetadata?.yesNoLabel()?.resolve() ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_hdr10plus), signal?.hasHdr10PlusMetadata?.yesNoLabel()?.resolve() ?: stringResource(R.string.common_em_dash))
+                    PlayerInfoRow(stringResource(R.string.player_info_subtitle_count), subtitles.size.toString())
+                    PlayerInfoRow(stringResource(R.string.player_info_audio_count), audioTracks.size.toString())
                 }
             }
         }
@@ -1803,32 +1805,34 @@ internal fun sanitizedPlaybackSourceName(uri: String): String =
         Uri.decode(rawName).takeIf(String::isNotBlank)
     }.getOrNull() ?: "—"
 
-internal fun playbackSourceSchemeLabel(uri: String): String =
+internal fun playbackSourceSchemeLabel(uri: String): UiText =
     if (uri.isLocalPlaybackPath()) {
-        "本地文件"
+        uiText("player_source_local_file", "本地文件")
     } else {
         runCatching { Uri.parse(uri).scheme }
             .getOrNull()
             ?.takeIf(String::isNotBlank)
             ?.uppercase()
-            ?: "本地文件"
+            ?.let { UiText("player_source_scheme", listOf(it), it) }
+            ?: uiText("player_source_local_file", "本地文件")
     }
 
 private fun String.isLocalPlaybackPath(): Boolean =
     startsWith('/') || matches(Regex("^[A-Za-z]:[\\\\/].*"))
 
-private fun playbackStateInfoLabel(state: PlaybackState): String =
+private fun playbackStateInfoLabel(state: PlaybackState): UiText =
     when (state) {
-        PlaybackState.Idle -> "空闲"
-        is PlaybackState.Loading -> "加载中"
-        is PlaybackState.Playing -> "播放中"
-        is PlaybackState.Paused -> "已暂停"
-        is PlaybackState.Buffering -> "缓冲中"
-        is PlaybackState.Ended -> "已结束"
-        is PlaybackState.Error -> "错误"
+        PlaybackState.Idle -> uiText("player_state_idle", "空闲")
+        is PlaybackState.Loading -> uiText("player_state_loading", "加载中")
+        is PlaybackState.Playing -> uiText("player_state_playing", "播放中")
+        is PlaybackState.Paused -> uiText("player_state_paused", "已暂停")
+        is PlaybackState.Buffering -> uiText("player_state_buffering", "缓冲中")
+        is PlaybackState.Ended -> uiText("player_state_ended", "已结束")
+        is PlaybackState.Error -> uiText("player_state_error", "错误")
     }
 
-private fun Boolean.yesNoLabel(): String = if (this) "是" else "否"
+private fun Boolean.yesNoLabel(): UiText =
+    if (this) uiText("common_yes", "是") else uiText("common_no", "否")
 
 @Composable
 internal fun PlayerOptionButton(

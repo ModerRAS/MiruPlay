@@ -954,7 +954,7 @@ class ExoPlaybackController @Inject constructor(
                 mapOf(
                     "source_uri" to currentSource?.uri.orEmpty(),
                     "active_backend" to _activeRenderBackend.value.name,
-                    "signal_label" to _currentVideoSignalDescriptor.value?.displayLabel().orEmpty(),
+                    "signal_label" to (_currentVideoSignalDescriptor.value?.displayLabel()?.fallback.orEmpty()),
                 ),
             )
         }
@@ -1402,7 +1402,7 @@ class ExoPlaybackController @Inject constructor(
             "ExoPlaybackController",
             "Tone mapping runtime config refreshed",
             mapOf(
-                "signal_label" to descriptor.displayLabel(),
+                "signal_label" to descriptor.displayLabel().fallback,
                 "signal_kind" to descriptor.signalKind.name,
                 "transfer" to descriptor.transfer.name,
                 "codec_id" to descriptor.codecId,
@@ -1441,7 +1441,7 @@ class ExoPlaybackController @Inject constructor(
                     "Completed deferred container signal probe",
                     mapOf(
                         "source_uri" to sourceUri,
-                        "signal_label" to _currentVideoSignalDescriptor.value?.displayLabel().orEmpty(),
+                        "signal_label" to (_currentVideoSignalDescriptor.value?.displayLabel()?.fallback.orEmpty()),
                         "active_backend" to _activeRenderBackend.value.name,
                     ),
                 )

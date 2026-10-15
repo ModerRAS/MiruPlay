@@ -3,6 +3,8 @@ package com.miruplay.tv.ui.detail
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -185,19 +187,19 @@ private fun DramaDetailMissingState(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "没有找到这部电视剧",
+            text = stringResource(R.string.drama_not_found_title),
             style = TvTypography.title,
             color = TextPrimary,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "可能是源被删了，或者这条内容还没重新扫出来。",
+            text = stringResource(R.string.drama_not_found_desc),
             style = TvTypography.body,
             color = TextSecondary,
         )
         Spacer(Modifier.height(20.dp))
         TvButton(
-            text = "返回",
+            text = stringResource(R.string.detail_back),
             onClick = onNavigateBack,
         )
     }
@@ -450,13 +452,13 @@ private fun DramaManualMatchDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "在线手动匹配",
+                    text = stringResource(R.string.drama_manual_match_title),
                     style = TvTypography.subtitle,
                     color = TextPrimary,
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = "关闭",
+                    text = stringResource(R.string.drama_dialog_close),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -473,7 +475,7 @@ private fun DramaManualMatchDialog(
             ) {
                 item(key = "candidate-title") {
                     Text(
-                        text = "候选标题",
+                        text = stringResource(R.string.drama_candidate_title),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                     )
@@ -481,7 +483,7 @@ private fun DramaManualMatchDialog(
                 if (state.candidateTerms.isEmpty()) {
                     item(key = "candidate-empty") {
                         Text(
-                            text = "当前没有可用的本地候选标题，请直接输入搜索词。",
+                            text = stringResource(R.string.drama_candidate_empty),
                             style = TvTypography.body,
                             color = TextSecondary,
                         )
@@ -507,11 +509,11 @@ private fun DramaManualMatchDialog(
                         TvTextField(
                             value = state.query,
                             onValueChange = onQueryChange,
-                            label = "搜索词",
+                            label = stringResource(R.string.drama_search_query_label),
                             modifier = Modifier.weight(1f),
                         )
                         TvButton(
-                            text = "搜索",
+                            text = stringResource(R.string.drama_search_action),
                             icon = Icons.Filled.Search,
                             enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
                             onClick = onSearch,
@@ -522,7 +524,7 @@ private fun DramaManualMatchDialog(
 
                 item(key = "results-title") {
                     Text(
-                        text = "搜索结果",
+                        text = stringResource(R.string.drama_results_title),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                     )
@@ -530,7 +532,7 @@ private fun DramaManualMatchDialog(
                 if (state.results.isEmpty()) {
                     item(key = "results-empty") {
                         Text(
-                            text = "还没有在线结果，先点搜索。",
+                            text = stringResource(R.string.drama_results_empty),
                             style = TvTypography.body,
                             color = TextSecondary,
                         )
@@ -561,14 +563,14 @@ private fun DramaManualMatchDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = "应用匹配",
+                    text = stringResource(R.string.drama_apply_match),
                     icon = Icons.Filled.CheckCircle,
                     enabled = !busy && state.selectedResult != null,
                     onClick = onApply,
                     modifier = Modifier.width(180.dp),
                 )
                 TvButton(
-                    text = "关闭",
+                    text = stringResource(R.string.drama_dialog_close),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -702,15 +704,15 @@ private fun DramaManualMatchResultItem(
                     DramaStatPill(airDate, WarningYellow)
                 }
                 if (result.sourceLabels.size > 1) {
-                    DramaStatPill("聚合 ${result.aggregatedSourceLabel()}", TextSecondary)
-                    DramaStatPill("应用 ${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_aggregated, result.aggregatedSourceLabel()), TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_apply, result.providerDisplayLabel(), result.providerRef.id), TextSecondary)
                 } else {
-                    DramaStatPill("${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_source, result.providerDisplayLabel(), result.providerRef.id), TextSecondary)
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = result.summary.ifBlank { "这条结果还没有简介。" },
+                text = result.summary.ifBlank { stringResource(R.string.drama_result_no_summary) },
                 color = TextSecondary,
                 fontSize = 12.sp,
                 maxLines = 3,

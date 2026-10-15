@@ -188,20 +188,20 @@ data class VideoSignalDescriptor(
             VideoSignalKind.UNKNOWN_HDR -> VideoRenderRuleKey.UNKNOWN_HDR
         }
 
-    fun displayLabel(): String =
+    fun displayLabel(): UiText =
         when (signalKind) {
-            VideoSignalKind.SDR -> "SDR"
-            VideoSignalKind.HDR10 -> "HDR10"
-            VideoSignalKind.HDR10_PLUS -> "HDR10+"
+            VideoSignalKind.SDR -> UiText("video_render_rule_sdr", listOf("SDR"), "SDR")
+            VideoSignalKind.HDR10 -> UiText("video_render_rule_hdr10", listOf("HDR10"), "HDR10")
+            VideoSignalKind.HDR10_PLUS -> UiText("video_render_rule_hdr10_plus", listOf("HDR10+"), "HDR10+")
             VideoSignalKind.DOLBY_VISION -> {
                 val profileLabel = dolbyVisionProfile?.displayLabel
                 if (profileLabel.isNullOrBlank() || profileLabel == DolbyVisionProfile.UNKNOWN.displayLabel) {
-                    "Dolby Vision"
+                    UiText("video_render_rule_dolby_vision", listOf("Dolby Vision"), "Dolby Vision")
                 } else {
-                    "Dolby Vision $profileLabel"
+                    UiText("signal_dolby_vision_profile", listOf(profileLabel), "Dolby Vision $profileLabel")
                 }
             }
-            VideoSignalKind.UNKNOWN_HDR -> "Unknown HDR"
+            VideoSignalKind.UNKNOWN_HDR -> uiText("video_render_rule_unknown_hdr", "Unknown HDR")
         }
 
     val isHdr: Boolean
