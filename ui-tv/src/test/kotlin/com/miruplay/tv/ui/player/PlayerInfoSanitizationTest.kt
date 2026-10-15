@@ -16,7 +16,7 @@ class PlayerInfoSanitizationTest {
         val name = sanitizedPlaybackSourceName(source)
 
         assertEquals("Episode 01.mkv", name)
-        assertEquals("HTTPS", playbackSourceSchemeLabel(source))
+        assertEquals("HTTPS", playbackSourceSchemeLabel(source).fallback)
         assertFalse(name.contains("secret"))
         assertFalse(name.contains("dav.example"))
     }
@@ -26,6 +26,6 @@ class PlayerInfoSanitizationTest {
         val source = "D:\\Anime\\Episode 02.mkv"
 
         assertEquals("Episode 02.mkv", sanitizedPlaybackSourceName(source))
-        assertEquals("本地文件", playbackSourceSchemeLabel(source))
+        assertEquals("本地文件", playbackSourceSchemeLabel(source).fallback)
     }
 }

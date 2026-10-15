@@ -25,6 +25,7 @@ import android.content.Context
 import com.miruplay.tv.model.playbackAudioTrackCountLabel
 import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.player.AudioTrack
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -73,7 +74,7 @@ class PlayerTimelineFocusTest {
                         selectedSubtitleTrackIndex = null,
                         selectedAudioTrackIndex = null,
                         playbackSpeed = 1.0f,
-                        signalFormatLabel = "",
+                        signalFormatLabel = rawUiText(""),
                         openMenu = null,
                         timelineFocusRequester = timelineFocusRequester,
                         transportFocusRequester = transportFocusRequester,
@@ -135,7 +136,7 @@ class PlayerTimelineFocusTest {
                 selectedSubtitleTrackIndex = null,
                 selectedAudioTrackIndex = null,
                 playbackSpeed = 1.0f,
-                signalFormatLabel = "",
+                signalFormatLabel = rawUiText(""),
                 openMenu = null,
                 timelineFocusRequester = timelineFocusRequester,
                 transportFocusRequester = transportFocusRequester,
