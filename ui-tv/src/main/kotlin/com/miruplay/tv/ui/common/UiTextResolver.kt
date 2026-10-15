@@ -1088,5 +1088,6 @@ internal fun uiTextResId(key: String): Int =
         "measure_download_failed" -> R.string.measure_download_failed
         "notif_library_scan_preparing" -> R.string.notif_library_scan_preparing
         "notif_library_scan_title" -> R.string.notif_library_scan_title
+        "web_scan_failed" -> R.string.web_scan_failed
         else -> 0
     }

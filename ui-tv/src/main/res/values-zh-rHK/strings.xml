@@ -1068,4 +1068,5 @@
     <string name="measure_download_failed">下載校準失敗</string>
     <string name="notif_library_scan_preparing">準備緊掃描 %1$s 個媒體源</string>
     <string name="notif_library_scan_title">媒體庫掃描</string>
+    <string name="web_scan_failed">掃描媒體源失敗</string>
 </resources>

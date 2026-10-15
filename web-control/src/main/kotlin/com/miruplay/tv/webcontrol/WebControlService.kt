@@ -2,6 +2,8 @@ package com.miruplay.tv.webcontrol
 
 import android.content.Context
 import android.os.Build
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.background.BackgroundTaskForegroundController
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
@@ -823,7 +825,7 @@ class WebControlService @Inject constructor(
             backendOptions = supportedPlaybackRenderBackends().map { backend ->
                 PlaybackBackendOptionDto(
                     value = backend.name,
-                    label = playbackBackendLabel(backend),
+                    label = playbackBackendLabel(backend).fallback,
                 )
             },
         )
@@ -1373,7 +1375,7 @@ class WebControlService @Inject constructor(
                     result
                 }
                 is Result.Error -> {
-                    scanStatus.fail(result.error.toUserMessage())
+                    scanStatus.fail(result.error.toUiText())
                     result
                 }
             }
@@ -1381,7 +1383,7 @@ class WebControlService @Inject constructor(
             scanStatus.cancel()
             throw e
         } catch (e: Exception) {
-            scanStatus.fail(e.message ?: "扫描媒体源失败")
+            scanStatus.fail(e.message?.let { rawUiText(it) } ?: uiText("web_scan_failed", "扫描媒体源失败"))
             throw e
         } finally {
             scanCoordinator.setProgressCallback(null)
@@ -1478,7 +1480,7 @@ private suspend fun playbackDebugConfigSnapshot(
         activeBackend = playbackController.activeRenderBackend.value.name,
         forcedSignalKind = forcedSignal?.signalKind?.name,
         currentSignalKind = currentSignal?.signalKind?.name,
-        currentSignalLabel = currentSignal?.displayLabel().orEmpty(),
+        currentSignalLabel = currentSignal?.displayLabel()?.fallback.orEmpty(),
         currentRuleKey = playbackController.currentRenderRuleKey.value.name,
         currentToneMapping = PlaybackDebugCurrentToneMappingDto(
             enabled = currentToneMapping.enabled,
