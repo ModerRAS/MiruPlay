@@ -1133,4 +1133,5 @@
     <string name="translate_lang_es">西班牙语</string>
     <string name="translate_lang_ru">俄语</string>
     <string name="translate_lang_pt">葡萄牙语</string>
+    <string name="settings_app_mode_music">音乐</string>
 </resources>

@@ -2,16 +2,15 @@ package com.miruplay.tv.ui.common
 
 import android.content.Context
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.ui.tv.R
 
 /** Compose 内解析：ViewModel/Model 层只传递 UiText，到渲染时才落到当前语言。 */
 @Composable
 fun UiText.resolve(): String {
-    val id = uiTextResId(key)
-    if (id == 0) return fallback
-    return stringResource(id, *resolveArgs().map { it ?: "" }.toTypedArray())
+    val context = LocalContext.current
+    return resolve(context)
 }
 
 /** 非 Compose 场景（Toast/通知/VM 插值）解析，需要 Context。 */
@@ -21,10 +20,11 @@ fun UiText.resolve(context: Context): String {
     return context.resources.getString(id, *resolveArgs(context).map { it ?: "" }.toTypedArray())
 }
 
-private fun UiText.resolveArgs(context: Context? = null): Array<Any?> =
+private fun UiText.resolveArgs(context: Context): Array<Any?> =
     args.map { arg ->
         when (arg) {
-            is UiText -> if (context == null) arg.fallback else arg.resolve(context)
+            // 嵌套必须递归解析（曾经 fallback 导致英文 UI 冒中文，已修）。
+            is UiText -> arg.resolve(context)
             else -> arg
         }
     }.toTypedArray()
@@ -1167,5 +1167,6 @@ internal fun uiTextResId(key: String): Int =
         "translate_lang_es" -> R.string.translate_lang_es
         "translate_lang_ru" -> R.string.translate_lang_ru
         "translate_lang_pt" -> R.string.translate_lang_pt
+        "settings_app_mode_music" -> R.string.settings_app_mode_music
         else -> 0
     }

@@ -287,6 +287,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("首页模式", settingsAppModeTitleLabel().fallback)
         assertEquals("动漫", settingsAppModeOptionLabel("anime").fallback)
         assertEquals("电视剧", settingsAppModeOptionLabel("drama").fallback)
+        assertEquals("音乐", settingsAppModeOptionLabel("music").fallback)
         assertEquals("下次启动会进入动漫首页。", settingsAppModeStatus("anime").fallback)
         assertEquals("下次启动会进入电视剧首页。", settingsAppModeStatus("drama").fallback)
         assertEquals("这里只决定应用下次启动先进动漫首页还是电视剧首页，不会立刻切换当前界面。", settingsAppModeHint().fallback)

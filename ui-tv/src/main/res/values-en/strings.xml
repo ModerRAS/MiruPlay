@@ -134,7 +134,7 @@
     <string name="settings_menu_metadata_tokens_one">1 set</string>
     <string name="settings_menu_metadata_tokens_two">2 set</string>
     <string name="settings_menu_about">Version %1$s</string>
-    <string name="settings_menu_playback_summary">%1$s · %2$s%3$s · %4$s</string>
+    <string name="settings_menu_playback_summary">%1$s · %2$s %3$s · %4$s</string>
     <string name="settings_menu_audio_dsp_on">Enabled · sweep calibrated</string>
     <string name="settings_menu_audio_dsp_off">Disabled</string>
     <string name="settings_menu_panel_title">Settings menu</string>
@@ -1131,4 +1131,5 @@
     <string name="translate_lang_es">Spanish</string>
     <string name="translate_lang_ru">Russian</string>
     <string name="translate_lang_pt">Portuguese</string>
+    <string name="settings_app_mode_music">Music</string>
 </resources>

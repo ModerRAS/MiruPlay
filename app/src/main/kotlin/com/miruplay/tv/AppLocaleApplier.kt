@@ -39,7 +39,8 @@ object AppLocaleApplier {
     }
 
     private fun prefs(context: Context): SharedPreferences =
-        context.applicationContext.getSharedPreferences(AppLocaleStore.PREFS_FILE, Context.MODE_PRIVATE)
+        // 注意：Application.attachBaseContext 时 applicationContext 仍为 null，必须直接用传入的 base。
+        context.getSharedPreferences(AppLocaleStore.PREFS_FILE, Context.MODE_PRIVATE)
 
     private fun readLocale(context: Context): AppLanguage? =
         AppLanguage.fromId(prefs(context).getString(AppLocaleStore.KEY_APP_LANGUAGE, null))

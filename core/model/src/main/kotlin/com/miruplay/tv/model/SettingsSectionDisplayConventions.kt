@@ -736,10 +736,10 @@ fun settingsAppModeTitleLabel(): UiText =
     uiText("settings_app_mode_title", "首页模式")
 
 fun settingsAppModeOptionLabel(mode: String): UiText =
-    if (mode.equals("drama", ignoreCase = true)) {
-        uiText("settings_app_mode_drama", "电视剧")
-    } else {
-        uiText("settings_app_mode_anime", "动漫")
+    when {
+        mode.equals("drama", ignoreCase = true) -> uiText("settings_app_mode_drama", "电视剧")
+        mode.equals("music", ignoreCase = true) -> uiText("settings_app_mode_music", "音乐")
+        else -> uiText("settings_app_mode_anime", "动漫")
     }
 
 fun settingsAppModeLabel(mode: String): UiText =
