@@ -167,6 +167,7 @@ fun MediaSourceType.webControlDefaultSourceName(): String =
         MediaSourceType.LOCAL -> "本地媒体库"
         MediaSourceType.WEBDAV -> "WebDAV 媒体库"
         MediaSourceType.SMB -> "SMB 共享"
+        MediaSourceType.ANI -> "ANi 在线"
     }
 
 fun Result<Boolean>.toWebControlSourceTestResponse(): SourceTestResponse =
@@ -254,7 +255,7 @@ private fun effectiveMlipMetadataMode(
 private fun MediaSourceType.webControlSourceLocation(location: String): String =
     when (this) {
         MediaSourceType.SMB -> MediaSourceInfoConventions.normalizeSmbRoot(location)
-        MediaSourceType.LOCAL, MediaSourceType.WEBDAV -> location
+        MediaSourceType.LOCAL, MediaSourceType.WEBDAV, MediaSourceType.ANI -> location
     }
 
 private const val DISABLE_ONLINE_METADATA_KEY = "disableOnlineMetadata"

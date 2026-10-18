@@ -981,7 +981,8 @@ internal fun normalizeLaunchTestSourceLocation(
     when (type) {
         MediaSourceType.SMB -> MediaSourceInfoConventions.normalizeSmbRoot(location)
         MediaSourceType.LOCAL,
-        MediaSourceType.WEBDAV -> location.trim()
+        MediaSourceType.WEBDAV,
+        MediaSourceType.ANI -> location.trim()
     }
 
 internal fun resolveLaunchTestSourceRequest(
@@ -1019,6 +1020,7 @@ internal fun resolveLaunchTestSourceRequest(
             MediaSourceType.LOCAL -> "ADB Test Local"
             MediaSourceType.WEBDAV -> "ADB Test WebDAV"
             MediaSourceType.SMB -> "ADB Test SMB"
+            MediaSourceType.ANI -> "ADB Test ANi"
         },
         type = sourceType,
         location = location,

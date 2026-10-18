@@ -1,5 +1,7 @@
 package com.miruplay.tv.scanner
 
+import com.miruplay.tv.model.AniTitleParser
+
 /**
  * Registry for custom episode naming patterns
  */
@@ -28,6 +30,29 @@ fun extractAnimeName(fileName: String): String? {
 /**
  * Common episode naming patterns
  */
+class DashEpisodePattern : NamedPattern {
+    override val name = "DashEpisode"
+    override val description = "[Fansub] Title - 02 [tags].mp4"
+    override val priority = 110
+
+    // Baha/WEB-DL style: series name, dash, episode number, bracketed tags.
+    private val dashRegex = Regex(""" - (\d{1,4}) \[""")
+
+    override fun matches(fileName: String): Boolean = dashRegex.containsMatchIn(fileName)
+
+    override fun extract(fileName: String): EpisodeMatch? {
+        val result = dashRegex.findAll(fileName).lastOrNull() ?: return null
+        val episode = result.groupValues.getOrNull(1)?.toIntOrNull() ?: return null
+        val ref = AniTitleParser.parse(fileName) ?: return null
+        return EpisodeMatch(
+            animeName = ref.seriesTitle,
+            seasonNumber = ref.seasonNumber,
+            episodeNumber = episode,
+            rawPattern = result.value,
+        )
+    }
+}
+
 class StandardEpisodePattern : NamedPattern {
     override val name = "Standard"
     override val description = "S01E01 or Episode 01 or 01"
@@ -102,6 +127,7 @@ class TitlePattern : NamedPattern {
  */
 class DefaultEpisodeDetector : EpisodeDetector {
     private val patterns = listOf(
+        DashEpisodePattern(),
         StandardEpisodePattern(),
         MultiPartPattern(),
         TitlePattern()
@@ -112,6 +138,13 @@ class DefaultEpisodeDetector : EpisodeDetector {
     }
     
     override fun detectSeason(fileName: String): Int? {
+        // Try Chinese season marker first: 第2季 / 第二季 / 第十季.
+        Regex("""第\s*([0-9一二三四五六七八九十百]+)\s*季""")
+            .find(fileName)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.let(AniTitleParser::parseSeasonNumber)
+            ?.let { return it }
         // Try S01 pattern first
         Regex("""S(\d{1,2})""", RegexOption.IGNORE_CASE)
             .find(fileName)

@@ -12,6 +12,7 @@ fun MediaSourceType.tvLabel(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_type_local", "本地")
         MediaSourceType.WEBDAV -> rawUiText("WebDAV")
         MediaSourceType.SMB -> rawUiText("SMB")
+        MediaSourceType.ANI -> rawUiText("ANi")
     }
 
 fun MediaSourceType.tvBadgeLabel(): UiText =
@@ -19,6 +20,7 @@ fun MediaSourceType.tvBadgeLabel(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_badge_local", "本地")
         MediaSourceType.WEBDAV -> rawUiText("DAV")
         MediaSourceType.SMB -> rawUiText("SMB")
+        MediaSourceType.ANI -> rawUiText("ANi")
     }
 
 fun MediaSourceType.defaultSourceName(): UiText =
@@ -26,6 +28,7 @@ fun MediaSourceType.defaultSourceName(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_default_local", "本地下载")
         MediaSourceType.WEBDAV -> uiText("mediasource_default_webdav", "WebDAV 媒体库")
         MediaSourceType.SMB -> uiText("mediasource_default_smb", "SMB 共享")
+        MediaSourceType.ANI -> uiText("mediasource_default_ani", "ANi 在线")
     }
 
 fun MediaSourceType.genericSourceName(): UiText =
@@ -33,6 +36,7 @@ fun MediaSourceType.genericSourceName(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_generic_local", "本地媒体源")
         MediaSourceType.WEBDAV -> uiText("mediasource_generic_webdav", "WebDAV 媒体源")
         MediaSourceType.SMB -> uiText("mediasource_generic_smb", "SMB 媒体源")
+        MediaSourceType.ANI -> uiText("mediasource_generic_ani", "ANi 在线源")
     }
 
 fun MediaSourceType.tvSourceHint(): UiText =
@@ -40,6 +44,7 @@ fun MediaSourceType.tvSourceHint(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_hint_local", "设备文件夹")
         MediaSourceType.WEBDAV -> uiText("mediasource_hint_webdav", "HTTP 文件服务")
         MediaSourceType.SMB -> uiText("mediasource_hint_smb", "局域网共享")
+        MediaSourceType.ANI -> uiText("mediasource_hint_ani", "在线 RSS")
     }
 
 fun MediaSourceType.tvLocationLabel(): UiText =
@@ -47,6 +52,7 @@ fun MediaSourceType.tvLocationLabel(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_location_local", "媒体文件夹")
         MediaSourceType.WEBDAV -> uiText("mediasource_location_webdav", "WebDAV 地址")
         MediaSourceType.SMB -> uiText("mediasource_location_smb", "SMB 地址")
+        MediaSourceType.ANI -> uiText("mediasource_location_ani", "RSS 地址")
     }
 
 fun mediaSourceListTitleLabel(): UiText = uiText("mediasource_list_title", "媒体源")
@@ -86,6 +92,7 @@ fun MediaSourceType.openSourceActionLabel(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_open_local", "打开本地")
         MediaSourceType.WEBDAV -> uiText("mediasource_open_webdav", "打开 WebDAV")
         MediaSourceType.SMB -> uiText("mediasource_open_smb", "打开 SMB")
+        MediaSourceType.ANI -> uiText("mediasource_open_ani", "打开 ANi")
     }
 
 fun mediaSourceScanActionLabel(): UiText = uiText("mediasource_action_scan", "扫描")
@@ -172,6 +179,7 @@ fun MediaSourceType.sourceEndpointPlaceholderLabel(): UiText =
         MediaSourceType.LOCAL -> uiText("mediasource_endpoint_local", "填写本地媒体库路径")
         MediaSourceType.WEBDAV -> uiText("mediasource_endpoint_webdav", "填写 WebDAV 地址")
         MediaSourceType.SMB -> uiText("mediasource_endpoint_smb", "填写 SMB 共享地址")
+        MediaSourceType.ANI -> uiText("mediasource_endpoint_ani", "填写 ANi RSS 地址")
     }
 
 fun mediaSourceTestConnectionActionLabel(isTesting: Boolean): UiText =
@@ -380,7 +388,8 @@ fun MediaSourceInfo.scanResultDisplayName(rootPath: String? = null): String =
                 .ifBlank { tvDisplayName(fallbackName = mediaSourceLocalLibraryFallbackName().fallback) }
         }
         MediaSourceType.WEBDAV,
-        MediaSourceType.SMB -> tvDisplayName(fallbackName = type.defaultSourceName().fallback)
+        MediaSourceType.SMB,
+        MediaSourceType.ANI -> tvDisplayName(fallbackName = type.defaultSourceName().fallback)
     }
 
 fun MediaSourceInfo.sourcePickerTitle(): UiText =

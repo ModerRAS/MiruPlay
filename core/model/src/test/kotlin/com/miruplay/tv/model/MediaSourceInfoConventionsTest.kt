@@ -2,6 +2,7 @@ package com.miruplay.tv.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -105,6 +106,20 @@ class MediaSourceInfoConventionsTest {
         assertEquals("D:/Anime", MediaSourceType.LOCAL.defaultSourceLocation("D:/Anime"))
         assertEquals("", MediaSourceType.WEBDAV.defaultSourceLocation("D:/Anime"))
         assertEquals("smb://", MediaSourceType.SMB.defaultSourceLocation("D:/Anime"))
+        assertEquals(ANI_DEFAULT_FEED_URL, MediaSourceType.ANI.defaultSourceLocation("D:/Anime"))
+    }
+
+    @Test
+    fun `ani factory stores feed url and optional proxy`() {
+        val direct = MediaSourceInfoConventions.ani()
+        assertEquals(MediaSourceType.ANI, direct.type)
+        assertEquals(ANI_DEFAULT_FEED_URL, direct.connectionInfo["url"])
+        assertNull(direct.proxyConfig())
+
+        val proxied = MediaSourceInfoConventions.ani(
+            proxy = ProxyConfig(enabled = true, host = "127.0.0.1", port = 7890),
+        )
+        assertEquals(ProxyConfig(enabled = true, host = "127.0.0.1", port = 7890), proxied.proxyConfig())
     }
 
     @Test

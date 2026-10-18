@@ -65,6 +65,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LiveTv
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -147,6 +148,7 @@ import com.miruplay.tv.model.MediaRecognitionMode
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
+import com.miruplay.tv.model.ProxyConfig
 import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.MiruPlaySettingsSection
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -604,7 +606,16 @@ fun AddSourceScreen(
                 username = username,
                 password = password,
                 recognitionMode = effectiveRecognitionMode,
-            )
+            ) + buildMap {
+                if (selectedType == MediaSourceType.ANI && rssProxyEnabled && rssProxyHost.isNotBlank()) {
+                    val proxyPort = parseRssProxyPort(rssProxyPort)
+                    if (proxyPort > 0) {
+                        put(MediaSourceInfoConventions.CONNECTION_PROXY_ENABLED, "true")
+                        put(MediaSourceInfoConventions.CONNECTION_PROXY_HOST, rssProxyHost.trim())
+                        put(MediaSourceInfoConventions.CONNECTION_PROXY_PORT, proxyPort.toString())
+                    }
+                }
+            }
         )
         if (editingSourceId == null) {
             viewModel.addSource(source)
@@ -719,7 +730,16 @@ fun AddSourceScreen(
                     isEditingSource = editingSourceId != null,
                     onNewSource = { resetSourceForm() },
                     onTestConnection = {
-                        viewModel.testConnection(selectedType, location, username, password)
+                        val proxy = if (selectedType == MediaSourceType.ANI) {
+                            ProxyConfig(
+                                enabled = rssProxyEnabled,
+                                host = rssProxyHost.trim(),
+                                port = parseRssProxyPort(rssProxyPort),
+                            )
+                        } else {
+                            null
+                        }
+                        viewModel.testConnection(selectedType, location, username, password, proxy)
                     },
                     onSaveSource = ::saveSourceForm,
                     autoScanEnabled = autoScanEnabled,
@@ -4948,6 +4968,7 @@ private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder
     MediaSourceType.WEBDAV -> Icons.Filled.Cloud
     MediaSourceType.SMB -> Icons.Filled.Dns
+    MediaSourceType.ANI -> Icons.Filled.LiveTv
 }
 
 private fun displayNameForTreeUri(uri: Uri, context: Context): String {

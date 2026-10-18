@@ -196,6 +196,7 @@ class ScanCoordinator @Inject constructor(
             MediaSourceType.WEBDAV,
             MediaSourceType.SMB ->
                 sourceInfo.connectionInfo["url"] ?: sourceInfo.connectionInfo["path"] ?: "/"
+            MediaSourceType.ANI -> sourceInfo.connectionInfo["url"] ?: ""
         }
         val scanStartPath = if (isLocalSource) rootPath else ""
         val remoteRootContext = if (isLocalSource) null else remoteRootContextName(rootPath)
@@ -1695,6 +1696,7 @@ class ScanCoordinator @Inject constructor(
             MediaSourceType.LOCAL -> path
             MediaSourceType.WEBDAV -> MediaPathConventions.joinRemoteUrl(sourceRoot, path)
             MediaSourceType.SMB -> path
+            MediaSourceType.ANI -> path
         }
 
     private fun nameOfPath(path: String): String =
