@@ -93,7 +93,7 @@ class BangumiMetadataRefreshCore(
 
         val metadataId = entry.metadataId?.takeIf { it.isNotBlank() }
             ?: return@measureSuspendResult Result.failure(
-                AppError.ScrapingError.ApiError("Bangumi", metadataApplyBangumiRequiredMessage())
+                AppError.ScrapingError.ApiError("Bangumi", metadataApplyBangumiRequiredMessage().fallback)
             )
         cacheBangumiMetadata(
             cacheAnimeId = animeId,
@@ -129,14 +129,14 @@ class BangumiMetadataRefreshCore(
             ).getOrNull()
                 ?.firstOrNull { it.confidence >= minimumConfidence }
                 ?: return@withContext Result.failure(
-                    AppError.ScrapingError.ApiError("Bangumi", detailBangumiNoReliableMatchMessage())
+                    AppError.ScrapingError.ApiError("Bangumi", detailBangumiNoReliableMatchMessage().fallback)
                 )
 
             cacheMatchedMetadata(
                 cacheAnimeId = cacheAnimeId,
                 match = match,
                 localEpisodes = localEpisodes,
-                detailsFailureMessage = detailBangumiDetailsFailedMessage(),
+                detailsFailureMessage = detailBangumiDetailsFailedMessage().fallback,
             )
         }
     }

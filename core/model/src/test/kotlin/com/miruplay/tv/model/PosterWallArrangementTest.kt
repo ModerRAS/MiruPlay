@@ -34,7 +34,7 @@ class PosterWallArrangementTest {
 
         assertEquals(
             listOf("2024年9月新番", "2024年4月新番", "2024年1月新番", "2023年7月新番", "未识别播出日期"),
-            sections.map { it.title },
+            sections.map { it.title?.fallback },
         )
         assertEquals(listOf("autumn", "late"), sections.first().anime.map { it.id })
         assertEquals(listOf("unknown"), sections.last().anime.map { it.id })
@@ -49,11 +49,11 @@ class PosterWallArrangementTest {
 
     @Test
     fun `arrangement labels explain current poster wall behavior`() {
-        assertEquals("按标题", posterWallArrangementLabel(PosterWallArrangement.TITLE))
-        assertEquals("按新番季", posterWallArrangementLabel(PosterWallArrangement.RELEASE_SEASON))
+        assertEquals("按标题", posterWallArrangementLabel(PosterWallArrangement.TITLE).fallback)
+        assertEquals("按新番季", posterWallArrangementLabel(PosterWallArrangement.RELEASE_SEASON).fallback)
         assertEquals(
             "海报墙当前按标题排序：中文名优先，其次使用原名。",
-            posterWallArrangementStatus(PosterWallArrangement.TITLE),
+            posterWallArrangementStatus(PosterWallArrangement.TITLE).fallback,
         )
     }
 }

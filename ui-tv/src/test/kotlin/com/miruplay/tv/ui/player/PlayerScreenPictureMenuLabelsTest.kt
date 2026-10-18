@@ -9,11 +9,11 @@ import org.junit.Test
 class PlayerScreenPictureMenuLabelsTest {
     @Test
     fun `legacy libvlc backend label falls back to standard exo`() {
-        assertEquals("标准 Exo", playbackBackendLabel(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC))
+        assertEquals("标准 Exo", playbackBackendLabel(PlaybackRenderBackend.EXPERIMENTAL_LIBVLC).fallback)
     }
 
     @Test
     fun `picture menu title is localized`() {
-        assertEquals("画面", pictureOsdMenuTitleLabel())
+        assertEquals("画面", pictureOsdMenuTitleLabel().fallback)
     }
 }

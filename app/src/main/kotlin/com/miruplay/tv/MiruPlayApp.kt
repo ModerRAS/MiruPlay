@@ -63,6 +63,10 @@ class MiruPlayApp : Application() {
         override fun onActivityDestroyed(activity: Activity) = Unit
     }
 
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(AppLocaleApplier.wrap(base))
+    }
+
     override fun onCreate() {
         val earlyDiagnostics = EarlyStartupDiagnosticsRecorder(this)
         earlyDiagnostics.checkpoint("application_on_create_before_super")

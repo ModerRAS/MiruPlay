@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.music
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,8 +59,8 @@ fun MusicPlayerScreen(
     OverscanContainer(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         Column(modifier = Modifier.fillMaxSize().padding(32.dp), verticalArrangement = Arrangement.SpaceBetween, horizontalAlignment = Alignment.CenterHorizontally) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                TvButton(text = "返回", onClick = onNavigateBack, modifier = Modifier.width(110.dp), secondary = true)
-                Text(text = "音乐播放", style = TvTypography.body, color = TextSecondary)
+                TvButton(text = stringResource(R.string.music_back), onClick = onNavigateBack, modifier = Modifier.width(110.dp), secondary = true)
+                Text(text = stringResource(R.string.music_player_title), style = TvTypography.body, color = TextSecondary)
                 Spacer(Modifier.width(110.dp))
             }
 
@@ -67,7 +69,7 @@ fun MusicPlayerScreen(
                     Text(text = current?.title?.take(2) ?: "♪", style = TvTypography.title, color = TextPrimary)
                 }
                 Spacer(Modifier.height(16.dp))
-                Text(text = current?.title ?: "未播放", style = TvTypography.title, color = TextPrimary)
+                Text(text = current?.title ?: stringResource(R.string.music_not_playing), style = TvTypography.title, color = TextPrimary)
                 Spacer(Modifier.height(6.dp))
                 Text(text = current?.artist ?: "", style = TvTypography.body, color = TextSecondary)
                 Spacer(Modifier.height(12.dp))
@@ -81,22 +83,22 @@ fun MusicPlayerScreen(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                TvButton(text = "上一首", icon = Icons.Filled.SkipPrevious, onClick = { viewModel.previous() }, modifier = Modifier.width(130.dp), secondary = true)
-                TvButton(text = if (isPlaying) "暂停" else "播放", icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, onClick = { viewModel.togglePlayPause() }, modifier = Modifier.width(130.dp))
-                TvButton(text = "下一首", icon = Icons.Filled.SkipNext, onClick = { viewModel.next() }, modifier = Modifier.width(130.dp), secondary = true)
+                TvButton(text = stringResource(R.string.music_prev), icon = Icons.Filled.SkipPrevious, onClick = { viewModel.previous() }, modifier = Modifier.width(130.dp), secondary = true)
+                TvButton(text = if (isPlaying) stringResource(R.string.music_pause) else stringResource(R.string.music_play), icon = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow, onClick = { viewModel.togglePlayPause() }, modifier = Modifier.width(130.dp))
+                TvButton(text = stringResource(R.string.music_next), icon = Icons.Filled.SkipNext, onClick = { viewModel.next() }, modifier = Modifier.width(130.dp), secondary = true)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = if (queue.shuffle) "随机开" else "随机关",
+                    text = if (queue.shuffle) stringResource(R.string.music_shuffle_on) else stringResource(R.string.music_shuffle_off),
                     icon = Icons.Filled.Shuffle,
                     onClick = { viewModel.toggleShuffle() },
                     modifier = Modifier.width(130.dp),
                     secondary = !queue.shuffle
                 )
                 val repeatLabel = when (queue.repeat) {
-                    MusicRepeatMode.OFF -> "不循环"
-                    MusicRepeatMode.ONE -> "单曲循环"
-                    MusicRepeatMode.ALL -> "列表循环"
+                    MusicRepeatMode.OFF -> stringResource(R.string.music_repeat_off)
+                    MusicRepeatMode.ONE -> stringResource(R.string.music_repeat_one)
+                    MusicRepeatMode.ALL -> stringResource(R.string.music_repeat_all)
                 }
                 val repeatIcon = when (queue.repeat) {
                     MusicRepeatMode.ONE -> Icons.Filled.RepeatOne

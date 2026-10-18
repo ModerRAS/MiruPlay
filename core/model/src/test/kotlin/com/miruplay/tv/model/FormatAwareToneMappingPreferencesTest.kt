@@ -74,7 +74,7 @@ class FormatAwareToneMappingPreferencesTest {
                 codecId = "dvhe.08.04",
                 dolbyVisionProfile = DolbyVisionProfile.PROFILE_8_1,
                 dolbyVisionLevel = "04",
-            ).displayLabel(),
+            ).displayLabel().fallback,
         )
         assertEquals(
             "Dolby Vision P5",
@@ -83,7 +83,7 @@ class FormatAwareToneMappingPreferencesTest {
                 codecId = "dvh1.05.06",
                 dolbyVisionProfile = DolbyVisionProfile.PROFILE_5,
                 dolbyVisionLevel = "06",
-            ).displayLabel(),
+            ).displayLabel().fallback,
         )
     }
 

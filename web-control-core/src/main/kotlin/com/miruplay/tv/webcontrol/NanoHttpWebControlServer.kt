@@ -252,6 +252,13 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, PlaybackSettingsRequest.serializer())
                 jsonResponse(PlaybackSettingsDto.serializer(), webControlService.savePlaybackSettings(request))
             }
+            session.method == Method.GET && route == "/api/settings/locale" -> {
+                jsonResponse(AppLocaleDto.serializer(), webControlService.getAppLocale())
+            }
+            session.method == Method.PUT && route == "/api/settings/locale" -> {
+                val request = parseBody(session, SetAppLocaleRequest.serializer())
+                jsonResponse(AppLocaleDto.serializer(), webControlService.setAppLocale(request))
+            }
             session.method == Method.GET && route == "/api/audio-dsp" -> {
                 jsonResponse(AudioDspDto.serializer(), webControlService.getAudioDsp())
             }

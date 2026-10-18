@@ -34,6 +34,7 @@ import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -522,7 +523,7 @@ class DramaLibraryViewModelTest {
         val state = viewModel.state.value as DramaLibraryUiState.Ready
         assertEquals(
             listOf("未识别播出日期"),
-            state.browseSections.mapNotNull { it.title },
+            state.browseSections.mapNotNull { it.title?.fallback },
         )
         assertEquals(
             listOf(listOf("Spring Show", "Summer Show")),
@@ -554,10 +555,10 @@ class DramaLibraryViewModelTest {
         )
         advanceUntilIdle()
 
-        scanController.emit(LibraryScanState.Failed("扫描失败"))
+        scanController.emit(LibraryScanState.Failed(rawUiText("扫描失败")))
         advanceUntilIdle()
 
-        assertEquals(DramaLibraryUiState.ScanError("扫描失败"), viewModel.state.value)
+        assertEquals(DramaLibraryUiState.ScanError(rawUiText("扫描失败")), viewModel.state.value)
     }
 
     @Test
@@ -587,13 +588,13 @@ class DramaLibraryViewModelTest {
         scanController.emit(
             LibraryScanState.Finished(
                 results = emptyList(),
-                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+                sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
             ),
         )
         advanceUntilIdle()
 
         assertEquals(
-            DramaLibraryUiState.ScanError("HTTP 错误 404：Not Found"),
+            DramaLibraryUiState.ScanError(rawUiText("HTTP 错误 404：Not Found")),
             viewModel.state.value,
         )
     }
@@ -638,13 +639,13 @@ class DramaLibraryViewModelTest {
         scanController.emit(
             LibraryScanState.Finished(
                 results = emptyList(),
-                sourceFailures = listOf("HTTP 错误 404：Not Found"),
+                sourceFailures = listOf(rawUiText("HTTP 错误 404：Not Found")),
             ),
         )
         advanceUntilIdle()
 
         val readyState = viewModel.state.value as DramaLibraryUiState.Ready
-        assertEquals("有 1 个电视剧源扫描失败：HTTP 错误 404：Not Found", readyState.scanNotice)
+        assertEquals("有 1 个电视剧源扫描失败：HTTP 错误 404：Not Found", readyState.scanNotice?.text?.fallback)
         assertEquals(listOf("医馆笑传"), readyState.featuredSeries.map(DramaSeries::title))
     }
 

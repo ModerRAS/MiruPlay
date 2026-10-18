@@ -1,6 +1,8 @@
 package com.miruplay.tv.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -54,7 +56,7 @@ fun EpisodeVersionDialog(
                 .padding(24.dp),
         ) {
             Text(
-                text = "第 ${episode.episodeNumber} 集 · 选择播放版本",
+                text = stringResource(R.string.episode_version_title, episode.episodeNumber),
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )

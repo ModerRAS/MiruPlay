@@ -38,7 +38,7 @@ class BangumiIndexMetadataCoordinatorTest {
         assertEquals(listOf("正在用 Bangumi 搜索 1 个索引标题..."), startedStatuses)
         assertEquals(1, preview.data.matches.size)
         assertEquals(2, preview.data.plan?.readyUpdates?.size)
-        assertEquals("2 个可应用，0 个需复核，0 个冲突", preview.data.status)
+        assertEquals("2 个可应用，0 个需复核，0 个冲突", preview.data.status.fallback)
         assertEquals(listOf("Frieren"), scraper.searchQueries)
     }
 
@@ -54,8 +54,8 @@ class BangumiIndexMetadataCoordinatorTest {
             matches = listOf(MetadataBatchMatch(query = "Frieren", result = result(confidence = 0.95f))),
         ) as Result.Success
 
-        assertEquals("请先运行批量预览；当前没有可直接应用的高置信匹配。", missingPreview.data.status)
-        assertEquals("已将 Bangumi 批量元数据应用到 1 个索引条目，跳过 0 个冲突。", applied.data.status)
+        assertEquals("请先运行批量预览；当前没有可直接应用的高置信匹配。", missingPreview.data.status.fallback)
+        assertEquals("已将 Bangumi 批量元数据应用到 1 个索引条目，跳过 0 个冲突。", applied.data.status.fallback)
         assertEquals("431767", index.entries.single().metadataId)
         assertEquals(listOf(original.copy(sourceId = 1L)), applied.data.write.rollbackEntries)
         assertEquals(applied.data.write.rollbackEntries, index.lastUndo)
@@ -71,9 +71,9 @@ class BangumiIndexMetadataCoordinatorTest {
         val restored = coordinator.undoBatch(sourceId = 1L, rollbackEntries = listOf(original)) as Result.Success
         val empty = coordinator.undoBatch(sourceId = 1L, rollbackEntries = emptyList()) as Result.Success
 
-        assertEquals("已从上一次 Bangumi 批量更改中恢复 1 个索引条目。", restored.data.status)
+        assertEquals("已从上一次 Bangumi 批量更改中恢复 1 个索引条目。", restored.data.status.fallback)
         assertEquals(original.copy(sourceId = 1L), index.entries.single())
-        assertEquals("没有可撤销的 Bangumi 批量更改。", empty.data.status)
+        assertEquals("没有可撤销的 Bangumi 批量更改。", empty.data.status.fallback)
     }
 
     @Test
@@ -102,8 +102,8 @@ class BangumiIndexMetadataCoordinatorTest {
 
         assertEquals(highConfidence, selection.data.selectedResult)
         assertEquals(1, selection.data.plan?.readyUpdates?.size)
-        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", selection.data.status)
-        assertEquals("已接受复核的 Bangumi 匹配，更新 1 个索引条目。", accepted.data.status)
+        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", selection.data.status.fallback)
+        assertEquals("已接受复核的 Bangumi 匹配，更新 1 个索引条目。", accepted.data.status.fallback)
         assertEquals("431767", index.entries.single().metadataId)
     }
 
@@ -122,7 +122,7 @@ class BangumiIndexMetadataCoordinatorTest {
         val blank = coordinator.search(query = "", selectedEntry = null) as Result.Success
         val search = coordinator.search(query = "", selectedEntry = selected) { startedStatuses += it } as Result.Success
 
-        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", blank.data.status)
+        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", blank.data.status.fallback)
         assertEquals("Frieren", search.data.query)
         assertEquals(result(confidence = 0.95f), search.data.selectedResult)
         assertEquals(listOf("正在搜索 Bangumi：\"Frieren\"..."), startedStatuses)
@@ -163,7 +163,7 @@ class BangumiIndexMetadataCoordinatorTest {
         ) as Result.Success
 
         assertNotNull(applied.data.updatedEntry)
-        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", applied.data.status)
+        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", applied.data.status.fallback)
         assertEquals(listOf("431767", "431767"), index.entries.sortedBy { it.path }.map { it.metadataId })
         assertEquals(listOf(null, null), index.entries.sortedBy { it.path }.map { it.localMetadataOverrideKey() })
         assertEquals("431767", metadata.anime?.id)
@@ -192,7 +192,7 @@ class BangumiIndexMetadataCoordinatorTest {
         ) as Result.Success
 
         assertEquals(null, applied.data.updatedEntry)
-        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", applied.data.status)
+        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", applied.data.status.fallback)
         assertEquals("MLIP", index.entries.single().metadataSource)
         assertEquals(null, metadata.anime)
     }
@@ -211,7 +211,7 @@ class BangumiIndexMetadataCoordinatorTest {
         val undo = coordinator.undoBatch(sourceId = 1L, rollbackEntries = listOf(rollback)) as Result.Success
 
         assertEquals(emptyList<MediaIndexEntry>(), undo.data.restore.rollbackEntries)
-        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", undo.data.status)
+        assertEquals("MLIP 元数据由 library.db 管理，请在远端修正后重新扫描。", undo.data.status.fallback)
         assertEquals(emptyList<MediaIndexEntry>(), index.entries)
     }
 
@@ -229,7 +229,7 @@ class BangumiIndexMetadataCoordinatorTest {
 
         val cleared = coordinator.clearEntryMetadata(sourceId = 1L, entry = entry) as Result.Success
 
-        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", cleared.data.status)
+        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", cleared.data.status.fallback)
         assertEquals(null, index.entries.single().metadataId)
         assertEquals(listOf("431767"), metadata.invalidatedAnimeIds)
     }
@@ -248,10 +248,10 @@ class BangumiIndexMetadataCoordinatorTest {
         val clear = coordinator.clearEntryMetadata(sourceId = 1L, entry = null) as Result.Success
         val accept = coordinator.acceptBatchReview(sourceId = 1L, match = null) as Result.Success
 
-        assertEquals("请先打开或扫描媒体源。", preview.data.status)
-        assertEquals("请先选择索引视频，再应用 Bangumi 元数据。", apply.data.status)
-        assertEquals("请先选择索引视频，再清除元数据。", clear.data.status)
-        assertEquals("请先选择带 Bangumi 结果的批量匹配。", accept.data.status)
+        assertEquals("请先打开或扫描媒体源。", preview.data.status.fallback)
+        assertEquals("请先选择索引视频，再应用 Bangumi 元数据。", apply.data.status.fallback)
+        assertEquals("请先选择索引视频，再清除元数据。", clear.data.status.fallback)
+        assertEquals("请先选择带 Bangumi 结果的批量匹配。", accept.data.status.fallback)
     }
 
     private fun coordinator(

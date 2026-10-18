@@ -1,5 +1,7 @@
 package com.miruplay.tv.ui.player
 
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -44,6 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.tv.material3.Text
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.repository.BangumiCommentContent
 import com.miruplay.tv.repository.BangumiEpisodeComment
 import com.miruplay.tv.ui.components.RemoteImage
@@ -77,26 +82,26 @@ internal fun BangumiCommentsPanel(
             .border(1.dp, Color.White.copy(alpha = 0.14f))
             .padding(horizontal = 24.dp, vertical = 26.dp),
     ) {
-        Text("Bangumi 当集评论", style = TvTypography.subtitle, color = TextPrimary)
+        Text(stringResource(R.string.comments_panel_title), style = TvTypography.subtitle, color = TextPrimary)
         Spacer(Modifier.height(6.dp))
         Text(
-            text = bangumiEpisodeLabel(state.episodeId),
+            text = bangumiEpisodeLabel(state.episodeId).resolve(),
             style = TvTypography.caption,
             color = TextSecondary,
         )
         Spacer(Modifier.height(18.dp))
 
         when {
-            state.isLoading && state.comments.isEmpty() -> PanelMessage("正在加载评论…")
+            state.isLoading && state.comments.isEmpty() -> PanelMessage(uiText("comments_loading", "正在加载评论…"))
             state.errorMessage != null && state.comments.isEmpty() -> {
                 PanelActionMessage(
                     message = state.errorMessage,
-                    action = "重试",
+                    action = uiText("playback_retry", "重试"),
                     onClick = onRetry,
                     actionModifier = Modifier.focusRequester(focusRequester),
                 )
             }
-            state.comments.isEmpty() -> PanelMessage("这一集还没有评论。")
+            state.comments.isEmpty() -> PanelMessage(uiText("comments_empty", "这一集还没有评论。"))
             else -> LazyColumn(
                 state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -110,8 +115,8 @@ internal fun BangumiCommentsPanel(
                 if (state.hasMore || state.errorMessage != null) {
                     item {
                         PanelActionMessage(
-                            message = state.errorMessage ?: if (state.isLoading) "正在加载更多…" else "还有更多评论",
-                            action = if (state.errorMessage != null) "重试" else "加载更多",
+                            message = state.errorMessage ?: (if (state.isLoading) uiText("comments_loading_more", "正在加载更多…") else uiText("comments_more", "还有更多评论")),
+                            action = if (state.errorMessage != null) uiText("playback_retry", "重试") else uiText("comments_load_more", "加载更多"),
                             onClick = onLoadMore,
                             enabled = !state.isLoading,
                         )
@@ -122,8 +127,9 @@ internal fun BangumiCommentsPanel(
     }
 }
 
-internal fun bangumiEpisodeLabel(episodeId: Int?): String =
-    episodeId?.let { "Bangumi Ep. $it" } ?: "当前剧集"
+internal fun bangumiEpisodeLabel(episodeId: Int?): UiText =
+    episodeId?.let { UiText("comments_episode_title", listOf(it), "Bangumi Ep. $it") }
+        ?: uiText("comments_episode_current", "当前剧集")
 
 @Composable
 private fun BangumiCommentThread(
@@ -212,7 +218,7 @@ private fun BangumiCommentBody(content: List<BangumiCommentContent>) {
                 )
                 is BangumiCommentContent.Image -> RemoteImage(
                     url = safeBangumiCommentImageUrl(node.url),
-                    contentDescription = node.description ?: "评论图片",
+                    contentDescription = node.description ?: uiText("comments_image_fallback", "评论图片").resolve(),
                     contentScale = ContentScale.Fit,
                     modifier = if (node.inline) {
                         Modifier.size(32.dp)
@@ -256,30 +262,30 @@ private fun BangumiSpoiler(content: List<BangumiCommentContent>, key: Int) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Visibility, contentDescription = null, tint = AnimeRed, modifier = Modifier.size(18.dp))
-            Text("剧透内容 · 按确认键显示", style = TvTypography.caption, color = TextSecondary)
+            Text(stringResource(R.string.comments_spoiler_hint), style = TvTypography.caption, color = TextSecondary)
         }
     }
 }
 
 @Composable
-private fun PanelMessage(message: String) {
+private fun PanelMessage(message: UiText) {
     Box(Modifier.fillMaxWidth().padding(vertical = 28.dp), contentAlignment = Alignment.Center) {
-        Text(message, style = TvTypography.body, color = TextSecondary)
+        Text(message.resolve(), style = TvTypography.body, color = TextSecondary)
     }
 }
 
 @Composable
 private fun PanelActionMessage(
-    message: String,
-    action: String,
+    message: UiText?,
+    action: UiText,
     onClick: () -> Unit,
     enabled: Boolean = true,
     actionModifier: Modifier = Modifier,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text(message, style = TvTypography.body, color = TextSecondary)
+        message?.let { Text(it.resolve(), style = TvTypography.body, color = TextSecondary) }
         PlayerOptionButton(
-            text = action,
+            text = action.resolve(),
             selected = false,
             onClick = onClick,
             enabled = enabled,

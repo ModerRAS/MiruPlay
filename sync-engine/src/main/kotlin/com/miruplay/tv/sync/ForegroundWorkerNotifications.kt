@@ -5,6 +5,7 @@ import androidx.work.ForegroundInfo
 import com.miruplay.tv.background.BackgroundTaskNotificationIds
 import com.miruplay.tv.background.BackgroundTaskNotifications
 import com.miruplay.tv.background.BackgroundTaskProgress
+import com.miruplay.tv.sync.engine.R
 
 internal fun cloudDriveRssForegroundInfo(
     context: Context,
@@ -13,7 +14,7 @@ internal fun cloudDriveRssForegroundInfo(
     backgroundTaskForegroundInfo(
         context = context,
         notificationId = BackgroundTaskNotificationIds.CLOUD_DRIVE_RSS_WORKER,
-        title = "CloudDrive/RSS 同步",
+        title = context.getString(R.string.worker_rss_title),
         text = text,
     )
 
@@ -24,7 +25,7 @@ internal fun bangumiArchiveForegroundInfo(
     backgroundTaskForegroundInfo(
         context = context,
         notificationId = BackgroundTaskNotificationIds.BANGUMI_ARCHIVE_WORKER,
-        title = "Bangumi Archive 更新",
+        title = context.getString(R.string.worker_archive_title),
         text = text,
     )
 

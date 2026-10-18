@@ -3,10 +3,13 @@ package com.miruplay.tv.ui.library
 import android.content.Context
 import android.util.Log
 import com.miruplay.tv.background.BackgroundTaskForegroundController
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.background.BackgroundTaskIds
 import com.miruplay.tv.background.BackgroundTaskProgress
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.model.ScanResult
 import com.miruplay.tv.model.libraryScanFailedMessage
@@ -99,8 +102,8 @@ class LibraryScanTask @Inject constructor(
             var foregroundStarted = false
             backgroundTasks.start(
                 taskId = BackgroundTaskIds.LIBRARY_SCAN,
-                title = "媒体库扫描",
-                text = "正在准备扫描 ${sources.size} 个媒体源",
+                title = uiText("notif_library_scan_title", "媒体库扫描").resolve(context),
+                text = UiText("notif_library_scan_preparing", listOf(sources.size), "正在准备扫描 ${sources.size} 个媒体源").resolve(context),
                 progress = BackgroundTaskProgress.indeterminate(),
             )
             foregroundStarted = true
@@ -109,8 +112,8 @@ class LibraryScanTask @Inject constructor(
                 val scanning = scanStatus.reportProgress(path, files, newEps)
                 backgroundTasks.update(
                     taskId = BackgroundTaskIds.LIBRARY_SCAN,
-                    title = "媒体库扫描",
-                    text = scanProgressText(scanning),
+                    title = uiText("notif_library_scan_title", "媒体库扫描").resolve(context),
+                    text = scanProgressText(scanning).resolve(context),
                     progress = BackgroundTaskProgress.indeterminate(),
                 )
             })
@@ -118,7 +121,7 @@ class LibraryScanTask @Inject constructor(
             scanStatus.start(onCancel = { scanJob?.cancel() })
             try {
                 val results = mutableListOf<ScanResult>()
-                val sourceFailures = mutableListOf<String>()
+                val sourceFailures = mutableListOf<UiText>()
                 for (source in sources) {
                     MiruLog.i(
                         tag = TAG,
@@ -159,8 +162,8 @@ class LibraryScanTask @Inject constructor(
                             )
                             backgroundTasks.update(
                                 taskId = BackgroundTaskIds.LIBRARY_SCAN,
-                                title = "媒体库扫描",
-                                text = scanProgressText(scanning),
+                                title = uiText("notif_library_scan_title", "媒体库扫描").resolve(context),
+                                text = scanProgressText(scanning).resolve(context),
                                 progress = BackgroundTaskProgress.indeterminate(),
                             )
                         }
@@ -238,18 +241,25 @@ class LibraryScanTask @Inject constructor(
         sourceName: String,
         sourceCount: Int,
         error: AppError,
-    ): String {
-        val userMessage = error.toUserMessage()
+    ): UiText {
+        val userMessage = error.toUiText()
         return if (sourceCount > 1) {
-            "${sourceName.ifBlank { "媒体源" }}：$userMessage"
+            val name = sourceName.ifBlank { uiText("library_scan_source_fallback", "媒体源").fallback }
+            UiText("library_scan_source_failure", listOf(name, userMessage), "$name：${userMessage.fallback}")
         } else {
             userMessage
         }
     }
 
-    private fun scanProgressText(scanState: LibraryScanState.Scanning): String {
-        val currentPath = scanState.currentPath.ifBlank { "媒体源" }
-        return "正在处理：$currentPath，已发现 ${scanState.filesScanned} 个条目，新剧集 ${scanState.newEpisodes} 个"
+    private fun scanProgressText(scanState: LibraryScanState.Scanning): UiText {
+        val currentPath = scanState.currentPath.ifBlank { uiText("library_scan_source_fallback", "媒体源").fallback }
+        val files = scanState.filesScanned
+        val newEps = scanState.newEpisodes
+        return UiText(
+            "library_scan_progress",
+            listOf(currentPath, files, newEps),
+            "正在处理：$currentPath，已发现 $files 个条目，新剧集 $newEps 个",
+        )
     }
 
     private companion object {

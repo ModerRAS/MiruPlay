@@ -1,89 +1,142 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
+
 const val DETAIL_EPISODE_PAGE_SIZE = 6
 const val RECENT_PLAYBACK_PAGE_SIZE = 6
 const val MEDIA_DETAILS_PAGE_SIZE = 6
 const val DETAIL_BANGUMI_MANUAL_CANDIDATE_LIMIT = 6
 
-fun detailPlayActionLabel(): String = "播放"
+fun detailPlayActionLabel(): UiText = uiText("detail_play", "播放")
 
-fun detailBackToLibraryActionLabel(): String = "返回海报墙"
+fun detailBackToLibraryActionLabel(): UiText = uiText("detail_back_to_library", "返回海报墙")
 
-fun detailRescrapeActionLabel(): String = "重新刮削"
+fun detailRescrapeActionLabel(): UiText = uiText("detail_rescrape", "重新刮削")
 
-fun detailSyncProgressActionLabel(isSyncing: Boolean): String =
-    if (isSyncing) "同步中" else "同步进度"
+fun detailSyncProgressActionLabel(isSyncing: Boolean): UiText =
+    if (isSyncing) {
+        uiText("detail_syncing", "同步中")
+    } else {
+        uiText("detail_sync_progress", "同步进度")
+    }
 
-fun detailBangumiRescrapeStartedMessage(): String = "正在重新匹配 Bangumi..."
+fun detailBangumiRescrapeStartedMessage(): UiText =
+    uiText("detail_bangumi_rescrape_started", "正在重新匹配 Bangumi...")
 
-fun detailBangumiScraperUnavailableMessage(): String = "Bangumi 刮削器不可用"
+fun detailBangumiScraperUnavailableMessage(): UiText =
+    uiText("detail_bangumi_scraper_unavailable", "Bangumi 刮削器不可用")
 
-fun detailBangumiNoReliableMatchMessage(): String = "没有找到可靠的 Bangumi 匹配"
+fun detailBangumiNoReliableMatchMessage(): UiText =
+    uiText("detail_bangumi_no_reliable_match", "没有找到可靠的 Bangumi 匹配")
 
-fun detailBangumiDetailsFailedMessage(): String = "Bangumi 详情获取失败"
+fun detailBangumiDetailsFailedMessage(): UiText =
+    uiText("detail_bangumi_details_failed", "Bangumi 详情获取失败")
 
-fun detailBangumiMetadataUpdatedMessage(): String = "Bangumi 元数据已更新"
+fun detailBangumiMetadataUpdatedMessage(): UiText =
+    uiText("detail_bangumi_metadata_updated", "Bangumi 元数据已更新")
 
-fun detailBangumiManualMatchTitleLabel(): String = "选择 Bangumi 条目"
+fun detailBangumiManualMatchTitleLabel(): UiText =
+    uiText("detail_bangumi_manual_title", "选择 Bangumi 条目")
 
-fun detailBangumiManualCloseActionLabel(): String = "关闭"
+fun detailBangumiManualCloseActionLabel(): UiText =
+    uiText("detail_bangumi_manual_close", "关闭")
 
-fun detailBangumiCandidateTermsSectionTitle(): String = "候选词"
+fun detailBangumiCandidateTermsSectionTitle(): UiText =
+    uiText("detail_bangumi_candidate_terms", "候选词")
 
-fun detailBangumiManualSearchRequiredMessage(): String = "请选择候选词或输入 Bangumi 搜索词"
+fun detailBangumiManualSearchRequiredMessage(): UiText =
+    uiText("detail_bangumi_manual_search_required", "请选择候选词或输入 Bangumi 搜索词")
 
-fun detailBangumiManualSelectionRequiredMessage(): String = "请选择一个 Bangumi 条目"
+fun detailBangumiManualSelectionRequiredMessage(): UiText =
+    uiText("detail_bangumi_manual_selection_required", "请选择一个 Bangumi 条目")
 
-fun detailBangumiManualSearchStartedMessage(queryCount: Int): String =
-    "正在搜索 ${queryCount.coerceAtLeast(0)} 个 Bangumi 搜索词..."
+fun detailBangumiManualSearchStartedMessage(queryCount: Int): UiText {
+    val safe = queryCount.coerceAtLeast(0)
+    return UiText("detail_bangumi_manual_search_started", listOf(safe), "正在搜索 $safe 个 Bangumi 搜索词...")
+}
 
-fun detailBangumiManualSearchResultMessage(resultCount: Int): String =
-    if (resultCount <= 0) "没有可显示的 Bangumi 搜索结果" else "找到 ${resultCount.coerceAtLeast(0)} 个 Bangumi 匹配"
+fun detailBangumiManualSearchResultMessage(resultCount: Int): UiText =
+    if (resultCount <= 0) {
+        uiText("detail_bangumi_manual_search_empty", "没有可显示的 Bangumi 搜索结果")
+    } else {
+        val safe = resultCount.coerceAtLeast(0)
+        UiText("detail_bangumi_manual_search_found", listOf(safe), "找到 $safe 个 Bangumi 匹配")
+    }
 
-fun detailBangumiManualApplyStartedMessage(title: String): String =
-    "正在应用：$title"
+fun detailBangumiManualApplyStartedMessage(title: String): UiText =
+    UiText("detail_bangumi_manual_apply_started", listOf(title), "正在应用：$title")
 
-fun detailBangumiSyncStartedMessage(): String = "正在同步 Bangumi..."
+fun detailBangumiSyncStartedMessage(): UiText =
+    uiText("detail_bangumi_sync_started", "正在同步 Bangumi...")
 
-fun detailBangumiSyncCompleteMessage(pushedEpisodes: Int, pulledEpisodes: Int): String =
-    "同步完成：上传 ${pushedEpisodes.coerceAtLeast(0)} 集，拉取 ${pulledEpisodes.coerceAtLeast(0)} 集"
+fun detailBangumiSyncCompleteMessage(pushedEpisodes: Int, pulledEpisodes: Int): UiText {
+    val pushed = pushedEpisodes.coerceAtLeast(0)
+    val pulled = pulledEpisodes.coerceAtLeast(0)
+    return UiText(
+        "detail_bangumi_sync_complete",
+        listOf(pushed, pulled),
+        "同步完成：上传 $pushed 集，拉取 $pulled 集",
+    )
+}
 
-fun detailEpisodeSectionTitle(): String = "选集"
+fun detailEpisodeSectionTitle(): UiText = uiText("detail_episode_section", "选集")
 
-fun detailHeroEmptySubtitle(): String = "从媒体库海报墙选择内容后显示详情。"
+fun detailHeroEmptySubtitle(): UiText =
+    uiText("detail_hero_empty_subtitle", "从媒体库海报墙选择内容后显示详情。")
 
-fun detailHeroEmptyTitle(): String = "选择一部番剧"
+fun detailHeroEmptyTitle(): UiText = uiText("detail_hero_empty_title", "选择一部番剧")
 
-fun detailEpisodeEmptySubtitle(): String = "当前详情没有可播放索引项"
+fun detailEpisodeEmptySubtitle(): UiText =
+    uiText("detail_episode_empty_subtitle", "当前详情没有可播放索引项")
 
-fun detailEpisodeShelfSubtitle(episodeCount: Int): String =
-    if (episodeCount <= 0) detailEpisodeEmptySubtitle() else "${detailEpisodeCountLabel(episodeCount)} · 同番选集"
+fun detailEpisodeShelfSubtitle(episodeCount: Int): UiText =
+    if (episodeCount <= 0) {
+        detailEpisodeEmptySubtitle()
+    } else {
+        val count = detailEpisodeCountLabel(episodeCount)
+        val shelf = uiText("detail_episode_shelf_suffix", "同番选集")
+        UiText(
+            "detail_episode_shelf",
+            listOf(count, shelf),
+            "${count.fallback} · ${shelf.fallback}",
+        )
+    }
 
-fun detailEpisodeEmptyMessage(): String = "扫描媒体库后会在这里显示同番选集。"
+fun detailEpisodeEmptyMessage(): UiText =
+    uiText("detail_episode_empty_message", "扫描媒体库后会在这里显示同番选集。")
 
-fun detailSeasonLabel(seasonNumber: Int): String =
-    "第 $seasonNumber 季"
+fun detailSeasonLabel(seasonNumber: Int): UiText =
+    UiText("detail_season_label", listOf(seasonNumber), "第 $seasonNumber 季")
 
-fun detailEpisodeNumberLabel(episodeNumber: Int): String =
-    "第 $episodeNumber 集"
+fun detailEpisodeNumberLabel(episodeNumber: Int): UiText =
+    UiText("detail_episode_number_label", listOf(episodeNumber), "第 $episodeNumber 集")
 
 fun detailEpisodeBadge(episodeNumber: Int?): String =
     episodeNumber?.toString()?.padStart(2, '0') ?: "--"
 
-fun detailEpisodeTitleLabel(episodeNumber: Int?, episodeTitle: String?): String {
-    val number = episodeNumber?.let(::detailEpisodeNumberLabel) ?: "未编号"
-    val title = episodeTitle?.takeIf { it.isNotBlank() }
-    return if (title == null) number else "$number · $title"
+fun detailEpisodeTitleLabel(episodeNumber: Int?, episodeTitle: String?): UiText {
+    val number = episodeNumber?.let(::detailEpisodeNumberLabel)
+        ?: uiText("detail_episode_unnumbered", "未编号")
+    val title = episodeTitle?.takeIf { it.isNotBlank() } ?: return number
+    return UiText(
+        "detail_episode_title",
+        listOf(number, title),
+        "${number.fallback} · $title",
+    )
 }
 
-fun detailEpisodeCountLabel(episodeCount: Int): String =
-    "全 ${episodeCount.coerceAtLeast(0)} 话"
+fun detailEpisodeCountLabel(episodeCount: Int): UiText {
+    val safe = episodeCount.coerceAtLeast(0)
+    return UiText("detail_episode_count", listOf(safe), "全 $safe 话")
+}
 
 fun detailHeroStatLabels(
     episodeCount: Int,
     seasonNumber: Int? = null,
     metadataSource: String? = null,
-): List<String> =
+): List<UiText> =
     buildList {
         if (episodeCount > 0) {
             add(detailEpisodeCountLabel(episodeCount))
@@ -91,10 +144,10 @@ fun detailHeroStatLabels(
         seasonNumber?.let { add(detailSeasonLabel(it)) }
         metadataSource
             ?.takeIf { it.isNotBlank() }
-            ?.let { add(it.trim()) }
+            ?.let { add(rawUiText(it.trim())) }
     }
 
-fun detailEpisodePageUnitLabel(): String = "集"
+fun detailEpisodePageUnitLabel(): UiText = uiText("detail_page_unit_episode", "集")
 
 fun detailEpisodePageStartForIndex(
     index: Int,
@@ -112,7 +165,7 @@ fun detailEpisodePageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
-): String? =
+): UiText? =
     pagedListPageSummary(
         pageStart = detailEpisodeCoercedPageStart(pageStart, itemCount),
         visibleCount = visibleCount,
@@ -121,7 +174,7 @@ fun detailEpisodePageSummary(
         unitLabel = detailEpisodePageUnitLabel(),
     )
 
-fun recentPlaybackPageUnitLabel(): String = "条记录"
+fun recentPlaybackPageUnitLabel(): UiText = uiText("detail_page_unit_record", "条记录")
 
 fun recentPlaybackPageStartForIndex(
     index: Int,
@@ -139,7 +192,7 @@ fun recentPlaybackPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
-): String? =
+): UiText? =
     pagedListPageSummary(
         pageStart = recentPlaybackCoercedPageStart(pageStart, itemCount),
         visibleCount = visibleCount,
@@ -148,7 +201,7 @@ fun recentPlaybackPageSummary(
         unitLabel = recentPlaybackPageUnitLabel(),
     )
 
-fun mediaDetailsPageUnitLabel(): String = "条详情"
+fun mediaDetailsPageUnitLabel(): UiText = uiText("detail_page_unit_detail", "条详情")
 
 fun mediaDetailsPageStartForIndex(
     index: Int,
@@ -166,7 +219,7 @@ fun mediaDetailsPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
-): String? =
+): UiText? =
     pagedListPageSummary(
         pageStart = mediaDetailsCoercedPageStart(pageStart, itemCount),
         visibleCount = visibleCount,
@@ -175,18 +228,22 @@ fun mediaDetailsPageSummary(
         unitLabel = mediaDetailsPageUnitLabel(),
     )
 
-fun detailRatingLabel(rating: Float): String =
-    "评分 ${"%.1f".format(rating)}"
+fun detailRatingLabel(rating: Float): UiText {
+    val text = "%.1f".format(rating)
+    return UiText("detail_rating", listOf(text), "评分 $text")
+}
 
-fun detailContinueActionLabel(episodeNumber: Int?): String =
-    episodeNumber?.let { "继续观看 $it" } ?: detailPlayActionLabel()
+fun detailContinueActionLabel(episodeNumber: Int?): UiText =
+    episodeNumber?.let {
+        UiText("detail_continue_action", listOf(it), "继续观看 $it")
+    } ?: detailPlayActionLabel()
 
 fun detailPageSummary(
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
-    unitLabel: String,
-): String? {
+    unitLabel: UiText,
+): UiText? {
     val pageSize = visibleCount.takeIf { it > 0 } ?: 1
     return pagedListPageSummary(
         pageStart = pageStart,
@@ -197,18 +254,20 @@ fun detailPageSummary(
     )
 }
 
-fun detailBangumiCollectionLabel(type: Int): String =
+fun detailBangumiCollectionLabel(type: Int): UiText =
     when (type) {
-        1 -> "想看"
-        2 -> "看过"
-        3 -> "在看"
-        4 -> "搁置"
-        5 -> "抛弃"
-        else -> "已关联"
+        1 -> uiText("detail_collection_wish", "想看")
+        2 -> uiText("detail_collection_done", "看过")
+        3 -> uiText("detail_collection_doing", "在看")
+        4 -> uiText("detail_collection_on_hold", "搁置")
+        5 -> uiText("detail_collection_dropped", "抛弃")
+        else -> uiText("detail_collection_linked", "已关联")
     }
 
-fun detailBangumiCollectionPillLabel(type: Int): String =
-    "Bangumi ${detailBangumiCollectionLabel(type)}"
+fun detailBangumiCollectionPillLabel(type: Int): UiText {
+    val label = detailBangumiCollectionLabel(type)
+    return UiText("detail_collection_pill", listOf(label), "Bangumi ${label.fallback}")
+}
 
 fun detailBangumiManualCandidateTerms(
     anime: Anime,
@@ -234,64 +293,66 @@ fun detailBangumiManualCandidateTerms(
         .distinctBy { it.lowercase() }
         .take(limit.coerceAtLeast(1))
 
-fun mediaDetailSourceLabel(): String = "媒体源"
+fun mediaDetailSourceLabel(): UiText = uiText("detail_info_source", "媒体源")
 
-fun mediaDetailSourceEmptyValue(): String = "无"
+fun mediaDetailSourceEmptyValue(): UiText = uiText("detail_info_source_empty", "无")
 
-fun mediaDetailIndexedTitleLabel(): String = "索引标题"
+fun mediaDetailIndexedTitleLabel(): UiText = uiText("detail_info_indexed_title", "索引标题")
 
-fun mediaDetailIndexedTypeLabel(): String = "索引类型"
+fun mediaDetailIndexedTypeLabel(): UiText = uiText("detail_info_indexed_type", "索引类型")
 
-fun mediaDetailAnimeLabel(): String = "番剧"
+fun mediaDetailAnimeLabel(): UiText = uiText("detail_info_anime", "番剧")
 
-fun mediaDetailSeasonLabel(): String = "季度"
+fun mediaDetailSeasonLabel(): UiText = uiText("detail_info_season", "季度")
 
-fun mediaDetailEpisodeLabel(): String = "集数"
+fun mediaDetailEpisodeLabel(): UiText = uiText("detail_info_episode", "集数")
 
-fun mediaDetailEpisodeTitleLabel(): String = "单集标题"
+fun mediaDetailEpisodeTitleLabel(): UiText = uiText("detail_info_episode_title", "单集标题")
 
-fun mediaDetailMetadataSourceLabel(): String = "元数据来源"
+fun mediaDetailMetadataSourceLabel(): UiText = uiText("detail_info_metadata_source", "元数据来源")
 
-fun mediaDetailMetadataIdLabel(): String = "元数据 ID"
+fun mediaDetailMetadataIdLabel(): UiText = uiText("detail_info_metadata_id", "元数据 ID")
 
-fun mediaDetailMetadataTitleLabel(): String = "元数据标题"
+fun mediaDetailMetadataTitleLabel(): UiText = uiText("detail_info_metadata_title", "元数据标题")
 
-fun mediaDetailIndexedSizeLabel(): String = "索引大小"
+fun mediaDetailIndexedSizeLabel(): UiText = uiText("detail_info_indexed_size", "索引大小")
 
-fun mediaDetailIndexedModifiedLabel(): String = "索引修改时间"
+fun mediaDetailIndexedModifiedLabel(): UiText = uiText("detail_info_indexed_modified", "索引修改时间")
 
-fun mediaDetailBrowserItemLabel(): String = "浏览条目"
+fun mediaDetailBrowserItemLabel(): UiText = uiText("detail_info_browser_item", "浏览条目")
 
-fun mediaDetailBrowserKindLabel(): String = "浏览类型"
+fun mediaDetailBrowserKindLabel(): UiText = uiText("detail_info_browser_kind", "浏览类型")
 
-fun mediaDetailMimeLabel(): String = "MIME"
+fun mediaDetailMimeLabel(): UiText = rawUiText("MIME")
 
-fun mediaDetailBrowserSizeLabel(): String = "浏览大小"
+fun mediaDetailBrowserSizeLabel(): UiText = uiText("detail_info_browser_size", "浏览大小")
 
-fun mediaDetailBrowserModifiedLabel(): String = "浏览修改时间"
+fun mediaDetailBrowserModifiedLabel(): UiText = uiText("detail_info_browser_modified", "浏览修改时间")
 
-fun mediaDetailResumeLabel(): String = "播放进度"
+fun mediaDetailResumeLabel(): UiText = uiText("detail_info_resume", "播放进度")
 
-fun mediaDetailPlayCountLabel(): String = "播放次数"
+fun mediaDetailPlayCountLabel(): UiText = uiText("detail_info_play_count", "播放次数")
 
-fun mediaDetailLastWatchedLabel(): String = "上次观看"
+fun mediaDetailLastWatchedLabel(): UiText = uiText("detail_info_last_watched", "上次观看")
 
-fun mediaDetailPlotLabel(): String = "简介"
+fun mediaDetailPlotLabel(): UiText = uiText("detail_info_plot", "简介")
 
-fun mediaDetailPathLabel(): String = "路径"
+fun mediaDetailPathLabel(): UiText = uiText("detail_info_path", "路径")
 
-fun mediaDetailUnknownValue(): String = "未知"
+fun mediaDetailUnknownValue(): UiText = uiText("detail_info_unknown", "未知")
 
-fun mediaDetailNotLinkedValue(): String = "未关联"
+fun mediaDetailNotLinkedValue(): UiText = uiText("detail_info_not_linked", "未关联")
 
-fun mediaDetailDirectoryValue(): String = "目录"
+fun mediaDetailDirectoryValue(): UiText = uiText("detail_info_directory", "目录")
 
-fun mediaDetailVideoValue(): String = "视频"
+fun mediaDetailVideoValue(): UiText = uiText("detail_info_video", "视频")
 
-fun mediaDetailFileValue(): String = "文件"
+fun mediaDetailFileValue(): UiText = uiText("detail_info_file", "文件")
 
-fun mediaDetailIndexedKindValue(isDirectory: Boolean): String =
+fun mediaDetailIndexedKindValue(isDirectory: Boolean): UiText =
     if (isDirectory) mediaDetailDirectoryValue() else mediaDetailVideoValue()
+
+fun detailExtrasSectionTitle(): UiText = uiText("detail_extras_title", "特典")
 
 private fun Episode.detailBangumiSearchPaths(): List<String> =
     listOf(filePath, id, fileName)

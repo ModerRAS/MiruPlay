@@ -22,7 +22,7 @@ suspend fun browseWebControlCloudDriveDirectory(
         throw IllegalArgumentException("请先填写 CloudDrive2 地址")
     }
     val apiToken = token?.trim().takeUnless { it.isNullOrBlank() }
-        ?: throw IllegalArgumentException(cloudDriveTokenLoginRequiredStatus())
+        ?: throw IllegalArgumentException(cloudDriveTokenLoginRequiredStatus().fallback)
 
     return prepareCloudDriveDirectoryBrowser(
         client = client,

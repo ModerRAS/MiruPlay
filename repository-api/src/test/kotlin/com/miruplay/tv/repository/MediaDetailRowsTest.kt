@@ -66,20 +66,20 @@ class MediaDetailRowsTest {
             ),
         )
 
-        assertTrue(rows.any { it.label == mediaDetailSourceLabel() && it.value == "Library · 本地" })
-        assertTrue(rows.any { it.label == mediaDetailIndexedTitleLabel() && it.value == "Show EP1 - First Light" })
+        assertTrue(rows.any { it.label == mediaDetailSourceLabel() && it.value.fallback == "Library · 本地" })
+        assertTrue(rows.any { it.label == mediaDetailIndexedTitleLabel() && it.value.fallback == "Show EP1 - First Light" })
         assertTrue(rows.any { it.label == mediaDetailIndexedTypeLabel() && it.value == mediaDetailVideoValue() })
-        assertTrue(rows.any { it.label == mediaDetailMetadataSourceLabel() && it.value == "BANGUMI" })
-        assertTrue(rows.any { it.label == mediaDetailMetadataIdLabel() && it.value == "431767" })
-        assertTrue(rows.any { it.label == mediaDetailMetadataTitleLabel() && it.value == "Show Metadata Title" })
-        assertTrue(rows.any { it.label == mediaDetailIndexedSizeLabel() && it.value == "2.0 MB" })
-        assertTrue(rows.any { it.label == mediaDetailBrowserItemLabel() && it.value == "01.mkv" })
+        assertTrue(rows.any { it.label == mediaDetailMetadataSourceLabel() && it.value.fallback == "BANGUMI" })
+        assertTrue(rows.any { it.label == mediaDetailMetadataIdLabel() && it.value.fallback == "431767" })
+        assertTrue(rows.any { it.label == mediaDetailMetadataTitleLabel() && it.value.fallback == "Show Metadata Title" })
+        assertTrue(rows.any { it.label == mediaDetailIndexedSizeLabel() && it.value.fallback == "2.0 MB" })
+        assertTrue(rows.any { it.label == mediaDetailBrowserItemLabel() && it.value.fallback == "01.mkv" })
         assertTrue(rows.any { it.label == mediaDetailBrowserKindLabel() && it.value == mediaDetailFileValue() })
-        assertTrue(rows.any { it.label == mediaDetailMimeLabel() && it.value == "video/x-matroska" })
-        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value == "01:35" })
-        assertTrue(rows.any { it.label == mediaDetailPlayCountLabel() && it.value == "3" })
-        assertTrue(rows.any { it.label == mediaDetailPlotLabel() && it.value == "The story starts here." })
-        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value == "D:/Anime/Show/01.mkv" })
+        assertTrue(rows.any { it.label == mediaDetailMimeLabel() && it.value.fallback == "video/x-matroska" })
+        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value.fallback == "01:35" })
+        assertTrue(rows.any { it.label == mediaDetailPlayCountLabel() && it.value.fallback == "3" })
+        assertTrue(rows.any { it.label == mediaDetailPlotLabel() && it.value.fallback == "The story starts here." })
+        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value.fallback == "D:/Anime/Show/01.mkv" })
     }
 
     @Test
@@ -97,8 +97,8 @@ class MediaDetailRowsTest {
         )
 
         assertEquals(mediaDetailSourceEmptyValue(), rows.first().value)
-        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value == "01:35" })
-        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value == "smb://nas/anime/Show/02.mkv" })
+        assertTrue(rows.any { it.label == mediaDetailResumeLabel() && it.value.fallback == "01:35" })
+        assertTrue(rows.any { it.label == mediaDetailPathLabel() && it.value.fallback == "smb://nas/anime/Show/02.mkv" })
     }
 
     @Test
@@ -114,6 +114,6 @@ class MediaDetailRowsTest {
             recentRecord = null,
         )
 
-        assertEquals("SMB 共享 · SMB", rows.first { it.label == mediaDetailSourceLabel() }.value)
+        assertEquals("SMB 共享 · SMB", rows.first { it.label == mediaDetailSourceLabel() }.value.fallback)
     }
 }

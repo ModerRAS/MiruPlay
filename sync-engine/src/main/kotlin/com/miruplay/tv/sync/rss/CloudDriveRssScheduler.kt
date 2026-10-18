@@ -107,7 +107,7 @@ class CloudDriveRssWorker(
         setForeground(
             cloudDriveRssForegroundInfo(
                 context = applicationContext,
-                text = if (forceRun) "正在手动同步订阅内容" else "正在按计划同步订阅内容",
+                text = if (forceRun) applicationContext.getString(com.miruplay.tv.sync.engine.R.string.worker_rss_manual) else applicationContext.getString(com.miruplay.tv.sync.engine.R.string.worker_rss_scheduled),
             )
         )
         val entryPoint = EntryPointAccessors.fromApplication(

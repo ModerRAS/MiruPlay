@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- en-GB spellings; everything else falls back to values-en/ -->
+    <string name="poster_unknown_season">Unrecognised air date</string>
+    <string name="clouddrive_rss_mode_organized">Organised ingest</string>
+    <string name="clouddrive_scheduler_summary">%1$s; last run: %2$s submitted, %3$s skipped, %4$s failed, %5$s organised.</string>
+    <string name="clouddrive_handled_organized">organised %1$s</string>
+    <string name="notif_clouddrive_text">Downloading, organising and scanning subscriptions</string>
+</resources>

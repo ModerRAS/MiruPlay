@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_bg_tasks">背景任務</string>
+    <string name="notif_channel_bg_desc">媒體庫掃描、同步、抓取和下載進度</string>
+</resources>

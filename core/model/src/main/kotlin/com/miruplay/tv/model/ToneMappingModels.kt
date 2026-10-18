@@ -1,5 +1,7 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -140,27 +142,28 @@ data class ToneMappingRuleSet(
     val gamutMappingMode: String? = null,
     val fallbackBackendPolicy: FallbackBackendPolicy,
 ) {
-    fun summaryLabel(): String =
+    fun summaryLabel(): UiText =
         when {
-            !enabled -> "直通"
-            else -> buildList {
-                add(
-                    when (curvePreset) {
-                        ToneMappingCurvePreset.PASSTHROUGH -> "直通"
-                        ToneMappingCurvePreset.MOBIUS -> "Mobius"
-                        ToneMappingCurvePreset.REINHARD -> "Reinhard"
-                    }
+            !enabled -> uiText("tonemapping_bypass", "直通")
+            else -> {
+                val curve: UiText = when (curvePreset) {
+                    ToneMappingCurvePreset.PASSTHROUGH -> uiText("tonemapping_bypass", "直通")
+                    ToneMappingCurvePreset.MOBIUS -> UiText("tonemapping_curve_mobius", listOf("Mobius"), "Mobius")
+                    ToneMappingCurvePreset.REINHARD -> UiText("tonemapping_curve_reinhard", listOf("Reinhard"), "Reinhard")
+                }
+                val nits = "${targetSdrNits.coerceAtLeast(0)} nit"
+                val peak: UiText = when (peakDetectionStrategy) {
+                    PeakDetectionStrategy.DISABLED -> uiText("tonemapping_peak_disabled", "关闭峰值")
+                    PeakDetectionStrategy.STATIC_METADATA -> uiText("tonemapping_peak_static", "静态峰值")
+                    PeakDetectionStrategy.DYNAMIC -> uiText("tonemapping_peak_dynamic", "动态峰值")
+                    PeakDetectionStrategy.DYNAMIC_AGGRESSIVE -> uiText("tonemapping_peak_aggressive", "增强峰值")
+                }
+                UiText(
+                    "tonemapping_summary",
+                    listOf(curve, nits, peak),
+                    "${curve.fallback} · $nits · ${peak.fallback}",
                 )
-                add("${targetSdrNits.coerceAtLeast(0)} nit")
-                add(
-                    when (peakDetectionStrategy) {
-                        PeakDetectionStrategy.DISABLED -> "关闭峰值"
-                        PeakDetectionStrategy.STATIC_METADATA -> "静态峰值"
-                        PeakDetectionStrategy.DYNAMIC -> "动态峰值"
-                        PeakDetectionStrategy.DYNAMIC_AGGRESSIVE -> "增强峰值"
-                    }
-                )
-            }.joinToString(" · ")
+            }
         }
 }
 
@@ -185,20 +188,20 @@ data class VideoSignalDescriptor(
             VideoSignalKind.UNKNOWN_HDR -> VideoRenderRuleKey.UNKNOWN_HDR
         }
 
-    fun displayLabel(): String =
+    fun displayLabel(): UiText =
         when (signalKind) {
-            VideoSignalKind.SDR -> "SDR"
-            VideoSignalKind.HDR10 -> "HDR10"
-            VideoSignalKind.HDR10_PLUS -> "HDR10+"
+            VideoSignalKind.SDR -> UiText("video_render_rule_sdr", listOf("SDR"), "SDR")
+            VideoSignalKind.HDR10 -> UiText("video_render_rule_hdr10", listOf("HDR10"), "HDR10")
+            VideoSignalKind.HDR10_PLUS -> UiText("video_render_rule_hdr10_plus", listOf("HDR10+"), "HDR10+")
             VideoSignalKind.DOLBY_VISION -> {
                 val profileLabel = dolbyVisionProfile?.displayLabel
                 if (profileLabel.isNullOrBlank() || profileLabel == DolbyVisionProfile.UNKNOWN.displayLabel) {
-                    "Dolby Vision"
+                    UiText("video_render_rule_dolby_vision", listOf("Dolby Vision"), "Dolby Vision")
                 } else {
-                    "Dolby Vision $profileLabel"
+                    UiText("signal_dolby_vision_profile", listOf(profileLabel), "Dolby Vision $profileLabel")
                 }
             }
-            VideoSignalKind.UNKNOWN_HDR -> "Unknown HDR"
+            VideoSignalKind.UNKNOWN_HDR -> uiText("video_render_rule_unknown_hdr", "Unknown HDR")
         }
 
     val isHdr: Boolean

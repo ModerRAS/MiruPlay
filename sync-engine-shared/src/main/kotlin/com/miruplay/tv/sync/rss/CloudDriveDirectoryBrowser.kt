@@ -5,6 +5,8 @@ import com.miruplay.tv.clouddrive.CloudDriveEndpoint
 import com.miruplay.tv.clouddrive.CloudDriveFileInfo
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.rawUiText
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_DISPLAY_NAME
 import com.miruplay.tv.model.CLOUD_DRIVE_ROOT_PATH
 import com.miruplay.tv.model.CloudDriveDirectoryPickerFormResult
@@ -24,8 +26,8 @@ import com.miruplay.tv.model.scopedCloudDriveDirectoryPath
 import com.miruplay.tv.model.validateCloudDriveDirectoryPickerForm
 
 enum class CloudDriveDirectoryTarget(
-    val title: String,
-    val selectedLabel: String,
+    val title: UiText,
+    val selectedLabel: UiText,
 ) {
     INBOX(title = cloudDriveRssInboxDirectoryPickerTitle(), selectedLabel = cloudDriveRssInboxDirectorySelectedLabel()),
     LIBRARY(title = cloudDriveRssLibraryDirectoryPickerTitle(), selectedLabel = cloudDriveRssLibraryDirectorySelectedLabel()),
@@ -47,13 +49,13 @@ data class CloudDriveDirectoryBrowserState(
     val parentPath: String? = null,
     val entries: List<CloudDriveDirectoryEntry> = emptyList(),
     val isLoading: Boolean = false,
-    val message: String? = null,
+    val message: UiText? = null,
 )
 
 data class CloudDriveDirectorySelection(
     val target: CloudDriveDirectoryTarget,
     val path: String,
-    val status: String,
+    val status: UiText,
 )
 
 sealed class CloudDriveDirectoryOpenResult {
@@ -63,12 +65,12 @@ sealed class CloudDriveDirectoryOpenResult {
     ) : CloudDriveDirectoryOpenResult()
 
     data class Invalid(
-        val status: String,
+        val status: UiText,
     ) : CloudDriveDirectoryOpenResult()
 
     data class Failed(
         val error: AppError,
-        val status: String,
+        val status: UiText,
     ) : CloudDriveDirectoryOpenResult()
 }
 
@@ -81,12 +83,12 @@ sealed class CloudDriveDirectoryLoadResult {
 
     data class Loaded(
         val state: CloudDriveDirectoryBrowserState,
-        val status: String,
+        val status: UiText,
     ) : CloudDriveDirectoryLoadResult()
 
     data class Failed(
         val state: CloudDriveDirectoryBrowserState,
-        val status: String,
+        val status: UiText,
     ) : CloudDriveDirectoryLoadResult()
 }
 
@@ -128,7 +130,7 @@ class CloudDriveDirectoryBrowserCoordinator(
             )
             is Result.Error -> CloudDriveDirectoryOpenResult.Failed(
                 error = prepared.error,
-                status = prepared.error.toUserMessage(),
+                status = rawUiText(prepared.error.toUserMessage()),
             )
         }
     }
@@ -167,9 +169,9 @@ class CloudDriveDirectoryBrowserCoordinator(
             is Result.Error -> CloudDriveDirectoryLoadResult.Failed(
                 state = loadingState.copy(
                     isLoading = false,
-                    message = loaded.error.toUserMessage(),
+                    message = rawUiText(loaded.error.toUserMessage()),
                 ),
-                status = loaded.error.toUserMessage(),
+                status = rawUiText(loaded.error.toUserMessage()),
             )
         }
     }

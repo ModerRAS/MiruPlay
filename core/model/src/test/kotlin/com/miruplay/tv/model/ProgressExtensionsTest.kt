@@ -15,7 +15,7 @@ class ProgressExtensionsTest {
         assertFalse(episode.isCompleted(progress))
         assertTrue(episode.continueEpisodeProgress(progress))
         assertEquals(30_000L, episode.resumePosition(progress))
-        assertEquals("看到 00:30", episode.progressLabel(progress))
+        assertEquals("看到 00:30", episode.progressLabel(progress).fallback)
     }
 
     @Test
@@ -26,7 +26,7 @@ class ProgressExtensionsTest {
         assertTrue(episode.isCompleted(progress))
         assertFalse(episode.continueEpisodeProgress(progress))
         assertEquals(0L, episode.resumePosition(progress))
-        assertEquals("已看", episode.progressLabel(progress))
+        assertEquals("已看", episode.progressLabel(progress).fallback)
     }
 
     @Test
@@ -56,7 +56,7 @@ class ProgressExtensionsTest {
         assertFalse(episode.isCompleted(partial))
         assertTrue(episode.continueEpisodeProgress(partial))
         assertTrue(episode.isCompleted(completed))
-        assertEquals("已看", episode.progressLabel(completed))
+        assertEquals("已看", episode.progressLabel(completed).fallback)
     }
 
     @Test
@@ -66,27 +66,27 @@ class ProgressExtensionsTest {
 
         assertTrue(episode.isCompleted(progress))
         assertEquals(0L, episode.resumePosition(progress))
-        assertEquals("已看", episode.progressLabel(progress))
+        assertEquals("已看", episode.progressLabel(progress).fallback)
     }
 
     @Test
     fun `recent playback status helpers share TV wording`() {
         val record = progress(positionMs = 123_456L)
 
-        assertEquals("尚未载入最近播放。", recentPlaybackInitialStatus())
-        assertEquals("还没有最近播放记录。", recentPlaybackLoadedStatus(emptyList()))
-        assertEquals("已载入 1 条最近播放。", recentPlaybackLoadedStatus(listOf(record)))
-        assertEquals("还没有最近播放记录。", recentPlaybackShowingStatus(emptyList()))
-        assertEquals("正在显示 1 条最近播放。", recentPlaybackShowingStatus(listOf(record)))
-        assertEquals("请先选择一条最近播放记录。", recentPlaybackRequiredStatus())
-        assertEquals("未看", playbackProgressRecordLabel(null))
-        assertEquals("未看", playbackProgressRecordLabel(progress(positionMs = 0L)))
-        assertEquals("看到 02:03", playbackProgressRecordLabel(record))
+        assertEquals("尚未载入最近播放。", recentPlaybackInitialStatus().fallback)
+        assertEquals("还没有最近播放记录。", recentPlaybackLoadedStatus(emptyList()).fallback)
+        assertEquals("已载入 1 条最近播放。", recentPlaybackLoadedStatus(listOf(record)).fallback)
+        assertEquals("还没有最近播放记录。", recentPlaybackShowingStatus(emptyList()).fallback)
+        assertEquals("正在显示 1 条最近播放。", recentPlaybackShowingStatus(listOf(record)).fallback)
+        assertEquals("请先选择一条最近播放记录。", recentPlaybackRequiredStatus().fallback)
+        assertEquals("未看", playbackProgressRecordLabel(null).fallback)
+        assertEquals("未看", playbackProgressRecordLabel(progress(positionMs = 0L)).fallback)
+        assertEquals("看到 02:03", playbackProgressRecordLabel(record).fallback)
         assertEquals(record.copy(positionMs = 456_000L), record.retainedSelectionInProgressRecords(listOf(record.copy(positionMs = 456_000L))))
         assertEquals(null, record.retainedSelectionInProgressRecords(listOf(progress(episodeId = "ep2", positionMs = 0L))))
         assertEquals(null, null.retainedSelectionInProgressRecords(listOf(record)))
         assertEquals("123", record.resumeStartSecondsText())
-        assertEquals("已载入最近播放：Episode 1。", record.loadedPlaybackStatus("Episode 1"))
+        assertEquals("已载入最近播放：Episode 1。", record.loadedPlaybackStatus("Episode 1").fallback)
     }
 
     @Test
@@ -101,7 +101,7 @@ class ProgressExtensionsTest {
         )
 
         assertEquals(second, episodes.continueEpisode())
-        assertEquals("继续观看 2", episodes.continueActionLabel())
+        assertEquals("继续观看 2", episodes.continueActionLabel().fallback)
     }
 
     @Test
@@ -113,7 +113,7 @@ class ProgressExtensionsTest {
         assertEquals(second, listOf(first to watched, second to null).continueEpisode())
         assertEquals(first, listOf(first to watched).continueEpisode())
         assertEquals(null, emptyList<Pair<Episode, ProgressRecord?>>().continueEpisode())
-        assertEquals("播放", emptyList<Pair<Episode, ProgressRecord?>>().continueActionLabel())
+        assertEquals("播放", emptyList<Pair<Episode, ProgressRecord?>>().continueActionLabel().fallback)
     }
 
     private fun episode(

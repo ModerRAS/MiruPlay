@@ -45,8 +45,12 @@ object BackgroundTaskNotificationIds {
 
 object BackgroundTaskNotifications {
     private const val CHANNEL_ID = "miruplay_background_tasks"
-    private const val CHANNEL_NAME = "后台任务"
-    private const val CHANNEL_DESCRIPTION = "媒体库扫描、同步、刮削和下载进度"
+
+    private fun channelName(context: Context): String =
+        context.getString(R.string.notif_channel_bg_tasks)
+
+    private fun channelDescription(context: Context): String =
+        context.getString(R.string.notif_channel_bg_desc)
 
     fun build(
         context: Context,
@@ -96,8 +100,8 @@ object BackgroundTaskNotifications {
         val manager = context.getSystemService(NotificationManager::class.java)
         if (manager.getNotificationChannel(CHANNEL_ID) != null) return
         manager.createNotificationChannel(
-            NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_LOW).apply {
-                description = CHANNEL_DESCRIPTION
+            NotificationChannel(CHANNEL_ID, channelName(context), NotificationManager.IMPORTANCE_LOW).apply {
+                description = channelDescription(context)
                 setShowBadge(false)
             }
         )

@@ -62,7 +62,7 @@ class CloudDriveDirectoryBrowserTest {
             "/CloudRoot",
         ) as CloudDriveDirectoryLoadResult.Failed
 
-        assertEquals(cloudDriveTokenLoginRequiredStatus(), missingToken.status)
+        assertEquals(cloudDriveTokenLoginRequiredStatus().fallback, missingToken.status.fallback)
         assertEquals(false, missingToken.state.isLoading)
         assertEquals(cloudDriveTokenLoginRequiredStatus(), missingToken.state.message)
     }
@@ -88,7 +88,7 @@ class CloudDriveDirectoryBrowserTest {
         val fresh = coordinator.applyLoadedIfCurrent(loading, loaded)
 
         assertEquals(listOf(CloudDriveEndpoint("http://127.0.0.1:19798", "api-token") to "/CloudRoot/Anime"), client.listRequests)
-        assertEquals(cloudDriveRssDirectoryBrowsingStatus("/CloudRoot/Anime"), loaded.status)
+        assertEquals(cloudDriveRssDirectoryBrowsingStatus("/CloudRoot/Anime").fallback, loaded.status.fallback)
         assertEquals(CloudDriveDirectoryLoadResult.Ignored, stale)
         assertEquals(loaded, fresh)
     }
@@ -107,8 +107,8 @@ class CloudDriveDirectoryBrowserTest {
 
         val result = coordinator.load(loading.state) as CloudDriveDirectoryLoadResult.Failed
 
-        assertEquals(failure.toUserMessage(), result.status)
-        assertEquals(failure.toUserMessage(), result.state.message)
+        assertEquals(failure.toUserMessage(), result.status.fallback)
+        assertEquals(failure.toUserMessage(), result.state.message?.fallback)
         assertEquals(false, result.state.isLoading)
     }
 

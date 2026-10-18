@@ -7,7 +7,7 @@ import org.junit.Test
 class DramaLibraryScreenTest {
     @Test
     fun `continue watching subtitle keeps current text when progress is missing`() {
-        assertEquals("继续观看 01", dramaContinueWatchingSubtitle(1, null))
+        assertEquals("继续观看 01", dramaContinueWatchingSubtitle(1, null).fallback)
     }
 
     @Test
@@ -18,6 +18,6 @@ class DramaLibraryScreenTest {
             lastWatched = 123L,
         )
 
-        assertEquals("继续观看 01 · 看到 00:30", dramaContinueWatchingSubtitle(1, progress))
+        assertEquals("继续观看 01 · 看到 00:30", dramaContinueWatchingSubtitle(1, progress).fallback)
     }
 }

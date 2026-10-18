@@ -64,7 +64,28 @@ import com.miruplay.tv.repository.AppUpdateDownloadProgress
 import com.miruplay.tv.repository.AppUpdateInfo
 import com.miruplay.tv.repository.AppUpdateInstallLaunch
 import com.miruplay.tv.repository.AppUpdateRepository
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.asInfo
+import com.miruplay.tv.core.common.errorMessage
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
+import com.miruplay.tv.model.notifAppUpdateDownloadTitle
+import com.miruplay.tv.model.notifArchiveDownloadPreparing
+import com.miruplay.tv.model.notifArchiveDownloadTitle
+import com.miruplay.tv.model.notifArchiveDownloading
+import com.miruplay.tv.model.notifArchiveFailed
+import com.miruplay.tv.model.notifArchiveUpdated
+import com.miruplay.tv.model.notifCloudDriveSyncText
+import com.miruplay.tv.model.archiveDownloadProgressKnown
+import com.miruplay.tv.model.archiveDownloadProgressUnknown
+import com.miruplay.tv.model.archiveHintStatus
+import com.miruplay.tv.model.notifCloudDriveSyncTitle
+import com.miruplay.tv.repository.AppLanguage
+import com.miruplay.tv.repository.AppLocaleStore
 import com.miruplay.tv.repository.AppUpdateChannelStore
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.repository.UpdateChannel
 import com.miruplay.tv.repository.AppModePreferencesRepository
 import com.miruplay.tv.repository.CloudDriveAutomationRepository
@@ -134,6 +155,7 @@ class SettingsViewModel @Inject constructor(
     private val logUploadRepository: LogUploadRepository,
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdateChannelStore: AppUpdateChannelStore,
+    private val appLocaleStore: AppLocaleStore,
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
@@ -234,11 +256,11 @@ class SettingsViewModel @Inject constructor(
         /** User-picked input device; persisted across restarts. null = controller default. */
         val selectedMicId: Int? = null,
         val measuring: Boolean = false,
-        val progress: String? = null,
-        val error: String? = null,
+        val progress: UiText? = null,
+        val error: UiMessage? = null,
         val result: AudioMeasureResultUi? = null,
         val calibrationName: String? = null,
-        val calibrationWarning: String? = null,
+        val calibrationWarning: UiText? = null,
         val downloadingCalibration: Boolean = false,
         val calibrationCount: Int = 0,
         val outputDeviceName: String? = null,
@@ -251,8 +273,8 @@ class SettingsViewModel @Inject constructor(
     data class ToppingUiState(
         val status: com.miruplay.tv.topping.ToppingController.Status? = null,
         val busy: Boolean = false,
-        val message: String? = null,
-        val error: String? = null,
+        val message: UiMessage? = null,
+        val error: UiMessage? = null,
     )
 
     private val _topping = MutableStateFlow(ToppingUiState())
@@ -269,7 +291,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun toppingCommand(message: String, block: suspend () -> com.miruplay.tv.topping.ToppingController.Status) {
+    private suspend fun toppingCommand(message: UiMessage, block: suspend () -> com.miruplay.tv.topping.ToppingController.Status) {
         if (_topping.value.busy) return
         _topping.update { it.copy(busy = true, error = null) }
         try {
@@ -277,48 +299,48 @@ class SettingsViewModel @Inject constructor(
             _topping.update { it.copy(busy = false, status = status, message = message) }
         } catch (e: Exception) {
             _topping.update {
-                it.copy(busy = false, error = e.message ?: "操作失败", status = toppingController.status())
+                it.copy(busy = false, error = e.message?.let { errorMessage(it) } ?: uiText("topping_action_failed", "操作失败").asError(), status = toppingController.status())
             }
         }
     }
 
     fun setToppingVolume(db: Double, confirmed: Boolean = false) {
         viewModelScope.launch {
-            toppingCommand("音量已设为 ${db} dB") { toppingController.setVolume(db, confirmed) }
+            toppingCommand(UiText("topping_volume_set", listOf(db), "音量已设为 ${db} dB").asInfo()) { toppingController.setVolume(db, confirmed) }
         }
     }
 
     fun pushToppingPreset(presetId: String) {
         viewModelScope.launch {
-            toppingCommand("预设已推送到 Topping DAC") {
+            toppingCommand(uiText("topping_preset_pushed", "预设已推送到 Topping DAC").asInfo()) {
                 val config = runCatching { playbackPreferences.audioDspConfig.normalized() }
                     .getOrDefault(AudioDspConfig.neutral())
                 val preset = config.presets.firstOrNull { it.id == presetId }
-                    ?: throw IllegalStateException("预设不存在：" + presetId)
+                    ?: throw IllegalStateException(uiText("topping_preset_missing", "预设不存在").fallback + presetId)
                 toppingController.applyPreset(preset).let { toppingController.status() }
             }
         }
     }
 
     fun flatTopping() {
-        viewModelScope.launch { toppingCommand("已关闭全部 PEQ 频段") { toppingController.flat() } }
+        viewModelScope.launch { toppingCommand(uiText("topping_flat_done", "已关闭全部 PEQ 频段").asInfo()) { toppingController.flat() } }
     }
 
     fun setToppingGain(on: Boolean) {
-        viewModelScope.launch { toppingCommand(if (on) "增益已开启" else "增益已关闭") { toppingController.setGain(on) } }
+        viewModelScope.launch { toppingCommand((if (on) uiText("topping_gain_enabled", "增益已开启") else uiText("topping_gain_disabled", "增益已关闭")).asInfo()) { toppingController.setGain(on) } }
     }
 
     fun setToppingPower(on: Boolean) {
-        viewModelScope.launch { toppingCommand(if (on) "设备已唤醒" else "设备已休眠") { toppingController.setPower(on) } }
+        viewModelScope.launch { toppingCommand((if (on) uiText("topping_power_on", "设备已唤醒") else uiText("topping_power_off", "设备已休眠")).asInfo()) { toppingController.setPower(on) } }
     }
 
     fun setToppingPreamp(db: Double) {
-        viewModelScope.launch { toppingCommand("Preamp 已设为 ${db} dB") { toppingController.setPreamp(db) } }
+        viewModelScope.launch { toppingCommand(UiText("topping_preamp_set", listOf(db), "Preamp 已设为 ${db} dB").asInfo()) { toppingController.setPreamp(db) } }
     }
 
     fun requestToppingUsbPermission() {
         viewModelScope.launch {
-            toppingCommand("USB 权限已授予") { toppingController.requestUsbPermission(); toppingController.status() }
+            toppingCommand(uiText("topping_usb_granted", "USB 权限已授予").asInfo()) { toppingController.requestUsbPermission(); toppingController.status() }
         }
     }
 
@@ -336,7 +358,7 @@ class SettingsViewModel @Inject constructor(
                 it.copy(
                     calibrationName = state?.first,
                     calibrationCount = state?.second ?: 0,
-                    calibrationWarning = state?.third,
+                    calibrationWarning = state?.third?.let { rawUiText(it) },
                 )
             }
         }
@@ -363,11 +385,11 @@ class SettingsViewModel @Inject constructor(
                         downloadingCalibration = false,
                         calibrationName = settings.name,
                         calibrationCount = updated.size,
-                        calibrationWarning = warning,
+                        calibrationWarning = warning?.let { rawUiText(it) },
                     )
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message ?: "下载校准失败") }
+                _audioMeasure.update { it.copy(downloadingCalibration = false, error = e.message?.let { errorMessage(it) } ?: uiText("measure_download_failed", "下载校准失败").asError()) }
             }
         }
     }
@@ -399,7 +421,7 @@ class SettingsViewModel @Inject constructor(
         if (_audioMeasure.value.measuring) return
         setPinkNoise(false)
         viewModelScope.launch {
-            _audioMeasure.update { it.copy(measuring = true, progress = "准备中…", error = null, result = null) }
+            _audioMeasure.update { it.copy(measuring = true, progress = uiText("measure_preparing", "准备中…"), error = null, result = null) }
             try {
                 val outcome = audioMeasureController.measureRoom(
                     calibrationText = activeCalibrationText(),
@@ -416,7 +438,7 @@ class SettingsViewModel @Inject constructor(
                     )
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "测量失败") }
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message?.let { errorMessage(it) } ?: uiText("measure_failed", "测量失败").asError()) }
             }
         }
     }
@@ -424,11 +446,11 @@ class SettingsViewModel @Inject constructor(
     fun importWavMeasurement(uri: Uri) {
         if (_audioMeasure.value.measuring) return
         viewModelScope.launch {
-            _audioMeasure.update { it.copy(measuring = true, progress = "读取 WAV…", error = null, result = null) }
+            _audioMeasure.update { it.copy(measuring = true, progress = uiText("measure_reading_wav", "读取 WAV…"), error = null, result = null) }
             try {
                 val bytes = withContext(Dispatchers.IO) {
                     appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                        ?: throw IllegalStateException("无法读取所选文件")
+                        ?: throw IllegalStateException(uiText("measure_wav_unreadable", "无法读取所选文件").fallback)
                 }
                 val outcome = audioMeasureController.importWav(bytes, activeCalibrationText()) { progress ->
                     _audioMeasure.update { it.copy(progress = progress) }
@@ -437,7 +459,7 @@ class SettingsViewModel @Inject constructor(
                     it.copy(measuring = false, progress = null, result = outcome.toResultUi())
                 }
             } catch (e: Exception) {
-                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message ?: "WAV 导入失败") }
+                _audioMeasure.update { it.copy(measuring = false, progress = null, error = e.message?.let { errorMessage(it) } ?: uiText("measure_wav_failed", "WAV 导入失败").asError()) }
             }
         }
     }
@@ -522,8 +544,8 @@ class SettingsViewModel @Inject constructor(
     private val _cloudDriveBusy = MutableStateFlow(false)
     val cloudDriveBusy: StateFlow<Boolean> = _cloudDriveBusy.asStateFlow()
 
-    private val _cloudDriveActionMessage = MutableStateFlow<String?>(null)
-    val cloudDriveActionMessage: StateFlow<String?> = _cloudDriveActionMessage.asStateFlow()
+    private val _cloudDriveActionMessage = MutableStateFlow<UiMessage?>(null)
+    val cloudDriveActionMessage: StateFlow<UiMessage?> = _cloudDriveActionMessage.asStateFlow()
 
     private val _cloudDriveDirectoryBrowser = MutableStateFlow(CloudDriveDirectoryBrowserState())
     val cloudDriveDirectoryBrowser: StateFlow<CloudDriveDirectoryBrowserState> =
@@ -536,8 +558,9 @@ class SettingsViewModel @Inject constructor(
     private val _logUploadSnapshot = MutableStateFlow(OtlpLogUploadActionSnapshot())
     val logUploadSnapshot: StateFlow<OtlpLogUploadActionSnapshot> = _logUploadSnapshot.asStateFlow()
 
-    private val _logUploadStatusMessage = MutableStateFlow(settingsAndroidTvLogUploadStatusMessage())
-    val logUploadStatusMessage: StateFlow<String> = _logUploadStatusMessage.asStateFlow()
+    private val _logUploadStatusMessage =
+        MutableStateFlow<UiMessage>(settingsAndroidTvLogUploadStatusMessage().asInfo())
+    val logUploadStatusMessage: StateFlow<UiMessage> = _logUploadStatusMessage.asStateFlow()
 
     private val _appUpdateState = MutableStateFlow(AppUpdateUiState(channel = appUpdateChannelStore.updateChannel))
     val appUpdateState: StateFlow<AppUpdateUiState> = _appUpdateState.asStateFlow()
@@ -552,14 +575,24 @@ class SettingsViewModel @Inject constructor(
             _appUpdateState.value = _appUpdateState.value.copy(channel = channel)
         }
 
+    private val _appLanguage = MutableStateFlow(appLocaleStore.appLanguage)
+    val appLanguage: StateFlow<AppLanguage> = _appLanguage.asStateFlow()
+
+    // 其他表面（WebAPI/WebUI）改语言时同步 UI；Activity 侧监听同一存储负责 recreate
+    private val appLanguageChangeListener: java.io.Closeable =
+        appLocaleStore.addLanguageChangeListener { language ->
+            _appLanguage.value = language
+        }
+
     private val _bangumiArchiveState = MutableStateFlow(BangumiArchiveUiState())
     val bangumiArchiveState: StateFlow<BangumiArchiveUiState> = _bangumiArchiveState.asStateFlow()
 
     private val _bangumiSyncState = MutableStateFlow(BangumiSyncAllUiState())
     val bangumiSyncState: StateFlow<BangumiSyncAllUiState> = _bangumiSyncState.asStateFlow()
 
-    private val _proxyStatusMessage = MutableStateFlow(settingsProxySavedStatus())
-    val proxyStatusMessage: StateFlow<String> = _proxyStatusMessage.asStateFlow()
+    private val _proxyStatusMessage =
+        MutableStateFlow<UiMessage>(settingsProxySavedStatus().asInfo())
+    val proxyStatusMessage: StateFlow<UiMessage> = _proxyStatusMessage.asStateFlow()
 
     init {
         loadSources()
@@ -647,12 +680,12 @@ class SettingsViewModel @Inject constructor(
             sourceResult.onSuccess { ms ->
                 val test = ms.testConnection()
                 test.onSuccess { connected ->
-                    _testResult.value = if (connected) ConnectionTestResult.Success else ConnectionTestResult.Failed("无法连接到服务器")
+                    _testResult.value = if (connected) ConnectionTestResult.Success else ConnectionTestResult.Failed(uiText("connection_failed", "无法连接到服务器"))
                 }.onError { error ->
-                    _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
+                    _testResult.value = ConnectionTestResult.Failed(error.toUiText())
                 }
             }.onError { error ->
-                _testResult.value = ConnectionTestResult.Failed(error.toUserMessage())
+                _testResult.value = ConnectionTestResult.Failed(error.toUiText())
             }
         }
     }
@@ -704,7 +737,8 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 _bangumiSyncState.value = BangumiSyncAllUiState(
                     isRunning = false,
-                    errorMessage = e.message ?: "同步失败",
+                    errorMessage = e.message?.let { errorMessage(it) }
+                        ?: uiText("bangumi_sync_failed", "同步失败").asError(),
                 )
             }
         }
@@ -739,9 +773,9 @@ class SettingsViewModel @Inject constructor(
             )
                 .onSuccess { config ->
                     cloudDriveScheduler.syncPeriodicWork(config)
-                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus()
+                    _cloudDriveActionMessage.value = cloudRssConfigSavedStatus().asInfo()
                 }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -754,7 +788,7 @@ class SettingsViewModel @Inject constructor(
             val current = when (val result = cloudDriveRepository.getConfig()) {
                 is Result.Success -> result.data
                 is Result.Error -> {
-                    _proxyStatusMessage.value = result.error.toUserMessage()
+                    _proxyStatusMessage.value = result.error.toUiText().asError()
                     return@launch
                 }
             }
@@ -766,9 +800,9 @@ class SettingsViewModel @Inject constructor(
             cloudDriveRepository.saveConfig(config)
                 .onSuccess {
                     bangumiArchiveStore.configureProxy(config.toBangumiHttpProxyConfig())
-                    _proxyStatusMessage.value = settingsProxySavedStatus()
+                    _proxyStatusMessage.value = settingsProxySavedStatus().asInfo()
                 }
-                .onError { error -> _proxyStatusMessage.value = error.toUserMessage() }
+                .onError { error -> _proxyStatusMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -785,8 +819,8 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             backgroundTasks.start(
                 taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
-                title = "Bangumi Archive 下载",
-                text = "正在准备下载 Archive",
+                title = notifArchiveDownloadTitle().resolve(appContext),
+                text = notifArchiveDownloadPreparing().resolve(appContext),
                 progress = BackgroundTaskProgress.indeterminate(),
             )
             val proxyConfig = _cloudDriveConfig.value.toBangumiHttpProxyConfig()
@@ -808,7 +842,7 @@ class SettingsViewModel @Inject constructor(
                 downloadedBytes = 0L,
                 totalBytes = 0L,
                 lastError = null,
-                statusMessage = "Bangumi Archive 正在下载。",
+                statusMessage = notifArchiveDownloading(),
             )
             try {
                 when (
@@ -825,8 +859,8 @@ class SettingsViewModel @Inject constructor(
                             )
                             backgroundTasks.update(
                                 taskId = BackgroundTaskIds.BANGUMI_ARCHIVE,
-                                title = "Bangumi Archive 下载",
-                                text = downloadProgressText(downloadedBytes, safeTotalBytes),
+                                title = notifArchiveDownloadTitle().resolve(appContext),
+                                text = downloadProgressText(downloadedBytes, safeTotalBytes).resolve(appContext),
                                 progress = byteProgress(downloadedBytes, safeTotalBytes),
                             )
                         }
@@ -845,7 +879,7 @@ class SettingsViewModel @Inject constructor(
                             )
                         )
                         _bangumiArchiveState.value = result.data.toBangumiArchiveUiState(
-                            statusMessage = "Bangumi Archive 已更新。",
+                            statusMessage = notifArchiveUpdated(),
                         )
                     }
                     is Result.Error -> {
@@ -862,7 +896,7 @@ class SettingsViewModel @Inject constructor(
                         )
                         _bangumiArchiveState.value = bangumiArchiveStore.snapshot().toBangumiArchiveUiState(
                             lastError = errorMessage,
-                            statusMessage = "Bangumi Archive 下载失败。",
+                            statusMessage = notifArchiveFailed(),
                         )
                     }
                 }
@@ -876,7 +910,7 @@ class SettingsViewModel @Inject constructor(
         val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
             is CloudDriveLoginFormResult.Ready -> result.request
             is CloudDriveLoginFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
+                _cloudDriveActionMessage.value = result.status.asError()
                 return
             }
         }
@@ -885,10 +919,10 @@ class SettingsViewModel @Inject constructor(
             cloudDriveEngine.login(form.endpointUrl, form.username, form.password)
                 .onSuccess {
                     refreshCloudDriveCredentialState()
-                    _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus()
+                    _cloudDriveActionMessage.value = cloudDriveLoginSucceededStatus().asInfo()
                 }
                 .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
+                    _cloudDriveActionMessage.value = error.toUiText().asError()
                 }
             _cloudDriveBusy.value = false
         }
@@ -898,7 +932,7 @@ class SettingsViewModel @Inject constructor(
         val form = when (val result = validateCloudDriveApiTokenForm(endpointUrl, token)) {
             is CloudDriveApiTokenFormResult.Ready -> result.request
             is CloudDriveApiTokenFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
+                _cloudDriveActionMessage.value = result.status.asError()
                 return
             }
         }
@@ -910,10 +944,10 @@ class SettingsViewModel @Inject constructor(
                     _cloudDriveActionMessage.value = cloudDriveTokenVerifiedStatus(
                         friendlyName = info.friendlyName,
                         rootDir = info.rootDir,
-                    )
+                    ).asInfo()
                 }
                 .onError { error ->
-                    _cloudDriveActionMessage.value = error.toUserMessage()
+                    _cloudDriveActionMessage.value = error.toUiText().asError()
                 }
             _cloudDriveBusy.value = false
         }
@@ -930,29 +964,29 @@ class SettingsViewModel @Inject constructor(
         ) {
             is RssSubscriptionFormResult.Ready -> result.subscription
             is RssSubscriptionFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
+                _cloudDriveActionMessage.value = result.status.asError()
                 return
             }
         }
         viewModelScope.launch {
             cloudDriveRepository.saveSubscription(subscription)
-                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name) }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionSavedStatus(subscription.name).asInfo() }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
     fun setRssSubscriptionEnabled(subscription: RssSubscriptionInfo, enabled: Boolean) {
         viewModelScope.launch {
             cloudDriveRepository.saveSubscription(subscription.copy(enabled = enabled))
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
     fun deleteRssSubscription(id: Long) {
         viewModelScope.launch {
             cloudDriveRepository.deleteSubscription(id)
-                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus() }
-                .onError { error -> _cloudDriveActionMessage.value = error.toUserMessage() }
+                .onSuccess { _cloudDriveActionMessage.value = rssSubscriptionDeletedStatus().asInfo() }
+                .onError { error -> _cloudDriveActionMessage.value = error.toUiText().asError() }
         }
     }
 
@@ -961,19 +995,19 @@ class SettingsViewModel @Inject constructor(
             _cloudDriveBusy.value = true
             backgroundTasks.start(
                 taskId = BackgroundTaskIds.CLOUD_DRIVE_RSS,
-                title = "CloudDrive/RSS 同步",
-                text = "正在下载、整理并扫描订阅内容",
+                title = notifCloudDriveSyncTitle().resolve(appContext),
+                text = notifCloudDriveSyncText().resolve(appContext),
                 progress = BackgroundTaskProgress.indeterminate(),
             )
             try {
                 cloudDriveEngine.runOnce()
                     .onSuccess { summary ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = summary.completeStatus()
+                        _cloudDriveActionMessage.value = summary.completeStatus().asInfo()
                     }
                     .onError { error ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = error.toUserMessage()
+                        _cloudDriveActionMessage.value = error.toUiText().asError()
                     }
             } finally {
                 _cloudDriveBusy.value = false
@@ -1016,7 +1050,7 @@ class SettingsViewModel @Inject constructor(
                 ) {
                     is Result.Success -> saved.data
                     is Result.Error -> {
-                        _cloudDriveActionMessage.value = saved.error.toUserMessage()
+                        _cloudDriveActionMessage.value = saved.error.toUiText().asError()
                         return@launch
                     }
                 }
@@ -1026,7 +1060,7 @@ class SettingsViewModel @Inject constructor(
                     val form = when (val result = validateCloudDriveLoginForm(endpointUrl, username, password)) {
                         is CloudDriveLoginFormResult.Ready -> result.request
                         is CloudDriveLoginFormResult.Invalid -> {
-                            _cloudDriveActionMessage.value = result.status
+                            _cloudDriveActionMessage.value = result.status.asError()
                             return@launch
                         }
                     }
@@ -1034,31 +1068,31 @@ class SettingsViewModel @Inject constructor(
                         is Result.Success -> refreshCloudDriveCredentialState()
                         is Result.Error -> {
                             refreshCloudDriveCredentialState()
-                            _cloudDriveActionMessage.value = login.error.toUserMessage()
+                            _cloudDriveActionMessage.value = login.error.toUiText().asError()
                             return@launch
                         }
                     }
                 }
 
                 if (securePrefs.cloudDriveToken.isNullOrBlank() && securePrefs.cloudDrivePassword.isNullOrBlank()) {
-                    _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
+                    _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus().asInfo()
                     return@launch
                 }
 
                 backgroundTasks.start(
                     taskId = BackgroundTaskIds.CLOUD_DRIVE_RSS,
-                    title = "CloudDrive/RSS 同步",
-                    text = "正在下载、整理并扫描订阅内容",
+                    title = notifCloudDriveSyncTitle().resolve(appContext),
+                    text = notifCloudDriveSyncText().resolve(appContext),
                     progress = BackgroundTaskProgress.indeterminate(),
                 )
                 cloudDriveEngine.runOnce()
                     .onSuccess { summary ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = summary.completeStatus()
+                        _cloudDriveActionMessage.value = summary.completeStatus().asInfo()
                     }
                     .onError { error ->
                         refreshCloudDriveCredentialState()
-                        _cloudDriveActionMessage.value = error.toUserMessage()
+                        _cloudDriveActionMessage.value = error.toUiText().asError()
                     }
             } finally {
                 _cloudDriveBusy.value = false
@@ -1081,7 +1115,7 @@ class SettingsViewModel @Inject constructor(
         ) {
             is CloudDriveDirectoryPickerFormResult.Ready -> result.request
             is CloudDriveDirectoryPickerFormResult.Invalid -> {
-                _cloudDriveActionMessage.value = result.status
+                _cloudDriveActionMessage.value = result.status.asError()
                 return
             }
         }
@@ -1101,7 +1135,7 @@ class SettingsViewModel @Inject constructor(
                     browseCloudDriveDirectory(prepared.data.path)
                 }
                 is Result.Error -> {
-                    _cloudDriveActionMessage.value = prepared.error.toUserMessage()
+                    _cloudDriveActionMessage.value = prepared.error.toUiText().asError()
                 }
             }
         }
@@ -1111,7 +1145,7 @@ class SettingsViewModel @Inject constructor(
         val state = _cloudDriveDirectoryBrowser.value
         if (!state.open) return
         if (state.token.isBlank()) {
-            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus()
+            _cloudDriveActionMessage.value = cloudDriveTokenLoginRequiredStatus().asInfo()
             return
         }
 
@@ -1130,7 +1164,7 @@ class SettingsViewModel @Inject constructor(
                     if (!current.open || current.endpointUrl != loadingState.endpointUrl || current.token != loadingState.token) return@launch
                     _cloudDriveDirectoryBrowser.value = current.copy(
                         isLoading = false,
-                        message = result.error.toUserMessage()
+                        message = rawUiText(result.error.toUserMessage())
                     )
                 }
             }
@@ -1180,7 +1214,8 @@ class SettingsViewModel @Inject constructor(
                 if (!current.open) return@onFailure
                 _localDirectoryBrowser.value = current.copy(
                     isLoading = false,
-                    message = error.message ?: "读取目录失败"
+                    message = error.message?.let { rawUiText(it) }
+                        ?: uiText("dir_browser_read_failed", "读取目录失败")
                 )
             }
         }
@@ -1362,6 +1397,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAppLanguage(language: AppLanguage) {
+        if (language == _appLanguage.value) return
+        appLocaleStore.appLanguage = language
+        _appLanguage.value = language
+        // UI 立即反映选择；Activity 侧监听同一存储负责 recreate 生效
+    }
+
     fun setAppUpdateChannel(channel: UpdateChannel) {
         if (channel == _appUpdateChannel.value) return
         appUpdateChannelStore.updateChannel = channel
@@ -1377,7 +1419,7 @@ class SettingsViewModel @Inject constructor(
             _appUpdateState.value = _appUpdateState.value.copy(
                 isBusy = true,
                 progressPercent = null,
-                statusMessage = settingsAppUpdateCheckingStatus(),
+                statusMessage = settingsAppUpdateCheckingStatus().asInfo(),
             )
             when (val result = appUpdateRepository.checkLatestUpdate()) {
                 is Result.Success -> {
@@ -1387,7 +1429,7 @@ class SettingsViewModel @Inject constructor(
                     _appUpdateState.value = _appUpdateState.value.copy(
                         isBusy = false,
                         progressPercent = null,
-                        statusMessage = result.error.toUserMessage(),
+                        statusMessage = result.error.toUiText().asError(),
                     )
                 }
             }
@@ -1406,12 +1448,12 @@ class SettingsViewModel @Inject constructor(
             _appUpdateState.value = _appUpdateState.value.copy(
                 isBusy = true,
                 progressPercent = 0,
-                statusMessage = settingsAppUpdateDownloadProgressStatus(0),
+                statusMessage = settingsAppUpdateDownloadProgressStatus(0).asInfo(),
             )
             backgroundTasks.start(
                 taskId = BackgroundTaskIds.APP_UPDATE,
-                title = "应用更新下载",
-                text = settingsAppUpdateDownloadProgressStatus(0),
+                title = notifAppUpdateDownloadTitle().resolve(appContext),
+                text = settingsAppUpdateDownloadProgressStatus(0).resolve(appContext),
                 progress = BackgroundTaskProgress.determinate(current = 0, max = 100),
             )
             try {
@@ -1432,14 +1474,14 @@ class SettingsViewModel @Inject constructor(
                         _appUpdateState.value = _appUpdateState.value.copy(
                             isBusy = false,
                             progressPercent = null,
-                            statusMessage = status,
+                            statusMessage = status.asInfo(),
                         )
                     }
                     is Result.Error -> {
                         _appUpdateState.value = _appUpdateState.value.copy(
                             isBusy = false,
                             progressPercent = null,
-                            statusMessage = result.error.toUserMessage(),
+                            statusMessage = result.error.toUiText().asError(),
                         )
                     }
                 }
@@ -1453,7 +1495,7 @@ class SettingsViewModel @Inject constructor(
         if (appUpdateRepository.canRequestPackageInstalls()) {
             _appUpdateState.value = _appUpdateState.value.copy(
                 isBusy = false,
-                statusMessage = settingsAppUpdateInstallPermissionGrantedStatus(),
+                statusMessage = settingsAppUpdateInstallPermissionGrantedStatus().asInfo(),
             )
             return
         }
@@ -1461,13 +1503,13 @@ class SettingsViewModel @Inject constructor(
             is Result.Success -> {
                 _appUpdateState.value = _appUpdateState.value.copy(
                     isBusy = false,
-                    statusMessage = settingsAppUpdateInstallPermissionStatus(),
+                    statusMessage = settingsAppUpdateInstallPermissionStatus().asInfo(),
                 )
             }
             is Result.Error -> {
                 _appUpdateState.value = _appUpdateState.value.copy(
                     isBusy = false,
-                    statusMessage = result.error.toUserMessage(),
+                    statusMessage = result.error.toUiText().asError(),
                 )
             }
         }
@@ -1556,30 +1598,35 @@ class SettingsViewModel @Inject constructor(
 
     private fun applyLogUploadSnapshot(snapshot: OtlpLogUploadActionSnapshot) {
         _logUploadSnapshot.value = snapshot
-        _logUploadStatusMessage.value = androidTvLogUploadStatusMessage(snapshot)
+        val text = androidTvLogUploadStatusMessage(snapshot)
+        // 兼容：服务端/异常透传的明细文本仍是中文，用关键词判定 error（错误模型类型化后可删）
+        val isError = snapshot.lastUploadStatus?.let { detail ->
+            "失败" in detail || "无法" in detail || "请" in detail
+        } == true
+        _logUploadStatusMessage.value = if (isError) text.asError() else text.asInfo()
     }
 
     private fun updateDownloadProgress(progress: AppUpdateDownloadProgress) {
         val percent = progress.percent
         _appUpdateState.value = _appUpdateState.value.copy(
             progressPercent = percent,
-            statusMessage = settingsAppUpdateDownloadProgressStatus(percent),
+            statusMessage = settingsAppUpdateDownloadProgressStatus(percent).asInfo(),
         )
         backgroundTasks.update(
             taskId = BackgroundTaskIds.APP_UPDATE,
-            title = "应用更新下载",
-            text = settingsAppUpdateDownloadProgressStatus(percent),
+            title = notifAppUpdateDownloadTitle().resolve(appContext),
+            text = settingsAppUpdateDownloadProgressStatus(percent).resolve(appContext),
             progress = percent?.let { BackgroundTaskProgress.determinate(it, 100) }
                 ?: BackgroundTaskProgress.indeterminate(),
         )
     }
 
-    private fun downloadProgressText(downloadedBytes: Long, totalBytes: Long): String {
+    private fun downloadProgressText(downloadedBytes: Long, totalBytes: Long): UiText {
         val percent = progressPercent(downloadedBytes, totalBytes)
         return if (percent == null) {
-            "已下载 ${formatBytes(downloadedBytes)}"
+            archiveDownloadProgressUnknown(formatBytes(downloadedBytes))
         } else {
-            "已下载 ${formatBytes(downloadedBytes)} / ${formatBytes(totalBytes)} ($percent%)"
+            archiveDownloadProgressKnown(formatBytes(downloadedBytes), formatBytes(totalBytes), percent)
         }
     }
 
@@ -1611,9 +1658,9 @@ class SettingsViewModel @Inject constructor(
             isBusy = false,
             progressPercent = null,
             statusMessage = if (updateAvailable) {
-                settingsAppUpdateReadyStatus(latestInfo.versionName)
+                settingsAppUpdateReadyStatus(latestInfo.versionName).asInfo()
             } else {
-                settingsAppUpdateLatestStatus(currentVersionName)
+                settingsAppUpdateLatestStatus(currentVersionName).asInfo()
             },
             channel = channel,
         )
@@ -1641,11 +1688,12 @@ class SettingsViewModel @Inject constructor(
         logUploadConfigObserverJob?.cancel()
         logUploadAutoScheduler.stop()
         updateChannelChangeListener.close()
+        appLanguageChangeListener.close()
         super.onCleared()
     }
 }
 
-internal fun androidTvLogUploadStatusMessage(snapshot: OtlpLogUploadActionSnapshot): String =
+internal fun androidTvLogUploadStatusMessage(snapshot: OtlpLogUploadActionSnapshot): UiText =
     settingsLogUploadStatusMessage(
         pendingCount = snapshot.pendingCount,
         isUploading = snapshot.isUploading,
@@ -1658,10 +1706,10 @@ data class LocalDirectoryBrowserState(
     val open: Boolean = false,
     val isLoading: Boolean = false,
     val path: String = "",
-    val displayPath: String = directoryBrowserRootDisplayName(isLocal = true),
+    val displayPath: String = "",
     val parentPath: String? = null,
     val entries: List<LocalDirectoryEntry> = emptyList(),
-    val message: String? = null
+    val message: UiText? = null
 )
 
 data class LocalDirectoryEntry(
@@ -1683,12 +1731,12 @@ data class BangumiArchiveUiState(
     val downloadedBytes: Long = 0L,
     val totalBytes: Long = 0L,
     val lastError: String? = null,
-    val statusMessage: String = "Bangumi Archive 每周自动更新；也可以手动下载或更新。",
+    val statusMessage: UiText = archiveHintStatus(),
 )
 
 private fun BangumiArchiveSnapshot.toBangumiArchiveUiState(
     lastError: String? = null,
-    statusMessage: String = "Bangumi Archive 每周自动更新；也可以手动下载或更新。",
+    statusMessage: UiText = archiveHintStatus(),
 ): BangumiArchiveUiState =
     BangumiArchiveUiState(
         available = true,
@@ -1706,7 +1754,7 @@ data class AppUpdateUiState(
     val updateAvailable: Boolean = false,
     val isBusy: Boolean = false,
     val progressPercent: Int? = null,
-    val statusMessage: String = settingsAppUpdateIdleStatus(),
+    val statusMessage: UiMessage = settingsAppUpdateIdleStatus().asInfo(),
     val channel: UpdateChannel = UpdateChannel.ALPHA,
 )
 
@@ -1719,11 +1767,11 @@ data class BangumiSyncAllUiState(
     val totalPulledEpisodes: Int = 0,
     val totalRemoteWatchedEpisodes: Int = 0,
     val failedAnimeIds: List<String> = emptyList(),
-    val errorMessage: String? = null,
+    val errorMessage: UiMessage? = null,
 )
 
 sealed class ConnectionTestResult {
     data object Testing : ConnectionTestResult()
     data object Success : ConnectionTestResult()
-    data class Failed(val message: String) : ConnectionTestResult()
+    data class Failed(val message: UiText) : ConnectionTestResult()
 }

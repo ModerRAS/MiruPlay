@@ -478,7 +478,7 @@ class LibraryDramaResolverTest {
         assertNull(detail?.series?.tmdbId)
         assertEquals(
             "在线元数据返回结果和本地剧名差太大，已忽略这次自动匹配。",
-            detail?.metadataMessage,
+            detail?.metadataMessage?.fallback,
         )
     }
 

@@ -1,5 +1,6 @@
 package com.miruplay.tv.sync
 
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.metadataBangumiTokenClearedMessage
 import com.miruplay.tv.model.saveBangumiTokenFormResult
 import com.miruplay.tv.repository.AppCredentialStore
@@ -8,11 +9,11 @@ sealed class BangumiTokenActionResult {
     data class Saved(
         val token: String?,
         val configured: Boolean,
-        val status: String,
+        val status: UiText,
         val shouldClearInput: Boolean,
     ) : BangumiTokenActionResult()
 
-    data class Cleared(val status: String) : BangumiTokenActionResult()
+    data class Cleared(val status: UiText) : BangumiTokenActionResult()
 }
 
 class BangumiCredentialActionCoordinator(

@@ -3,6 +3,8 @@ package com.miruplay.tv.ui.detail
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -66,7 +68,14 @@ import com.miruplay.tv.model.dramaMetadataStatusMessage
 import com.miruplay.tv.model.dramaRefreshActionLabel
 import com.miruplay.tv.model.dramaSeasonCountLabel
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.model.isCompleted
+import com.miruplay.tv.model.playbackBackLabel
 import com.miruplay.tv.model.progressLabel
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.uiText
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.providerDisplayLabel
 import com.miruplay.tv.model.providerStableKey
 import com.miruplay.tv.ui.drama.DramaBackdropArtworkPlaceholder
@@ -178,19 +187,19 @@ private fun DramaDetailMissingState(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = "没有找到这部电视剧",
+            text = stringResource(R.string.drama_not_found_title),
             style = TvTypography.title,
             color = TextPrimary,
         )
         Spacer(Modifier.height(12.dp))
         Text(
-            text = "可能是源被删了，或者这条内容还没重新扫出来。",
+            text = stringResource(R.string.drama_not_found_desc),
             style = TvTypography.body,
             color = TextSecondary,
         )
         Spacer(Modifier.height(20.dp))
         TvButton(
-            text = "返回",
+            text = stringResource(R.string.detail_back),
             onClick = onNavigateBack,
         )
     }
@@ -205,8 +214,8 @@ private fun DramaDetailContent(
     isRefreshingMetadata: Boolean,
     hasTmdbTokenConfigured: Boolean,
     canRefreshBoundMetadata: Boolean,
-    primaryActionLabel: String,
-    actionMessage: String?,
+    primaryActionLabel: UiText,
+    actionMessage: UiMessage?,
     primaryActionEpisode: DramaEpisode?,
     hasPlayableEpisodes: Boolean,
     onNavigateBack: () -> Unit,
@@ -296,7 +305,7 @@ private fun DramaDetailContent(
                     Spacer(Modifier.height(18.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         TvButton(
-                            text = primaryActionLabel,
+                            text = primaryActionLabel.resolve(),
                             onClick = { primaryActionEpisode?.let(onPlayEpisode) },
                             enabled = primaryActionEpisode != null,
                             modifier = Modifier
@@ -304,7 +313,7 @@ private fun DramaDetailContent(
                                 .then(primaryActionFocus.modifier()),
                         )
                         TvButton(
-                            text = dramaRefreshActionLabel(isRefreshingMetadata),
+                            text = dramaRefreshActionLabel(isRefreshingMetadata).resolve(),
                             icon = Icons.Filled.Refresh,
                             onClick = onRefreshMetadata,
                             enabled = !isRefreshingMetadata,
@@ -318,14 +327,11 @@ private fun DramaDetailContent(
                             modifier = Modifier.width(170.dp),
                         )
                     }
-                    if (!actionMessage.isNullOrBlank()) {
+                    actionMessage?.let { message ->
                         Spacer(Modifier.height(14.dp))
-                        val positiveMessage = actionMessage.contains("已切换") ||
-                            actionMessage.contains("已刷新") ||
-                            actionMessage.contains("已更新")
                         Text(
-                            text = actionMessage,
-                            color = if (positiveMessage) ProgressGreen else WarningYellow,
+                            text = message.text.resolve(),
+                            color = if (message is UiMessage.Error) WarningYellow else ProgressGreen,
                             style = TvTypography.body,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
@@ -376,7 +382,7 @@ private fun DramaDetailContent(
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 seasons.forEach { season ->
                     TvButton(
-                        text = detailSeasonLabel(season),
+                        text = detailSeasonLabel(season).resolve(),
                         onClick = { onSelectSeason(season) },
                         modifier = Modifier.width(132.dp),
                         secondary = selectedSeason != season,
@@ -387,14 +393,14 @@ private fun DramaDetailContent(
         }
 
         Text(
-            text = detailEpisodeSectionTitle(),
+            text = detailEpisodeSectionTitle().resolve(),
             style = TvTypography.subtitle,
             color = TextPrimary,
         )
         Spacer(Modifier.height(12.dp))
         if (episodes.isEmpty()) {
             DramaEpisodeEmptyState(
-                message = actionMessage ?: "当前季还没有可播放剧集。",
+                message = actionMessage ?: uiText("drama_season_empty_state", "当前季还没有可播放剧集。").asError(),
                 onNavigateBack = onNavigateBack,
             )
         } else {
@@ -402,8 +408,8 @@ private fun DramaDetailContent(
                 DramaEpisodeListItem(
                     episode = episode,
                     progress = dramaEpisodeProgressIndicatorFraction(episode, progress),
-                    progressText = episode.toPlaybackEpisode().progressLabel(progress),
-                    isWatched = episode.toPlaybackEpisode().progressLabel(progress) == "已看",
+                    progressText = episode.toPlaybackEpisode().progressLabel(progress).resolve(),
+                    isWatched = episode.toPlaybackEpisode().isCompleted(progress),
                     onPlay = { onPlayEpisode(episode) },
                 )
             }
@@ -446,13 +452,13 @@ private fun DramaManualMatchDialog(
                 )
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "在线手动匹配",
+                    text = stringResource(R.string.drama_manual_match_title),
                     style = TvTypography.subtitle,
                     color = TextPrimary,
                 )
                 Spacer(Modifier.weight(1f))
                 TvButton(
-                    text = "关闭",
+                    text = stringResource(R.string.drama_dialog_close),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -469,7 +475,7 @@ private fun DramaManualMatchDialog(
             ) {
                 item(key = "candidate-title") {
                     Text(
-                        text = "候选标题",
+                        text = stringResource(R.string.drama_candidate_title),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                     )
@@ -477,7 +483,7 @@ private fun DramaManualMatchDialog(
                 if (state.candidateTerms.isEmpty()) {
                     item(key = "candidate-empty") {
                         Text(
-                            text = "当前没有可用的本地候选标题，请直接输入搜索词。",
+                            text = stringResource(R.string.drama_candidate_empty),
                             style = TvTypography.body,
                             color = TextSecondary,
                         )
@@ -503,11 +509,11 @@ private fun DramaManualMatchDialog(
                         TvTextField(
                             value = state.query,
                             onValueChange = onQueryChange,
-                            label = "搜索词",
+                            label = stringResource(R.string.drama_search_query_label),
                             modifier = Modifier.weight(1f),
                         )
                         TvButton(
-                            text = "搜索",
+                            text = stringResource(R.string.drama_search_action),
                             icon = Icons.Filled.Search,
                             enabled = !busy && (state.query.isNotBlank() || state.selectedCandidateTerms.isNotEmpty()),
                             onClick = onSearch,
@@ -518,7 +524,7 @@ private fun DramaManualMatchDialog(
 
                 item(key = "results-title") {
                     Text(
-                        text = "搜索结果",
+                        text = stringResource(R.string.drama_results_title),
                         style = TvTypography.body.copy(fontWeight = FontWeight.SemiBold),
                         color = TextPrimary,
                     )
@@ -526,7 +532,7 @@ private fun DramaManualMatchDialog(
                 if (state.results.isEmpty()) {
                     item(key = "results-empty") {
                         Text(
-                            text = "还没有在线结果，先点搜索。",
+                            text = stringResource(R.string.drama_results_empty),
                             style = TvTypography.body,
                             color = TextSecondary,
                         )
@@ -542,20 +548,12 @@ private fun DramaManualMatchDialog(
                     }
                 }
 
-                if (!state.statusMessage.isNullOrBlank()) {
+                state.statusMessage?.let { status ->
                     item(key = "status-message") {
                         Text(
-                            text = state.statusMessage,
+                            text = status.text.resolve(),
                             style = TvTypography.body,
-                            color = if (
-                                state.statusMessage.contains("找到") ||
-                                state.statusMessage.contains("已选择") ||
-                                state.statusMessage.contains("已应用")
-                            ) {
-                                ProgressGreen
-                            } else {
-                                WarningYellow
-                            },
+                            color = if (status is UiMessage.Error) WarningYellow else ProgressGreen,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -565,14 +563,14 @@ private fun DramaManualMatchDialog(
 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 TvButton(
-                    text = "应用匹配",
+                    text = stringResource(R.string.drama_apply_match),
                     icon = Icons.Filled.CheckCircle,
                     enabled = !busy && state.selectedResult != null,
                     onClick = onApply,
                     modifier = Modifier.width(180.dp),
                 )
                 TvButton(
-                    text = "关闭",
+                    text = stringResource(R.string.drama_dialog_close),
                     icon = Icons.Filled.Close,
                     enabled = !busy,
                     onClick = onDismiss,
@@ -706,15 +704,15 @@ private fun DramaManualMatchResultItem(
                     DramaStatPill(airDate, WarningYellow)
                 }
                 if (result.sourceLabels.size > 1) {
-                    DramaStatPill("聚合 ${result.aggregatedSourceLabel()}", TextSecondary)
-                    DramaStatPill("应用 ${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_aggregated, result.aggregatedSourceLabel()), TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_apply, result.providerDisplayLabel(), result.providerRef.id), TextSecondary)
                 } else {
-                    DramaStatPill("${result.providerDisplayLabel()} #${result.providerRef.id}", TextSecondary)
+                    DramaStatPill(stringResource(R.string.drama_pill_source, result.providerDisplayLabel(), result.providerRef.id), TextSecondary)
                 }
             }
             Spacer(Modifier.height(8.dp))
             Text(
-                text = result.summary.ifBlank { "这条结果还没有简介。" },
+                text = result.summary.ifBlank { stringResource(R.string.drama_result_no_summary) },
                 color = TextSecondary,
                 fontSize = 12.sp,
                 maxLines = 3,
@@ -726,7 +724,7 @@ private fun DramaManualMatchResultItem(
 
 @Composable
 private fun DramaMetadataHintCard(
-    message: String,
+    message: UiText,
     highlightColor: Color,
     iconColor: Color,
 ) {
@@ -747,7 +745,7 @@ private fun DramaMetadataHintCard(
             modifier = Modifier.size(22.dp),
         )
         Text(
-            text = message,
+            text = message.resolve(),
             color = TextPrimary,
             style = TvTypography.body,
             maxLines = 2,
@@ -758,7 +756,7 @@ private fun DramaMetadataHintCard(
 
 @Composable
 private fun DramaEpisodeEmptyState(
-    message: String,
+    message: UiMessage,
     onNavigateBack: () -> Unit,
 ) {
     Column(
@@ -768,12 +766,12 @@ private fun DramaEpisodeEmptyState(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(
-            text = message,
+            text = message.text.resolve(),
             color = TextSecondary,
             style = TvTypography.body,
         )
         TvButton(
-            text = "返回",
+            text = playbackBackLabel().resolve(),
             onClick = onNavigateBack,
             modifier = Modifier.width(160.dp),
             secondary = true,
@@ -786,8 +784,8 @@ private fun DramaDetailStats(
     series: com.miruplay.tv.model.DramaSeries,
 ) {
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        DramaStatPill(dramaEpisodeCountLabel(series.episodeCount), TextSecondary)
-        DramaStatPill(dramaSeasonCountLabel(series.seasonCount), TextSecondary)
+        DramaStatPill(dramaEpisodeCountLabel(series.episodeCount).resolve(), TextSecondary)
+        DramaStatPill(dramaSeasonCountLabel(series.seasonCount).resolve(), TextSecondary)
         series.firstAirDate?.takeIf { it.isNotBlank() }?.let {
             DramaStatPill(it, WarningYellow)
         }
@@ -873,7 +871,7 @@ private fun DramaEpisodeListItem(
 
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title),
+                text = detailEpisodeTitleLabel(episode.episodeNumber, episode.title).resolve(),
                 color = TextPrimary,
                 fontSize = 17.sp,
                 maxLines = 1,

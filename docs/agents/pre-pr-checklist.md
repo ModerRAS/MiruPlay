@@ -192,3 +192,25 @@ Cross-checks:
 - Normal dialogue + no-subtitle episodes play unchanged; HDR software-decode preferences still honored (selector unit tests + default HEVC order untouched)
 - libass native host: single `libc++_shared.so` per ABI in APK, `MiruLibass: Resolved libass API from packaged libmpv.so` on device
 - Settings parity TV ↔ WebAPI ↔ WebUI for the new toggle (WebUI playback form switch; browser interaction not device-verified — no browser in test env)
+
+### App i18n zh-CN/en-US/zh-TW/zh-HK/en-GB + in-app language switch (v2.16)
+
+Own checks (all observed on HK1):
+
+- Settings → Scan → Language: 6 chips render (Follow system/简体中文/繁體中文（台灣）/繁體中文（香港）/English (US)/English (UK)); currently selected chip highlighted
+- Manual switch via prefs/WebAPI to en-US + force-stop/restart: home shows Discover/Search/Scan/Settings; settings menu/summaries render English with correct spacing ("Chinese Subtitles", not "ChineseSubtitles")
+- Nested UiText resolution verified on device: source rows show "Local · Reachable" (was: "本地 · 可连接" — composable-path nested args fell back to Chinese while unit tests stayed green, see failure class below)
+- Manual switch to zh-TW + restart: home shows 探索/搜尋/掃描/設定 (Traditional + TW wording, proves values-zh-rTW region matching)
+- Reset to follow-system (delete app_language pref) + restart: back to Simplified on this zh-CN device, no crash (attachBaseContext reads prefs before applicationContext exists — this crashed on first device run: NPE on getSharedPreferences in attachBaseContext)
+- Music mode chip in Scan panel: third chip reads Music (was: Anime twice — pre-existing copy bug fixed in passing)
+- No AndroidRuntime:E on cold start, settings walk, or locale restart
+
+Cross-checks:
+
+- Existing media sources/scanning/playback untouched (no behavior change, pure copy move); full `./gradlew test` + `lint` green including MissingTranslation
+- WebAPI/WebUI parity for the new setting: GET/PUT /api/settings/locale round-trip covered by WebControlSettingsRouteTest; WebUI scan card shows the language selector bound to the same store
+- Robolectric UI tests assert via resolve(appContext), never hardcoded copy — locale-independent under any JVM default locale
+
+New failure class (section 1 candidate):
+
+- **Composed-path divergence** — the JVM-tested path and the device-rendered path resolve shared data through different code: UiText.resolve(context) (tested, correct) vs UiText.resolve() composable (untested, silently fell back to Chinese for nested args). Tests green, device half-Chinese. Check: every resolution entry point used in production must be exercised by at least one test with nested args, or all entries must funnel through a single tested implementation (as now: composable delegates to the context overload).

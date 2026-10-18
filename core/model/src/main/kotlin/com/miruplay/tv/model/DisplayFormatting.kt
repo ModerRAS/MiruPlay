@@ -1,5 +1,8 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.joinUiText
+import com.miruplay.tv.core.common.rawUiText
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.time.Instant
@@ -9,21 +12,34 @@ import java.time.format.DateTimeFormatter
 fun Anime.displayTitle(): String =
     titleCn?.takeIf { it.isNotBlank() } ?: title.ifBlank { id }
 
-fun Anime.posterSubtitle(): String {
+fun Anime.posterSubtitle(): UiText {
     val parts = buildList {
-        if (episodeCount > 0) add("${episodeCount} 集")
-        if (rating > 0f) add("Bangumi ${"%.1f".format(rating)}")
+        if (episodeCount > 0) {
+            val safe = episodeCount
+            add(UiText("anime_poster_episodes", listOf(safe), "$safe 集"))
+        }
+        if (rating > 0f) {
+            val text = "Bangumi ${"%.1f".format(rating)}"
+            add(UiText("anime_poster_rating", listOf(text), text))
+        }
     }
-    return parts.joinToString(" · ")
+    return joinUiText(parts)
 }
 
-fun Anime.featureSubtitle(): String {
+fun Anime.featureSubtitle(): UiText {
     val parts = buildList {
-        airDate?.takeIf { it.isNotBlank() }?.let { add(it) }
-        if (episodeCount > 0) add("全 $episodeCount 话")
-        if (rating > 0f) add("评分 ${"%.1f".format(rating)}")
+        airDate?.takeIf { it.isNotBlank() }?.let { add(rawUiText(it)) }
+        if (episodeCount > 0) {
+            val safe = episodeCount
+            add(UiText("anime_feature_episodes", listOf(safe), "全 $safe 话"))
+        }
+        if (rating > 0f) {
+            val text = "%.1f".format(rating)
+            add(UiText("anime_feature_rating", listOf(text), "评分 $text"))
+        }
     }
-    return parts.joinToString(" · ").ifBlank { mediaSourceLocalLibraryFallbackName() }
+    if (parts.isEmpty()) return mediaSourceLocalLibraryFallbackName()
+    return joinUiText(parts)
 }
 
 fun PlaybackSource.displayTitle(): String {
@@ -37,7 +53,7 @@ fun PlaybackSource.displayTitle(): String {
     }.getOrDefault(name).ifBlank { mediaSourceId }
 }
 
-fun Episode.playbackDisplayTitle(): String =
+fun Episode.playbackDisplayTitle(): UiText =
     detailEpisodeTitleLabel(episodeNumber, title)
 
 fun ScraperResult.displayTitle(): String =

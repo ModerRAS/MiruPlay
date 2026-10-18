@@ -69,7 +69,7 @@ class BangumiArchiveWorker(
         setForeground(
             bangumiArchiveForegroundInfo(
                 context = applicationContext,
-                text = "正在下载最新离线刮削数据",
+                text = applicationContext.getString(com.miruplay.tv.sync.engine.R.string.worker_archive_text),
             )
         )
         val entryPoint = EntryPointAccessors.fromApplication(

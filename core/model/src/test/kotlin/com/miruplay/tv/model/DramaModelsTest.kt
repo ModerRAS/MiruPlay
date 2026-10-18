@@ -38,10 +38,10 @@ class DramaModelsTest {
             episodeCount = 24,
         )
 
-        assertEquals("共 2 季 · 24 集", series.dramaPosterSubtitle())
-        assertEquals("2024-01-01 · 共 2 季 · 24 集", series.dramaFeatureSubtitle())
-        assertEquals("全 24 集", dramaEpisodeCountLabel(24))
-        assertEquals("共 2 季", dramaSeasonCountLabel(2))
+        assertEquals("共 2 季 · 24 集", series.dramaPosterSubtitle().fallback)
+        assertEquals("2024-01-01 · 共 2 季 · 24 集", series.dramaFeatureSubtitle().fallback)
+        assertEquals("全 24 集", dramaEpisodeCountLabel(24).fallback)
+        assertEquals("共 2 季", dramaSeasonCountLabel(2).fallback)
     }
 
     @Test
@@ -53,16 +53,16 @@ class DramaModelsTest {
             episodeCount = -3,
         )
 
-        assertEquals("", emptySeries.dramaPosterSubtitle())
-        assertEquals("Empty Drama", emptySeries.dramaFeatureSubtitle())
-        assertEquals("全 0 集", dramaEpisodeCountLabel(-1))
-        assertEquals("共 0 季", dramaSeasonCountLabel(-1))
+        assertEquals("", emptySeries.dramaPosterSubtitle().fallback)
+        assertEquals("Empty Drama", emptySeries.dramaFeatureSubtitle().fallback)
+        assertEquals("全 0 集", dramaEpisodeCountLabel(-1).fallback)
+        assertEquals("共 0 季", dramaSeasonCountLabel(-1).fallback)
     }
 
     @Test
     fun `refresh action label reflects metadata refresh state`() {
-        assertEquals("刷新信息", dramaRefreshActionLabel(isRefreshing = false))
-        assertEquals("刷新中", dramaRefreshActionLabel(isRefreshing = true))
+        assertEquals("刷新信息", dramaRefreshActionLabel(isRefreshing = false).fallback)
+        assertEquals("刷新中", dramaRefreshActionLabel(isRefreshing = true).fallback)
     }
 
     @Test
@@ -73,7 +73,7 @@ class DramaModelsTest {
                 hasBoundMetadata = false,
                 hasTmdbToken = true,
                 isRefreshing = true,
-            ),
+            ).fallback,
         )
         assertEquals(
             "已记住 TMDB 元数据条目，后续刷新会优先按已保存来源更新。",
@@ -82,7 +82,7 @@ class DramaModelsTest {
                 hasTmdbToken = true,
                 isRefreshing = false,
                 boundProviderLabel = "TMDB",
-            ),
+            ).fallback,
         )
         assertEquals(
             "已记住 TVMaze 元数据条目；当前自动详情补全仍优先使用已支持的详情源。",
@@ -91,7 +91,7 @@ class DramaModelsTest {
                 hasTmdbToken = false,
                 isRefreshing = false,
                 boundProviderLabel = "TVMaze",
-            ),
+            ).fallback,
         )
         assertEquals(
             "已记住 TVMaze 元数据条目，后续刷新会优先按已保存来源更新。",
@@ -101,7 +101,7 @@ class DramaModelsTest {
                 isRefreshing = false,
                 boundProviderLabel = "TVMaze",
                 canRefreshBoundMetadata = true,
-            ),
+            ).fallback,
         )
         assertEquals(
             "当前先显示本地索引结果。若还没绑定在线来源，可用“刷新信息”按标题走 TMDB 补全海报、简介和单集标题。",
@@ -109,7 +109,7 @@ class DramaModelsTest {
                 hasBoundMetadata = false,
                 hasTmdbToken = true,
                 isRefreshing = false,
-            ),
+            ).fallback,
         )
         assertEquals(
             "当前只显示本地索引结果。现在可以先用“在线手动匹配”搜索多源候选；如果还没绑定可直刷的在线来源，也可以在设置里配置 TMDB Token 来启用按标题直接刷新。",
@@ -117,7 +117,7 @@ class DramaModelsTest {
                 hasBoundMetadata = false,
                 hasTmdbToken = false,
                 isRefreshing = false,
-            ),
+            ).fallback,
         )
     }
 

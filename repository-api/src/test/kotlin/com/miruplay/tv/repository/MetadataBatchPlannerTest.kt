@@ -63,7 +63,7 @@ class MetadataBatchPlannerTest {
         assertEquals("BANGUMI", plan.readyUpdates.single().updated.metadataSource)
         assertEquals("Other", plan.conflicts.single().query)
         assertEquals("Review", plan.reviewMatches.single().query)
-        assertTrue(MetadataBatchPlanner.displayPlanSummary(plan).contains("冲突"))
+        assertTrue(MetadataBatchPlanner.displayPlanSummary(plan).fallback.contains("冲突"))
     }
 
     @Test
@@ -123,10 +123,10 @@ class MetadataBatchPlannerTest {
         assertTrue(original.isSameCandidate(duplicate))
         assertFalse(original.isSameCandidate(other))
         assertEquals("95%", original.confidencePercentLabel())
-        assertEquals("候选 2/2", newCandidate.selectedCandidateLabel())
+        assertEquals("候选 2/2", newCandidate.selectedCandidateLabel().fallback)
         assertEquals(
             "1 个候选",
-            MetadataBatchMatch(query = "Frieren", result = other, candidates = listOf(original)).selectedCandidateLabel(),
+            MetadataBatchMatch(query = "Frieren", result = other, candidates = listOf(original)).selectedCandidateLabel().fallback,
         )
         assertEquals(listOf(newCandidate), listOf(match).replaceMatch(newCandidate))
     }
@@ -161,8 +161,8 @@ class MetadataBatchPlannerTest {
         assertEquals("Other", preview.selectedMatch?.query)
         assertEquals(2, preview.plan?.readyUpdates?.size)
         assertEquals(1, preview.plan?.reviewMatches?.size)
-        assertEquals("2 个可应用，1 个需复核，0 个冲突", preview.summaryStatus())
-        assertEquals("正在用 Bangumi 搜索 2 个索引标题...", metadataBatchSearchingStatus(2, "Bangumi"))
+        assertEquals("2 个可应用，1 个需复核，0 个冲突", preview.summaryStatus().fallback)
+        assertEquals("正在用 Bangumi 搜索 2 个索引标题...", metadataBatchSearchingStatus(2, "Bangumi").fallback)
     }
 
     @Test
@@ -176,8 +176,8 @@ class MetadataBatchPlannerTest {
         assertEquals(emptyList<MetadataBatchMatch>(), preview.matches)
         assertEquals(null, preview.plan)
         assertEquals(null, preview.selectedMatch)
-        assertEquals("没有可用于 Bangumi 批量匹配的索引条目。", noMetadataBatchEntriesStatus("Bangumi"))
-        assertEquals(noMetadataBatchEntriesStatus(), preview.summaryStatus())
+        assertEquals("没有可用于 Bangumi 批量匹配的索引条目。", noMetadataBatchEntriesStatus("Bangumi").fallback)
+        assertEquals(noMetadataBatchEntriesStatus().fallback, preview.summaryStatus().fallback)
     }
 
     @Test
@@ -226,30 +226,30 @@ class MetadataBatchPlannerTest {
             ),
         )
 
-        assertEquals("请先选择一个索引视频。", metadataIndexedVideoRequiredStatus())
-        assertEquals("选择索引视频后可搜索 Bangumi。", metadataInitialStatus("Bangumi"))
-        assertEquals("已从当前索引条目填入搜索词。", metadataQuerySetFromIndexStatus())
-        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", metadataQueryRequiredStatus("Bangumi"))
-        assertEquals("正在搜索 Bangumi：\"Frieren\"...", metadataSearchStartedStatus("Frieren", "Bangumi"))
-        assertEquals("没有匹配 \"Frieren\" 的 Bangumi 元数据。", metadataSearchResultStatus("Frieren", 0, "Bangumi"))
-        assertEquals("找到 2 个 Bangumi 匹配。", metadataSearchResultStatus("Frieren", 2, "Bangumi"))
-        assertEquals("请先打开或扫描媒体源。", metadataSourceRequiredStatus())
-        assertEquals("已选择批量复核：Frieren", match.selectedReviewStatus())
-        assertEquals("请先选择带 Bangumi 结果的批量匹配。", metadataBatchResultRequiredStatus("Bangumi"))
+        assertEquals("请先选择一个索引视频。", metadataIndexedVideoRequiredStatus().fallback)
+        assertEquals("选择索引视频后可搜索 Bangumi。", metadataInitialStatus("Bangumi").fallback)
+        assertEquals("已从当前索引条目填入搜索词。", metadataQuerySetFromIndexStatus().fallback)
+        assertEquals("请输入 Bangumi 搜索词，或先选择索引视频。", metadataQueryRequiredStatus("Bangumi").fallback)
+        assertEquals("正在搜索 Bangumi：\"Frieren\"...", metadataSearchStartedStatus("Frieren", "Bangumi").fallback)
+        assertEquals("没有匹配 \"Frieren\" 的 Bangumi 元数据。", metadataSearchResultStatus("Frieren", 0, "Bangumi").fallback)
+        assertEquals("找到 2 个 Bangumi 匹配。", metadataSearchResultStatus("Frieren", 2, "Bangumi").fallback)
+        assertEquals("请先打开或扫描媒体源。", metadataSourceRequiredStatus().fallback)
+        assertEquals("已选择批量复核：Frieren", match.selectedReviewStatus().fallback)
+        assertEquals("请先选择带 Bangumi 结果的批量匹配。", metadataBatchResultRequiredStatus("Bangumi").fallback)
         assertEquals(
             "当前复核项有 2 个元数据冲突，未覆盖任何内容。",
-            conflictPlan.reviewConflictStatus(),
+            conflictPlan.reviewConflictStatus().fallback,
         )
-        assertEquals("当前复核项没有匹配的索引条目。", metadataReviewNoMatchStatus())
-        assertEquals("已选择：葬送的芙莉莲", result().selectedMetadataStatus())
+        assertEquals("当前复核项没有匹配的索引条目。", metadataReviewNoMatchStatus().fallback)
+        assertEquals("已选择：葬送的芙莉莲", result().selectedMetadataStatus().fallback)
         assertEquals(
             "请先选择索引视频，再应用 Bangumi 元数据。",
-            metadataApplyEntryRequiredStatus("Bangumi"),
+            metadataApplyEntryRequiredStatus("Bangumi").fallback,
         )
-        assertEquals("请先搜索 Bangumi 并选择一个匹配。", metadataSearchSelectionRequiredStatus("Bangumi"))
-        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", entry.metadataAppliedStatus("Bangumi"))
-        assertEquals("请先选择索引视频，再清除元数据。", metadataClearEntryRequiredStatus())
-        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", entry.metadataClearedStatus())
+        assertEquals("请先搜索 Bangumi 并选择一个匹配。", metadataSearchSelectionRequiredStatus("Bangumi").fallback)
+        assertEquals("已将 Bangumi 元数据应用到 D:/Anime/Frieren/01.mkv。", entry.metadataAppliedStatus("Bangumi").fallback)
+        assertEquals("请先选择索引视频，再清除元数据。", metadataClearEntryRequiredStatus().fallback)
+        assertEquals("已清除 D:/Anime/Frieren/01.mkv 的外部元数据。", entry.metadataClearedStatus().fallback)
     }
 
     @Test
@@ -321,7 +321,7 @@ class MetadataBatchPlannerTest {
         assertEquals(highConfidence, selection.updatedMatch.result)
         assertEquals(listOf(selection.updatedMatch), selection.updatedMatches)
         assertEquals(1, selection.plan.readyUpdates.size)
-        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", selection.selectedStatus())
+        assertEquals("已选择批量候选：Frieren -> 葬送的芙莉莲", selection.selectedStatus().fallback)
     }
 
     private fun result(

@@ -5,6 +5,7 @@ import com.miruplay.tv.model.metadataBatchAppliedTvStatus
 import com.miruplay.tv.model.metadataBatchRestoredTvStatus
 import com.miruplay.tv.model.metadataNoBatchPreviewTvStatus
 import com.miruplay.tv.model.metadataNoBatchUndoTvStatus
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.metadataReviewAcceptedTvStatus
 
 data class MetadataBatchWriteResult(
@@ -93,17 +94,17 @@ suspend fun MediaIndexRepository.restoreMetadataBatchUndo(
     )
 }
 
-fun MetadataBatchWriteResult.appliedStatus(conflictCount: Int): String =
+fun MetadataBatchWriteResult.appliedStatus(conflictCount: Int): UiText =
     metadataBatchAppliedTvStatus(updatedEntries.size, conflictCount)
 
-fun MetadataBatchWriteResult.reviewAcceptedStatus(): String =
+fun MetadataBatchWriteResult.reviewAcceptedStatus(): UiText =
     metadataReviewAcceptedTvStatus(updatedEntries.size)
 
-fun MetadataBatchUndoResult.restoredStatus(): String =
+fun MetadataBatchUndoResult.restoredStatus(): UiText =
     metadataBatchRestoredTvStatus(restoredCount)
 
-fun noMetadataBatchPreviewStatus(): String =
+fun noMetadataBatchPreviewStatus(): UiText =
     metadataNoBatchPreviewTvStatus()
 
-fun noMetadataBatchUndoStatus(): String =
+fun noMetadataBatchUndoStatus(): UiText =
     metadataNoBatchUndoTvStatus()

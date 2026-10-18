@@ -1,45 +1,50 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
+
 const val BANGUMI_BATCH_MATCH_LIMIT = 4
 const val BANGUMI_CANDIDATE_LIMIT = 4
 const val BANGUMI_RESULT_LIMIT = 6
 
-fun metadataPanelTitleLabel(): String = "外部元数据"
+fun metadataPanelTitleLabel(): UiText = uiText("metadata_panel_title", "外部元数据")
 
-fun metadataQueryFieldLabel(): String = "Bangumi 搜索词"
+fun metadataQueryFieldLabel(): UiText = uiText("metadata_query_field", "Bangumi 搜索词")
 
-fun metadataUseSelectedEntryActionLabel(): String = "使用当前条目"
+fun metadataUseSelectedEntryActionLabel(): UiText = uiText("metadata_use_selected", "使用当前条目")
 
-fun metadataSearchActionLabel(): String = "搜索"
+fun metadataSearchActionLabel(): UiText = uiText("metadata_search", "搜索")
 
-fun metadataApplyMatchActionLabel(): String = "应用匹配"
+fun metadataApplyMatchActionLabel(): UiText = uiText("metadata_apply_match", "应用匹配")
 
-fun metadataClearActionLabel(): String = "清除元数据"
+fun metadataClearActionLabel(): UiText = uiText("metadata_clear", "清除元数据")
 
-fun metadataBatchPreviewActionLabel(): String = "批量预览"
+fun metadataBatchPreviewActionLabel(): UiText = uiText("metadata_batch_preview", "批量预览")
 
-fun metadataApplyBatchActionLabel(): String = "应用批量"
+fun metadataApplyBatchActionLabel(): UiText = uiText("metadata_apply_batch", "应用批量")
 
-fun metadataUndoBatchActionLabel(): String = "撤销批量"
+fun metadataUndoBatchActionLabel(): UiText = uiText("metadata_undo_batch", "撤销批量")
 
-fun metadataAcceptReviewActionLabel(): String = "接受复核"
+fun metadataAcceptReviewActionLabel(): UiText = uiText("metadata_accept_review", "接受复核")
 
-fun metadataSelectedIndexSectionTitle(): String = "当前索引"
+fun metadataSelectedIndexSectionTitle(): UiText = uiText("metadata_selected_index", "当前索引")
 
-fun metadataMatchesSectionTitle(): String = "Bangumi 匹配"
+fun metadataMatchesSectionTitle(): UiText = uiText("metadata_matches", "Bangumi 匹配")
 
-fun metadataBatchCandidatesSectionTitle(): String = "候选条目"
+fun metadataBatchCandidatesSectionTitle(): UiText = uiText("metadata_batch_candidates", "候选条目")
 
-fun metadataBatchPreviewedCountLabel(count: Int): String =
-    "批量：${count.coerceAtLeast(0)} 个查询已预览"
+fun metadataBatchPreviewedCountLabel(count: Int): UiText {
+    val safe = count.coerceAtLeast(0)
+    return UiText("metadata_batch_previewed_count", listOf(safe), "批量：$safe 个查询已预览")
+}
 
-fun metadataBatchPageLabel(): String = "批量"
+fun metadataBatchPageLabel(): UiText = uiText("metadata_page_batch", "批量")
 
-fun metadataCandidatePageLabel(): String = "候选"
+fun metadataCandidatePageLabel(): UiText = uiText("metadata_page_candidate", "候选")
 
-fun metadataSearchResultsPageLabel(): String = "搜索结果"
+fun metadataSearchResultsPageLabel(): UiText = uiText("metadata_page_results", "搜索结果")
 
-fun metadataPageUnitLabel(): String = "个条目"
+fun metadataPageUnitLabel(): UiText = uiText("metadata_page_unit", "个条目")
 
 fun bangumiPageStartForIndex(
     index: Int,
@@ -54,12 +59,12 @@ fun bangumiCoercedPageStart(
 ): Int = pagedListCoercedPageStart(pageStart, itemCount, pageSize)
 
 fun bangumiPageSummary(
-    label: String,
+    label: UiText,
     pageStart: Int,
     visibleCount: Int,
     itemCount: Int,
     pageSize: Int,
-): String? =
+): UiText? =
     pagedListPageSummary(
         pageStart = bangumiCoercedPageStart(pageStart, itemCount, pageSize),
         visibleCount = visibleCount,
@@ -69,185 +74,255 @@ fun bangumiPageSummary(
         prefix = label,
     )
 
-fun metadataNoSelectedIndexMessage(): String = "尚未选择索引视频。"
+fun metadataNoSelectedIndexMessage(): UiText =
+    uiText("metadata_no_selected_index", "尚未选择索引视频。")
 
-fun metadataBangumiLinkedLabel(title: String?): String =
-    "Bangumi：${title?.takeIf { it.isNotBlank() } ?: "未关联"}"
+fun metadataBangumiLinkedLabel(title: String?): UiText {
+    val name = title?.takeIf { it.isNotBlank() }
+        ?: return uiText("metadata_bangumi_unlinked", "Bangumi：未关联")
+    return UiText("metadata_bangumi_linked", listOf(name), "Bangumi：$name")
+}
 
-fun metadataNoSelectedEntryLabel(): String = "未选择条目"
+fun metadataNoSelectedEntryLabel(): UiText = uiText("metadata_no_entry", "未选择条目")
 
-fun metadataPendingMatchLabel(): String = "待匹配"
+fun metadataPendingMatchLabel(): UiText = uiText("metadata_pending_match", "待匹配")
 
-fun metadataMatchedSummaryLabel(title: String): String =
-    title.trim().takeIf { it.isNotBlank() }?.let { "已匹配：$it" }
+fun metadataMatchedSummaryLabel(title: String): UiText =
+    title.trim().takeIf { it.isNotBlank() }?.let {
+        UiText("metadata_matched_summary", listOf(it), "已匹配：$it")
+    }
         ?: metadataPendingMatchLabel()
 
-fun metadataMatchSummaryLabel(title: String?): String =
+fun metadataMatchSummaryLabel(title: String?): UiText =
     title?.takeIf { it.isNotBlank() }?.let(::metadataMatchedSummaryLabel)
         ?: metadataPendingMatchLabel()
 
-fun metadataApplyBangumiRequiredMessage(): String = "请先应用 Bangumi 匹配"
+fun metadataApplyBangumiRequiredMessage(): UiText =
+    uiText("metadata_apply_required", "请先应用 Bangumi 匹配")
 
-fun metadataNoMatchLabel(): String = "无匹配"
+fun metadataNoMatchLabel(): UiText = uiText("metadata_no_match", "无匹配")
 
-fun metadataSelectedCandidateLabel(selectedIndex: Int, count: Int): String =
-    "候选 ${selectedIndex.coerceAtLeast(0) + 1}/${count.coerceAtLeast(0)}"
+fun metadataSelectedCandidateLabel(selectedIndex: Int, count: Int): UiText {
+    val index = selectedIndex.coerceAtLeast(0) + 1
+    val total = count.coerceAtLeast(0)
+    return UiText("metadata_selected_candidate", listOf(index, total), "候选 $index/$total")
+}
 
-fun metadataCandidateCountLabel(count: Int): String =
-    "${count.coerceAtLeast(0)} 个候选"
+fun metadataCandidateCountLabel(count: Int): UiText {
+    val safe = count.coerceAtLeast(0)
+    return UiText("metadata_candidate_count", listOf(safe), "$safe 个候选")
+}
 
-fun metadataEmptyResultsMessage(): String = "搜索后在这里显示 Bangumi 匹配。"
+fun metadataEmptyResultsMessage(): UiText =
+    uiText("metadata_empty_results", "搜索后在这里显示 Bangumi 匹配。")
 
-fun metadataInitialTvStatus(sourceName: String = "metadata"): String =
-    "选择索引视频后可搜索 $sourceName。"
+fun metadataInitialTvStatus(sourceName: String = "metadata"): UiText =
+    UiText("metadata_initial_status", listOf(sourceName), "选择索引视频后可搜索 $sourceName。")
 
-fun metadataIndexedVideoRequiredTvStatus(): String =
-    "请先选择一个索引视频。"
+fun metadataIndexedVideoRequiredTvStatus(): UiText =
+    uiText("metadata_index_required", "请先选择一个索引视频。")
 
-fun metadataQuerySetFromIndexTvStatus(): String =
-    "已从当前索引条目填入搜索词。"
+fun metadataQuerySetFromIndexTvStatus(): UiText =
+    uiText("metadata_query_from_index", "已从当前索引条目填入搜索词。")
 
-fun metadataQueryRequiredTvStatus(sourceName: String = "metadata"): String =
-    "请输入 $sourceName 搜索词，或先选择索引视频。"
+fun metadataQueryRequiredTvStatus(sourceName: String = "metadata"): UiText =
+    UiText(
+        "metadata_query_required",
+        listOf(sourceName),
+        "请输入 $sourceName 搜索词，或先选择索引视频。",
+    )
 
-fun metadataSearchStartedTvStatus(query: String, sourceName: String = "metadata"): String =
-    "正在搜索 $sourceName：\"$query\"..."
+fun metadataSearchStartedTvStatus(query: String, sourceName: String = "metadata"): UiText =
+    UiText("metadata_search_started", listOf(sourceName, query), "正在搜索 $sourceName：\"$query\"...")
 
 fun metadataSearchResultTvStatus(
     query: String,
     resultCount: Int,
     sourceName: String = "metadata",
-): String =
+): UiText =
     if (resultCount == 0) {
-        "没有匹配 \"$query\" 的 $sourceName 元数据。"
+        UiText("metadata_search_no_match", listOf(query, sourceName), "没有匹配 \"$query\" 的 $sourceName 元数据。")
     } else {
-        "找到 ${resultCount.coerceAtLeast(0)} 个 $sourceName 匹配。"
+        val safe = resultCount.coerceAtLeast(0)
+        UiText("metadata_search_found", listOf(safe, sourceName), "找到 $safe 个 $sourceName 匹配。")
     }
 
-fun metadataSourceRequiredTvStatus(): String =
-    "请先打开或扫描媒体源。"
+fun metadataSourceRequiredTvStatus(): UiText =
+    uiText("metadata_source_required", "请先打开或扫描媒体源。")
 
-fun metadataSelectedBatchCandidateTvStatus(query: String, title: String): String =
-    "已选择批量候选：$query -> $title"
+fun metadataSelectedBatchCandidateTvStatus(query: String, title: String): UiText =
+    UiText("metadata_batch_candidate_selected", listOf(query, title), "已选择批量候选：$query -> $title")
 
-fun metadataSelectedBatchReviewTvStatus(query: String): String =
-    "已选择批量复核：$query"
+fun metadataSelectedBatchReviewTvStatus(query: String): UiText =
+    UiText("metadata_batch_review_selected", listOf(query), "已选择批量复核：$query")
 
-fun metadataBatchResultRequiredTvStatus(sourceName: String = "metadata"): String =
-    "请先选择带 $sourceName 结果的批量匹配。"
+fun metadataBatchResultRequiredTvStatus(sourceName: String = "metadata"): UiText =
+    UiText(
+        "metadata_batch_result_required",
+        listOf(sourceName),
+        "请先选择带 $sourceName 结果的批量匹配。",
+    )
 
-fun metadataReviewConflictTvStatus(conflictCount: Int): String =
-    "当前复核项有 ${conflictCount.coerceAtLeast(0)} 个元数据冲突，未覆盖任何内容。"
+fun metadataReviewConflictTvStatus(conflictCount: Int): UiText {
+    val safe = conflictCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_review_conflict",
+        listOf(safe),
+        "当前复核项有 $safe 个元数据冲突，未覆盖任何内容。",
+    )
+}
 
-fun metadataReviewNoMatchTvStatus(): String =
-    "当前复核项没有匹配的索引条目。"
+fun metadataReviewNoMatchTvStatus(): UiText =
+    uiText("metadata_review_no_match", "当前复核项没有匹配的索引条目。")
 
-fun metadataSelectedResultTvStatus(title: String): String =
-    "已选择：$title"
+fun metadataSelectedResultTvStatus(title: String): UiText =
+    UiText("metadata_result_selected", listOf(title), "已选择：$title")
 
-fun metadataApplyEntryRequiredTvStatus(sourceName: String = "metadata"): String =
-    "请先选择索引视频，再应用 $sourceName 元数据。"
+fun metadataApplyEntryRequiredTvStatus(sourceName: String = "metadata"): UiText =
+    UiText(
+        "metadata_apply_entry_required",
+        listOf(sourceName),
+        "请先选择索引视频，再应用 $sourceName 元数据。",
+    )
 
-fun metadataSearchSelectionRequiredTvStatus(sourceName: String = "metadata"): String =
-    "请先搜索 $sourceName 并选择一个匹配。"
+fun metadataSearchSelectionRequiredTvStatus(sourceName: String = "metadata"): UiText =
+    UiText(
+        "metadata_search_selection_required",
+        listOf(sourceName),
+        "请先搜索 $sourceName 并选择一个匹配。",
+    )
 
-fun metadataAppliedTvStatus(sourceName: String = "metadata", path: String): String =
-    "已将 $sourceName 元数据应用到 $path。"
+fun metadataAppliedTvStatus(sourceName: String = "metadata", path: String): UiText =
+    UiText("metadata_applied", listOf(sourceName, path), "已将 $sourceName 元数据应用到 $path。")
 
-fun metadataClearEntryRequiredTvStatus(): String =
-    "请先选择索引视频，再清除元数据。"
+fun metadataClearEntryRequiredTvStatus(): UiText =
+    uiText("metadata_clear_required", "请先选择索引视频，再清除元数据。")
 
-fun metadataClearedTvStatus(path: String): String =
-    "已清除 $path 的外部元数据。"
+fun metadataClearedTvStatus(path: String): UiText =
+    UiText("metadata_cleared", listOf(path), "已清除 $path 的外部元数据。")
 
 fun metadataBatchSearchingTvStatus(
     queryCount: Int,
     sourceName: String = "metadata",
-): String =
-    "正在用 $sourceName 搜索 ${queryCount.coerceAtLeast(0)} 个索引标题..."
+): UiText {
+    val safe = queryCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_batch_searching",
+        listOf(sourceName, safe),
+        "正在用 $sourceName 搜索 $safe 个索引标题...",
+    )
+}
 
-fun metadataNoBatchEntriesTvStatus(sourceName: String = "metadata"): String =
-    "没有可用于 $sourceName 批量匹配的索引条目。"
+fun metadataNoBatchEntriesTvStatus(sourceName: String = "metadata"): UiText =
+    UiText(
+        "metadata_no_batch_entries",
+        listOf(sourceName),
+        "没有可用于 $sourceName 批量匹配的索引条目。",
+    )
 
 fun metadataPlanSummaryTvStatus(
     readyCount: Int,
     reviewCount: Int,
     conflictCount: Int,
-): String =
-    "${readyCount.coerceAtLeast(0)} 个可应用，" +
-        "${reviewCount.coerceAtLeast(0)} 个需复核，" +
-        "${conflictCount.coerceAtLeast(0)} 个冲突"
+): UiText {
+    val ready = readyCount.coerceAtLeast(0)
+    val review = reviewCount.coerceAtLeast(0)
+    val conflict = conflictCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_plan_summary",
+        listOf(ready, review, conflict),
+        "$ready 个可应用，$review 个需复核，$conflict 个冲突",
+    )
+}
 
-fun metadataBatchAppliedTvStatus(updatedCount: Int, conflictCount: Int): String =
-    "已将 Bangumi 批量元数据应用到 ${updatedCount.coerceAtLeast(0)} 个索引条目，" +
-        "跳过 ${conflictCount.coerceAtLeast(0)} 个冲突。"
+fun metadataBatchAppliedTvStatus(updatedCount: Int, conflictCount: Int): UiText {
+    val updated = updatedCount.coerceAtLeast(0)
+    val conflict = conflictCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_batch_applied",
+        listOf(updated, conflict),
+        "已将 Bangumi 批量元数据应用到 $updated 个索引条目，跳过 $conflict 个冲突。",
+    )
+}
 
-fun metadataReviewAcceptedTvStatus(updatedCount: Int): String =
-    "已接受复核的 Bangumi 匹配，更新 ${updatedCount.coerceAtLeast(0)} 个索引条目。"
+fun metadataReviewAcceptedTvStatus(updatedCount: Int): UiText {
+    val updated = updatedCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_review_accepted",
+        listOf(updated),
+        "已接受复核的 Bangumi 匹配，更新 $updated 个索引条目。",
+    )
+}
 
-fun metadataBatchRestoredTvStatus(restoredCount: Int): String =
-    "已从上一次 Bangumi 批量更改中恢复 ${restoredCount.coerceAtLeast(0)} 个索引条目。"
+fun metadataBatchRestoredTvStatus(restoredCount: Int): UiText {
+    val restored = restoredCount.coerceAtLeast(0)
+    return UiText(
+        "metadata_batch_restored",
+        listOf(restored),
+        "已从上一次 Bangumi 批量更改中恢复 $restored 个索引条目。",
+    )
+}
 
-fun metadataNoBatchPreviewTvStatus(): String =
-    "请先运行批量预览；当前没有可直接应用的高置信匹配。"
+fun metadataNoBatchPreviewTvStatus(): UiText =
+    uiText("metadata_no_batch_preview", "请先运行批量预览；当前没有可直接应用的高置信匹配。")
 
-fun metadataNoBatchUndoTvStatus(): String =
-    "没有可撤销的 Bangumi 批量更改。"
+fun metadataNoBatchUndoTvStatus(): UiText =
+    uiText("metadata_no_batch_undo", "没有可撤销的 Bangumi 批量更改。")
 
 fun localizedMetadataStatusText(status: String): String? =
     when (val trimmed = status.trim()) {
-        metadataIndexedVideoRequiredTvStatus(),
-        metadataQuerySetFromIndexTvStatus(),
-        metadataSourceRequiredTvStatus(),
-        metadataReviewNoMatchTvStatus(),
-        metadataClearEntryRequiredTvStatus(),
-        metadataNoBatchPreviewTvStatus(),
-        metadataNoBatchUndoTvStatus() -> trimmed
+        metadataIndexedVideoRequiredTvStatus().fallback,
+        metadataQuerySetFromIndexTvStatus().fallback,
+        metadataSourceRequiredTvStatus().fallback,
+        metadataReviewNoMatchTvStatus().fallback,
+        metadataClearEntryRequiredTvStatus().fallback,
+        metadataNoBatchPreviewTvStatus().fallback,
+        metadataNoBatchUndoTvStatus().fallback -> trimmed
         "Select an indexed video first." ->
-            metadataIndexedVideoRequiredTvStatus()
+            metadataIndexedVideoRequiredTvStatus().fallback
         "Query set from selected index entry." ->
-            metadataQuerySetFromIndexTvStatus()
+            metadataQuerySetFromIndexTvStatus().fallback
         "Open or scan a source first." ->
-            metadataSourceRequiredTvStatus()
+            metadataSourceRequiredTvStatus().fallback
         "Selected review has no matching indexed entries." ->
-            metadataReviewNoMatchTvStatus()
+            metadataReviewNoMatchTvStatus().fallback
         "Select an indexed video before clearing metadata." ->
-            metadataClearEntryRequiredTvStatus()
+            metadataClearEntryRequiredTvStatus().fallback
         "Run Batch preview first; no high-confidence matches are ready." ->
-            metadataNoBatchPreviewTvStatus()
+            metadataNoBatchPreviewTvStatus().fallback
         "No batch Bangumi changes are available to undo." ->
-            metadataNoBatchUndoTvStatus()
-        else -> localizedDynamicMetadataStatusText(trimmed)
+            metadataNoBatchUndoTvStatus().fallback
+        else -> localizedDynamicMetadataStatusText(trimmed)?.fallback
     }
 
 fun metadataStatusText(status: String): String =
     localizedMetadataStatusText(status) ?: status
 
-fun metadataBatchStatusLabel(status: String): String =
+fun metadataBatchStatusLabel(status: String): UiText =
     when (status) {
-        "preview" -> "预览"
-        "ready" -> "可用"
-        "review" -> "复核"
-        "conflict" -> "冲突"
-        else -> status
+        "preview" -> uiText("metadata_batch_status_preview", "预览")
+        "ready" -> uiText("metadata_batch_status_ready", "可用")
+        "review" -> uiText("metadata_batch_status_review", "复核")
+        "conflict" -> uiText("metadata_batch_status_conflict", "冲突")
+        else -> UiText("metadata_batch_status_other", listOf(status), status)
     }
 
 data class BangumiUiLabels(
-    val title: String,
-    val query: String,
-    val useSelected: String,
-    val search: String,
-    val applyMatch: String,
-    val clearMetadata: String,
-    val batchPreview: String,
-    val applyBatch: String,
-    val undoBatch: String,
-    val acceptReview: String,
-    val syncProgress: String,
-    val selectedIndex: String,
-    val matches: String,
-    val batchCandidates: String,
-    val emptyResults: String,
+    val title: UiText,
+    val query: UiText,
+    val useSelected: UiText,
+    val search: UiText,
+    val applyMatch: UiText,
+    val clearMetadata: UiText,
+    val batchPreview: UiText,
+    val applyBatch: UiText,
+    val undoBatch: UiText,
+    val acceptReview: UiText,
+    val syncProgress: UiText,
+    val selectedIndex: UiText,
+    val matches: UiText,
+    val batchCandidates: UiText,
+    val emptyResults: UiText,
 )
 
 fun bangumiUiLabels(isSyncingProgress: Boolean = false): BangumiUiLabels =
@@ -269,9 +344,9 @@ fun bangumiUiLabels(isSyncingProgress: Boolean = false): BangumiUiLabels =
         emptyResults = metadataEmptyResultsMessage(),
     )
 
-private fun localizedDynamicMetadataStatusText(status: String): String? {
+private fun localizedDynamicMetadataStatusText(status: String): UiText? {
     if (status.isTvMetadataStatus()) {
-        return status
+        return UiText("metadata_status_passthrough", listOf(status), status)
     }
     metadataInitialStatusRegex.matchEntire(status)?.let { match ->
         return metadataInitialTvStatus(match.groupValues[1])

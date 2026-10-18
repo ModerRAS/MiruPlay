@@ -1018,6 +1018,16 @@
                     :options="scanSettings.appModeOptions.map((value) => ({ value, label: appModeLabels[value] || value }))"
                   />
                 </el-form-item>
+                <el-form-item label="界面语言">
+                  <el-select v-model="appLocale.language" :disabled="loading.appLocale" @change="saveAppLocale">
+                    <el-option
+                      v-for="value in appLocaleOptions"
+                      :key="value"
+                      :label="appLocaleLabels[value] || value"
+                      :value="value"
+                    />
+                  </el-select>
+                </el-form-item>
                 <el-form-item label="自动扫描">
                   <el-switch v-model="scanForm.autoScanEnabled" />
                 </el-form-item>
@@ -2007,7 +2017,8 @@ const loading = reactive({
   appUpdateDownload: false,
   appControl: false,
   tmdbToken: false,
-  bangumiSync: false
+  bangumiSync: false,
+  appLocale: false
 })
 const sourceForm = reactive({
   id: 0,
@@ -2232,6 +2243,16 @@ let archiveTimer = 0
 let cloudRunTimer = 0
 
 const appModeLabels = { anime: '动画', drama: '剧集' }
+const appLocaleLabels = {
+  system: '跟随系统',
+  'zh-CN': '简体中文',
+  'zh-TW': '繁體中文（台灣）',
+  'zh-HK': '繁體中文（香港）',
+  'en-US': 'English (US)',
+  'en-GB': 'English (UK)'
+}
+const appLocaleOptions = ['system', 'zh-CN', 'zh-TW', 'zh-HK', 'en-US', 'en-GB']
+const appLocale = reactive({ language: 'system' })
 const posterWallArrangementLabels = { TITLE: '按标题', RELEASE_SEASON: '按新番季' }
 const endActionLabels = { return_to_detail: '返回详情页', play_next_episode: '播放下一集' }
 const episodeVersionSelectionPolicyLabels = { auto_nearest: '自动选择相近路径', manual: '每集手动选择版本' }
@@ -3526,6 +3547,33 @@ async function loadScanSettings() {
     applyScanSettings(await api('/api/settings/scan'))
   } finally {
     loading.scanSettings = false
+  }
+  await loadAppLocale()
+}
+
+async function loadAppLocale() {
+  try {
+    const data = await api('/api/settings/locale')
+    appLocale.language = data.language || 'system'
+  } catch (e) {
+    appLocale.language = 'system'
+  }
+}
+
+async function saveAppLocale() {
+  loading.appLocale = true
+  try {
+    const data = await api('/api/settings/locale', {
+      method: 'PUT',
+      body: JSON.stringify({ language: appLocale.language })
+    })
+    appLocale.language = data.language || 'system'
+    ElMessage.success('界面语言已保存，TV 端界面将重载生效')
+  } catch (e) {
+    ElMessage.error(e.message || '保存界面语言失败')
+    await loadAppLocale()
+  } finally {
+    loading.appLocale = false
   }
 }
 

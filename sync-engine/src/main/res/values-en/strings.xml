@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="worker_archive_title">Bangumi Archive update</string>
+    <string name="worker_rss_title">CloudDrive/RSS sync</string>
+    <string name="worker_archive_text">Downloading the latest offline scrape data</string>
+    <string name="worker_rss_manual">Manually syncing subscriptions</string>
+    <string name="worker_rss_scheduled">Syncing subscriptions on schedule</string>
+</resources>

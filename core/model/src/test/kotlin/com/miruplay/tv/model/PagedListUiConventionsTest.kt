@@ -1,6 +1,8 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class PagedListUiConventionsTest {
@@ -28,7 +30,7 @@ class PagedListUiConventionsTest {
     fun `page summary uses shared TV style range copy`() {
         assertEquals(
             "显示 9-16 / 17 个条目，按上/下继续翻页。",
-            pagedListPageSummary(pageStart = 8, visibleCount = 8, itemCount = 17, pageSize = 8, unitLabel = "个条目"),
+            pagedListPageSummary(pageStart = 8, visibleCount = 8, itemCount = 17, pageSize = 8, unitLabel = rawUiText("个条目"))?.fallback,
         )
         assertEquals(
             "候选：显示 5-8 / 13 个条目，按上/下继续翻页。",
@@ -37,13 +39,12 @@ class PagedListUiConventionsTest {
                 visibleCount = 4,
                 itemCount = 13,
                 pageSize = 4,
-                unitLabel = "个条目",
-                prefix = "候选",
-            ),
+                unitLabel = rawUiText("个条目"),
+                prefix = rawUiText("候选"),
+            )?.fallback,
         )
-        assertEquals(
-            null,
-            pagedListPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5, pageSize = 8, unitLabel = "个条目"),
+        assertNull(
+            pagedListPageSummary(pageStart = 0, visibleCount = 5, itemCount = 5, pageSize = 8, unitLabel = rawUiText("个条目")),
         )
     }
 }

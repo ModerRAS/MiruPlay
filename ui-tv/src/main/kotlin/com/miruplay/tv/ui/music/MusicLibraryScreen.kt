@@ -1,6 +1,9 @@
 package com.miruplay.tv.ui.music
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.stringResource
+import com.miruplay.tv.ui.common.resolve
+import com.miruplay.tv.ui.tv.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,24 +62,24 @@ fun MusicLibraryScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             Row(modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column {
-                    Text(text = "音乐", style = TvTypography.title, color = TextPrimary)
-                    Text(text = "本地 / WebDAV / SMB", style = TvTypography.body, color = TextSecondary)
+                    Text(text = stringResource(R.string.music_title), style = TvTypography.title, color = TextPrimary)
+                    Text(text = stringResource(R.string.music_sources_hint), style = TvTypography.body, color = TextSecondary)
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     val isScanning = scanState is LibraryScanState.Scanning
                     if (!isScanning) {
-                        TvButton(text = "扫描", icon = Icons.Filled.Refresh, onClick = { viewModel.scanNow() }, modifier = Modifier.width(110.dp).focusRequester(headerFocus))
+                        TvButton(text = stringResource(R.string.music_scan), icon = Icons.Filled.Refresh, onClick = { viewModel.scanNow() }, modifier = Modifier.width(110.dp).focusRequester(headerFocus))
                     } else {
-                        TvButton(text = "取消", onClick = { viewModel.cancelScan() }, modifier = Modifier.width(110.dp), secondary = true)
+                        TvButton(text = stringResource(R.string.music_cancel), onClick = { viewModel.cancelScan() }, modifier = Modifier.width(110.dp), secondary = true)
                     }
-                    TvButton(text = "设置", onClick = onNavigateToSettings, modifier = Modifier.width(110.dp))
+                    TvButton(text = stringResource(R.string.music_settings), onClick = onNavigateToSettings, modifier = Modifier.width(110.dp))
                 }
             }
 
             if (scanState is LibraryScanState.Scanning) {
                 val s = scanState as LibraryScanState.Scanning
                 Box(modifier = Modifier.fillMaxWidth().background(DarkSurface).padding(12.dp)) {
-                    Text(text = "扫描中: ${s.filesScanned} 文件 · ${s.currentPath}", style = TvTypography.caption, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(text = stringResource(R.string.music_scanning, s.filesScanned, s.currentPath), style = TvTypography.caption, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -85,25 +88,25 @@ fun MusicLibraryScreen(
                 is MusicLibraryUiState.Loading -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { LoadingIndicator() }
                 is MusicLibraryUiState.NoSources -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "还没有音乐媒体源", style = TvTypography.subtitle, color = TextSecondary)
+                        Text(text = stringResource(R.string.music_no_sources), style = TvTypography.subtitle, color = TextSecondary)
                         Spacer(Modifier.height(12.dp))
-                        TvButton(text = "去添加", onClick = onNavigateToSettings)
+                        TvButton(text = stringResource(R.string.music_go_add), onClick = onNavigateToSettings)
                     }
                 }
                 is MusicLibraryUiState.HasSourcesNoContent -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "暂无专辑，请扫描", style = TvTypography.subtitle, color = TextSecondary)
+                        Text(text = stringResource(R.string.music_empty_hint), style = TvTypography.subtitle, color = TextSecondary)
                         Spacer(Modifier.height(12.dp))
-                        TvButton(text = "立即扫描", onClick = { viewModel.scanNow() })
+                        TvButton(text = stringResource(R.string.music_scan_now), onClick = { viewModel.scanNow() })
                     }
                 }
                 is MusicLibraryUiState.ScanError -> Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(text = state.message, style = TvTypography.body, color = TextSecondary)
+                    Text(text = state.message.resolve(), style = TvTypography.body, color = TextSecondary)
                 }
                 is MusicLibraryUiState.HasContent -> {
                     if (state.albums.isEmpty()) {
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                            Text(text = "没有匹配的专辑", style = TvTypography.body, color = TextSecondary)
+                            Text(text = stringResource(R.string.music_no_match), style = TvTypography.body, color = TextSecondary)
                         }
                     } else {
                         LazyVerticalGrid(columns = GridCells.Fixed(4), contentPadding = PaddingValues(bottom = 24.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.fillMaxSize()) {
@@ -129,9 +132,9 @@ private fun MusicAlbumCard(album: MusicAlbum, onClick: () -> Unit) {
             Spacer(Modifier.height(10.dp))
             Text(text = album.title, style = TvTypography.body, color = TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(4.dp))
-            Text(text = album.artist ?: "未知艺术家", style = TvTypography.caption, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(text = album.artist ?: stringResource(R.string.music_unknown_artist), style = TvTypography.caption, color = TextSecondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Spacer(Modifier.height(2.dp))
-            Text(text = "${album.trackCount} 首", style = TvTypography.caption, color = TextSecondary)
+            Text(text = stringResource(R.string.music_track_count, album.trackCount), style = TvTypography.caption, color = TextSecondary)
         }
     }
 }

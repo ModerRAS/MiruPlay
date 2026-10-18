@@ -1,6 +1,7 @@
 package com.miruplay.tv.ui.library
 
 import com.miruplay.tv.model.ScanResult
+import com.miruplay.tv.core.common.rawUiText
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -21,7 +22,7 @@ class LibraryScanNoticeTest {
 
         assertEquals(
             "MLIP：259 部动漫，2672 集，4177 个文件；library.db 生成于 2026-07-22T07:55:30Z",
-            notice,
+            notice?.text?.fallback,
         )
     }
 
@@ -40,16 +41,16 @@ class LibraryScanNoticeTest {
             sourceFailures = emptyList(),
         )
 
-        assertEquals("MLIP：259 部动漫，2672 集，4177 个文件；扫描完成：8 个文件", notice)
+        assertEquals("MLIP：259 部动漫，2672 集，4177 个文件 · 扫描完成：8 个文件", notice?.text?.fallback)
     }
 
     @Test
     fun `scan notice keeps failure visible when old content remains`() {
         val notice = libraryScanNotice(
             results = emptyList(),
-            sourceFailures = listOf("未找到媒体库索引：library.db"),
+            sourceFailures = listOf(rawUiText("未找到媒体库索引：library.db")),
         )
 
-        assertEquals("扫描失败：未找到媒体库索引：library.db", notice)
+        assertEquals("扫描失败：未找到媒体库索引：library.db", notice?.text?.fallback)
     }
 }

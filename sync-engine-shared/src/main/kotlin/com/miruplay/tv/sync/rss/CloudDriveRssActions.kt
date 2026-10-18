@@ -10,6 +10,7 @@ import com.miruplay.tv.model.CloudDriveRssRunSummary
 import com.miruplay.tv.model.RssSubscriptionInfo
 import com.miruplay.tv.model.RssSubscriptionFormResult
 import com.miruplay.tv.model.cloudDriveApiTokenRequiredStatus
+import com.miruplay.tv.core.common.rawUiText
 import com.miruplay.tv.model.cloudDriveCredentialsClearedStatus
 import com.miruplay.tv.model.cloudDriveCredentialsSavedStatus
 import com.miruplay.tv.model.cloudDriveLoginStartedStatus
@@ -110,7 +111,7 @@ class CloudDriveRssActionCoordinator(
         return when (val saveResult = repository.saveConfig(config)) {
             is Result.Success -> CloudDriveConfigActionResult.Saved(
                 config = config,
-                status = cloudRssConfigSavedStatus(),
+                status = cloudRssConfigSavedStatus().fallback,
             )
             is Result.Error -> CloudDriveConfigActionResult.Failed(saveResult.error.toUserMessage())
         }
@@ -124,13 +125,13 @@ class CloudDriveRssActionCoordinator(
         return CloudDriveCredentialActionResult.Saved(
             token = normalizedToken,
             password = normalizedPassword,
-            status = cloudDriveCredentialsSavedStatus(),
+            status = cloudDriveCredentialsSavedStatus().fallback,
         )
     }
 
     fun clearCredentials(): CloudDriveCredentialActionResult.Cleared {
         credentials.clearCloudDriveCredentials()
-        return CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus())
+        return CloudDriveCredentialActionResult.Cleared(cloudDriveCredentialsClearedStatus().fallback)
     }
 
     suspend fun login(endpointUrl: String, username: String, password: String): Result<Unit> =
@@ -148,14 +149,14 @@ class CloudDriveRssActionCoordinator(
         val form = when (val validation = validateCloudDriveLoginForm(endpointUrl, username, password)) {
             is CloudDriveLoginFormResult.Ready -> validation.request
             is CloudDriveLoginFormResult.Invalid -> {
-                return CloudDriveActionResult.Invalid(validation.status)
+                return CloudDriveActionResult.Invalid(validation.status.fallback)
             }
         }
 
-        onStarted(cloudDriveLoginStartedStatus())
+        onStarted(cloudDriveLoginStartedStatus().fallback)
         return when (val result = login(form.endpointUrl, form.username, form.password)) {
             is Result.Success -> CloudDriveActionResult.Success(
-                status = cloudDriveLoginSucceededStatus(),
+                status = cloudDriveLoginSucceededStatus().fallback,
                 token = credentials.cloudDriveToken,
             )
             is Result.Error -> CloudDriveActionResult.Failed(result.error.toUserMessage())
@@ -165,29 +166,29 @@ class CloudDriveRssActionCoordinator(
     suspend fun verifyCloudDriveApiToken(
         endpointUrl: String,
         token: String,
-        blankTokenStatus: String = cloudDriveApiTokenRequiredStatus(),
+        blankTokenStatus: String = cloudDriveApiTokenRequiredStatus().fallback,
         onStarted: (String) -> Unit = {},
     ): CloudDriveActionResult {
         val form = when (
             val validation = validateCloudDriveApiTokenForm(
                 endpointUrl = endpointUrl,
                 token = token,
-                blankTokenStatus = blankTokenStatus,
+                blankTokenStatus = rawUiText(blankTokenStatus),
             )
         ) {
             is CloudDriveApiTokenFormResult.Ready -> validation.request
             is CloudDriveApiTokenFormResult.Invalid -> {
-                return CloudDriveActionResult.Invalid(validation.status)
+                return CloudDriveActionResult.Invalid(validation.status.fallback)
             }
         }
 
-        onStarted(cloudDriveTokenValidationStartedStatus())
+        onStarted(cloudDriveTokenValidationStartedStatus().fallback)
         return when (val result = verifyApiToken(form.endpointUrl, form.token)) {
             is Result.Success -> CloudDriveActionResult.Success(
                 status = cloudDriveTokenVerifiedStatus(
                     friendlyName = result.data.friendlyName,
                     rootDir = result.data.rootDir,
-                ),
+                ).fallback,
                 token = form.token,
                 tokenInfo = result.data,
             )
@@ -201,11 +202,11 @@ class CloudDriveRssActionCoordinator(
     suspend fun runCloudDriveOnce(
         onStarted: (String) -> Unit = {},
     ): CloudDriveRunActionResult {
-        onStarted(cloudRssRunStartedStatus())
+        onStarted(cloudRssRunStartedStatus().fallback)
         return when (val result = runOnce()) {
             is Result.Success -> CloudDriveRunActionResult.Completed(
                 summary = result.data,
-                status = result.data.completeStatus(),
+                status = result.data.completeStatus().fallback,
             )
             is Result.Error -> CloudDriveRunActionResult.Failed(result.error.toUserMessage())
         }
@@ -290,7 +291,7 @@ class CloudDriveRssActionCoordinator(
             credentials.cloudDriveToken.isNullOrBlank() &&
             credentials.cloudDrivePassword.isNullOrBlank()
         ) {
-            val failed = CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus())
+            val failed = CloudDriveRunActionResult.Failed(cloudDriveTokenLoginRequiredStatus().fallback)
             onFailed(failed)
             return failed
         }
@@ -326,7 +327,7 @@ class CloudDriveRssActionCoordinator(
         ) {
             is RssSubscriptionFormResult.Ready -> result.subscription
             is RssSubscriptionFormResult.Invalid -> {
-                return RssSubscriptionActionResult.Invalid(result.status)
+                return RssSubscriptionActionResult.Invalid(result.status.fallback)
             }
         }
 
@@ -337,7 +338,7 @@ class CloudDriveRssActionCoordinator(
                 )
                 RssSubscriptionActionResult.Saved(
                     subscription = savedSubscription,
-                    status = rssSubscriptionSavedStatus(savedSubscription.name),
+                    status = rssSubscriptionSavedStatus(savedSubscription.name).fallback,
                 )
             }
             is Result.Error -> RssSubscriptionActionResult.Failed(result.error.toUserMessage())
@@ -349,7 +350,7 @@ class CloudDriveRssActionCoordinator(
 
     suspend fun deleteRssSubscription(id: Long): RssSubscriptionActionResult =
         when (val result = deleteSubscription(id)) {
-            is Result.Success -> RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus())
+            is Result.Success -> RssSubscriptionActionResult.Deleted(rssSubscriptionDeletedStatus().fallback)
             is Result.Error -> RssSubscriptionActionResult.Failed(result.error.toUserMessage())
         }
 }

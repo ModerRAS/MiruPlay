@@ -42,7 +42,10 @@ import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.dramaFeatureSubtitle
 import com.miruplay.tv.model.dramaPosterSubtitle
 import com.miruplay.tv.model.displayTitle
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.libraryHasSourcesEmptyMessage
+import com.miruplay.tv.ui.common.resolve
 import com.miruplay.tv.model.libraryCancelScanActionLabel
 import com.miruplay.tv.model.libraryCollectedCountLabel
 import com.miruplay.tv.model.libraryContinueWatchingSubtitle
@@ -112,22 +115,22 @@ fun DramaLibraryScreen(
                 DramaLibraryUiState.Loading -> LoadingIndicator()
                 DramaLibraryUiState.NoSources -> {
                     DramaEmptyState(
-                        message = libraryNoSourcesMessage(),
-                        buttonText = com.miruplay.tv.model.libraryAddSourceActionLabel(),
+                        message = libraryNoSourcesMessage().resolve(),
+                        buttonText = com.miruplay.tv.model.libraryAddSourceActionLabel().resolve(),
                         onClick = onNavigateToSettings,
                     )
                 }
                 DramaLibraryUiState.HasSources -> {
                     DramaEmptyState(
-                        message = libraryHasSourcesEmptyMessage(),
-                        buttonText = libraryScanNowActionLabel(),
+                        message = libraryHasSourcesEmptyMessage().resolve(),
+                        buttonText = libraryScanNowActionLabel().resolve(),
                         onClick = viewModel::scanNow,
                     )
                 }
                 is DramaLibraryUiState.ScanError -> {
                     DramaEmptyState(
-                        message = uiState.message,
-                        buttonText = libraryManualScanActionLabel(),
+                        message = uiState.message.resolve(),
+                        buttonText = libraryManualScanActionLabel().resolve(),
                         onClick = viewModel::scanNow,
                     )
                 }
@@ -192,7 +195,7 @@ private fun DramaLibraryHeader(
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             if (activeScan == null) {
                 TvButton(
-                    text = libraryScanActionLabel(),
+                    text = libraryScanActionLabel().resolve(),
                     icon = Icons.Filled.Refresh,
                     onClick = onScan,
                     modifier = Modifier
@@ -204,7 +207,7 @@ private fun DramaLibraryHeader(
             // focus into the top-right actions after the user starts navigating
             // feels like focus theft and breaks D-pad flow.
             TvButton(
-                text = librarySettingsActionLabel(),
+                text = librarySettingsActionLabel().resolve(),
                 onClick = onNavigateToSettings,
                 modifier = Modifier.width(132.dp),
             )
@@ -264,7 +267,7 @@ private fun DramaScanProgressBanner(
             verticalArrangement = Arrangement.Center,
         ) {
             Text(
-                text = libraryScanningTitle(),
+                text = libraryScanningTitle().resolve(),
                 color = TextPrimary,
                 style = TvTypography.body,
                 maxLines = 1,
@@ -272,7 +275,7 @@ private fun DramaScanProgressBanner(
             )
             Spacer(Modifier.height(2.dp))
             Text(
-                text = "${libraryFilesScannedLabel(state.filesScanned)} · ${state.currentPath.ifBlank { "电视剧媒体源" }}",
+                text = "${libraryFilesScannedLabel(state.filesScanned).resolve()} · ${state.currentPath.ifBlank { "电视剧媒体源" }}",
                 color = TextSecondary,
                 style = TvTypography.caption,
                 maxLines = 1,
@@ -281,7 +284,7 @@ private fun DramaScanProgressBanner(
         }
         if (state.canCancel) {
             TvButton(
-                text = libraryCancelScanActionLabel(),
+                text = libraryCancelScanActionLabel().resolve(),
                 onClick = onCancel,
                 modifier = Modifier
                     .width(132.dp)
@@ -302,7 +305,7 @@ private fun DramaLibraryContent(
             .fillMaxSize()
             .verticalScroll(rememberScrollState()),
     ) {
-        state.scanNotice?.takeIf { it.isNotBlank() }?.let { notice ->
+        state.scanNotice?.let { notice ->
             DramaLibraryNoticeBanner(notice)
             Spacer(Modifier.height(18.dp))
         }
@@ -310,7 +313,7 @@ private fun DramaLibraryContent(
         if (state.featuredSeries.isNotEmpty()) {
             DramaSectionHeader(
                 title = libraryFeaturedSectionTitle(),
-                trailing = libraryCollectedCountLabel(state.totalSeriesCount),
+                trailing = libraryCollectedCountLabel(state.totalSeriesCount).resolve(),
             )
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -374,7 +377,7 @@ private fun DramaLibraryContent(
 
         DramaSectionHeader(
             title = libraryPosterWallSectionTitle(),
-            trailing = libraryCollectedCountLabel(state.totalSeriesCount),
+            trailing = libraryCollectedCountLabel(state.totalSeriesCount).resolve(),
         )
         Column(
             verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -383,9 +386,10 @@ private fun DramaLibraryContent(
                 .padding(bottom = 28.dp),
         ) {
             state.browseSections.forEach { section ->
-                if (!section.title.isNullOrBlank()) {
+                val browseTitle = section.title
+                if (browseTitle != null && browseTitle.fallback.isNotBlank()) {
                     Text(
-                        text = section.title,
+                        text = browseTitle.resolve(),
                         style = TvTypography.body,
                         color = TextSecondary,
                         modifier = Modifier.padding(bottom = 10.dp),
@@ -438,7 +442,7 @@ private fun DramaLibraryContent(
 
 @Composable
 private fun DramaLibraryNoticeBanner(
-    message: String,
+    message: UiMessage,
 ) {
     Box(
         modifier = Modifier
@@ -455,7 +459,7 @@ private fun DramaLibraryNoticeBanner(
             .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Text(
-            text = message,
+            text = message.text.resolve(),
             style = TvTypography.body,
             color = TextPrimary,
             maxLines = 2,
@@ -466,7 +470,7 @@ private fun DramaLibraryNoticeBanner(
 
 @Composable
 private fun DramaSectionHeader(
-    title: String,
+    title: UiText,
     trailing: String? = null,
 ) {
     Row(
@@ -477,7 +481,7 @@ private fun DramaSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = title,
+            text = title.resolve(),
             style = TvTypography.subtitle,
             color = TextPrimary,
         )
@@ -505,10 +509,14 @@ private fun com.miruplay.tv.model.DramaSeries.toAnimeProxy() =
 internal fun dramaContinueWatchingSubtitle(
     episodeNumber: Int?,
     progress: ProgressRecord?,
-): String {
+): UiText {
     val baseSubtitle = libraryContinueWatchingSubtitle(episodeNumber)
+    val position = progress?.positionMs?.coerceAtLeast(0L) ?: 0L
+    if (position <= 0L) return baseSubtitle
     val progressSubtitle = playbackProgressRecordLabel(progress)
-        .takeUnless { it == "未看" }
-        ?: return baseSubtitle
-    return "$baseSubtitle · $progressSubtitle"
+    return UiText(
+        "drama_continue_subtitle",
+        listOf(baseSubtitle, progressSubtitle),
+        "${baseSubtitle.fallback} · ${progressSubtitle.fallback}",
+    )
 }

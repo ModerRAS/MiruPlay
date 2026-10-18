@@ -3,6 +3,7 @@ package com.miruplay.tv.repository
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.MediaPathConventions
 import com.miruplay.tv.model.MediaSourceInfo
+import com.miruplay.tv.core.common.UiText
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.ProgressRecord
 import com.miruplay.tv.model.mediaSourceAlreadyAtRootStatus
@@ -30,7 +31,7 @@ import com.miruplay.tv.model.libraryScanCompleteStatus
 import com.miruplay.tv.model.libraryScanningStatus
 import com.miruplay.tv.model.tvDisplayLabel
 
-fun MediaSourceInfo.displayLabel(): String =
+fun MediaSourceInfo.displayLabel(): UiText =
     tvDisplayLabel()
 
 fun List<MediaSourceInfo>.upsertById(source: MediaSourceInfo): List<MediaSourceInfo> =
@@ -41,71 +42,71 @@ fun List<MediaSourceInfo>.upsertById(source: MediaSourceInfo): List<MediaSourceI
 fun ProgressRecord.mediaDisplayName(): String =
     MediaPathConventions.fileName(episodeId).ifBlank { episodeId }
 
-fun localLibraryInitialStatus(): String =
+fun localLibraryInitialStatus(): UiText =
     mediaSourceLocalLibraryInitialStatus()
 
-fun remoteBrowserInitialStatus(): String =
+fun remoteBrowserInitialStatus(): UiText =
     mediaSourceRemoteBrowserInitialStatus()
 
-fun MediaSourceInfo.loadedStatus(saved: Boolean = false): String =
+fun MediaSourceInfo.loadedStatus(saved: Boolean = false): UiText =
     mediaSourceLoadedStatus(saved)
 
-fun MediaSourceInfo.readyStatus(): String =
+fun MediaSourceInfo.readyStatus(): UiText =
     mediaSourceReadyStatus()
 
-fun localRootRequiredStatus(): String =
+fun localRootRequiredStatus(): UiText =
     mediaSourceLocalRootRequiredStatus()
 
-fun webDavUrlRequiredStatus(): String =
+fun webDavUrlRequiredStatus(): UiText =
     mediaSourceWebDavUrlRequiredStatus()
 
-fun smbUrlRequiredStatus(): String =
+fun smbUrlRequiredStatus(): UiText =
     mediaSourceSmbUrlRequiredStatus()
 
-fun openSourceBeforeScanningStatus(): String =
+fun openSourceBeforeScanningStatus(): UiText =
     mediaSourceOpenBeforeScanningStatus()
 
-fun MediaSourceInfo.scanningStatus(): String =
+fun MediaSourceInfo.scanningStatus(): UiText =
     libraryScanningStatus(name)
 
-fun scanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+fun scanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText =
     libraryScanCompleteStatus(filesIndexed, directoriesVisited)
 
-fun rescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): String =
+fun rescanCompleteStatus(filesIndexed: Int, directoriesVisited: Int): UiText =
     libraryRescanCompleteStatus(filesIndexed, directoriesVisited)
 
-fun openSourceBeforeSearchingStatus(): String =
+fun openSourceBeforeSearchingStatus(): UiText =
     mediaSourceOpenBeforeSearchingStatus()
 
-fun openSourceBeforeClearingIndexStatus(): String =
+fun openSourceBeforeClearingIndexStatus(): UiText =
     mediaSourceOpenBeforeClearingIndexStatus()
 
-fun indexClearedStatus(sourceId: Long): String =
+fun indexClearedStatus(sourceId: Long): UiText =
     mediaSourceIndexClearedStatus(sourceId)
 
-fun sourceRemoveRequiredStatus(): String =
+fun sourceRemoveRequiredStatus(): UiText =
     mediaSourceRemoveRequiredStatus()
 
-fun sourceRemovedStatus(): String =
+fun sourceRemovedStatus(): UiText =
     mediaSourceRemovedStatus()
 
-fun remoteRootStatus(): String =
+fun remoteRootStatus(): UiText =
     mediaSourceAlreadyAtRootStatus()
 
-fun openRemoteSourceBeforeBrowsingStatus(): String =
+fun openRemoteSourceBeforeBrowsingStatus(): UiText =
     mediaSourceOpenRemoteBeforeBrowsingStatus()
 
-fun MediaSourceInfo.loadingRemoteDirectoryStatus(path: String): String =
+fun MediaSourceInfo.loadingRemoteDirectoryStatus(path: String): UiText =
     mediaSourceLoadingRemoteDirectoryStatus(path)
 
-fun MediaSourceInfo.showingRemoteDirectoryStatus(entries: List<FileEntry>): String =
+fun MediaSourceInfo.showingRemoteDirectoryStatus(entries: List<FileEntry>): UiText =
     mediaSourceShowingRemoteDirectoryStatus(entries.size)
 
-fun MediaIndexEntry.selectedForPlaybackStatus(): String =
+fun MediaIndexEntry.selectedForPlaybackStatus(): UiText =
     mediaSourceSelectedForPlaybackStatus(displayName())
 
-fun FileEntry.selectedRemoteForPlaybackStatus(): String =
+fun FileEntry.selectedRemoteForPlaybackStatus(): UiText =
     mediaSourceSelectedRemoteForPlaybackStatus(name)
 
-fun indexedSearchStatus(query: String, hasResults: Boolean, displayedResultCount: Int): String =
+fun indexedSearchStatus(query: String, hasResults: Boolean, displayedResultCount: Int): UiText =
     mediaSourceIndexedSearchStatus(query, hasResults, displayedResultCount)

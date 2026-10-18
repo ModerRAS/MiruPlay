@@ -3,6 +3,12 @@ package com.miruplay.tv.ui.detail
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.miruplay.tv.core.common.Result
+import com.miruplay.tv.core.common.UiMessage
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.asError
+import com.miruplay.tv.core.common.asInfo
+import com.miruplay.tv.core.common.uiText
+import com.miruplay.tv.model.playbackPlayLabel
 import com.miruplay.tv.model.DramaEpisode
 import com.miruplay.tv.model.DramaMetadataSearchResult
 import com.miruplay.tv.model.DramaSeason
@@ -81,11 +87,11 @@ class DramaDetailViewModel @Inject constructor(
     private val _hasPlayableEpisodes = MutableStateFlow(false)
     val hasPlayableEpisodes: StateFlow<Boolean> = _hasPlayableEpisodes.asStateFlow()
 
-    private val _primaryActionLabel = MutableStateFlow("播放")
-    val primaryActionLabel: StateFlow<String> = _primaryActionLabel.asStateFlow()
+    private val _primaryActionLabel = MutableStateFlow(playbackPlayLabel())
+    val primaryActionLabel: StateFlow<UiText> = _primaryActionLabel.asStateFlow()
 
-    private val _actionMessage = MutableStateFlow<String?>(null)
-    val actionMessage: StateFlow<String?> = _actionMessage.asStateFlow()
+    private val _actionMessage = MutableStateFlow<UiMessage?>(null)
+    val actionMessage: StateFlow<UiMessage?> = _actionMessage.asStateFlow()
 
     private val _isRefreshingMetadata = MutableStateFlow(false)
     val isRefreshingMetadata: StateFlow<Boolean> = _isRefreshingMetadata.asStateFlow()
@@ -107,7 +113,7 @@ class DramaDetailViewModel @Inject constructor(
 
     private var currentSeriesId: String? = null
     private var currentDetail: LibraryDramaDetail? = null
-    private var metadataMessage: String? = null
+    private var metadataMessage: UiText? = null
 
     fun loadSeries(seriesId: String, showRefreshFeedback: Boolean = false) {
         currentSeriesId = seriesId
@@ -198,7 +204,7 @@ class DramaDetailViewModel @Inject constructor(
     fun selectManualMatchResult(result: DramaMetadataSearchResult) {
         _manualMatch.value = _manualMatch.value.copy(
             selectedResult = result,
-            statusMessage = "已选择 ${result.displayTitle()}。",
+            statusMessage = UiText("drama_selected_title", listOf(result.displayTitle()), "已选择 ${result.displayTitle()}。").asInfo(),
         )
     }
 
@@ -207,7 +213,7 @@ class DramaDetailViewModel @Inject constructor(
         val queries = manualMatchQueries(currentState)
         if (queries.isEmpty()) {
             _manualMatch.value = currentState.copy(
-                statusMessage = "先选一个候选标题，或者自己输入搜索词。",
+                statusMessage = uiText("drama_match_prompt", "先选一个候选标题，或者自己输入搜索词。").asError(),
             )
             return
         }
@@ -215,7 +221,7 @@ class DramaDetailViewModel @Inject constructor(
         viewModelScope.launch {
             _manualMatch.value = currentState.copy(
                 isSearching = true,
-                statusMessage = "正在搜索在线候选，共 ${queries.size} 个关键词。",
+                statusMessage = UiText("drama_searching_online", listOf(queries.size), "正在搜索在线候选，共 ${queries.size} 个关键词。").asError(),
             )
             val currentSeries = _series.value
             val currentEpisodes = currentDetail?.episodes.orEmpty()
@@ -245,9 +251,9 @@ class DramaDetailViewModel @Inject constructor(
                 selectedResult = distinctResults.firstOrNull(),
                 isSearching = false,
                 statusMessage = when {
-                    distinctResults.isNotEmpty() -> "找到 ${distinctResults.size} 个聚合候选。"
-                    !canRefreshMetadataOnline(currentDetail) -> "没有找到更合适的在线候选；当前也没有可直接刷新的在线详情源。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。"
-                    else -> "没有找到更合适的在线候选。"
+                    distinctResults.isNotEmpty() -> UiText("drama_found_candidates", listOf(distinctResults.size), "找到 ${distinctResults.size} 个聚合候选。").asInfo()
+                    !canRefreshMetadataOnline(currentDetail) -> uiText("drama_no_refresh_candidates", "没有找到更合适的在线候选；当前也没有可直接刷新的在线详情源。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。").asError()
+                    else -> uiText("drama_no_online_candidates", "没有找到更合适的在线候选。").asError()
                 },
             )
         }
@@ -258,7 +264,7 @@ class DramaDetailViewModel @Inject constructor(
         val selectedResult = _manualMatch.value.selectedResult
         if (selectedResult == null) {
             _manualMatch.value = _manualMatch.value.copy(
-                statusMessage = "先选中一个在线结果，再应用。",
+                statusMessage = uiText("drama_select_to_apply", "先选中一个在线结果，再应用。").asError(),
             )
             return
         }
@@ -268,9 +274,9 @@ class DramaDetailViewModel @Inject constructor(
             _isRefreshingMetadata.value = true
             _manualMatch.value = _manualMatch.value.copy(
                 isApplying = true,
-                statusMessage = "正在应用 ${selectedResult.displayTitle()}。",
+                statusMessage = UiText("drama_applying_title", listOf(selectedResult.displayTitle()), "正在应用 ${selectedResult.displayTitle()}。").asError(),
             )
-            _actionMessage.value = "正在应用手动匹配结果。"
+            _actionMessage.value = uiText("drama_applying_result", "正在应用手动匹配结果。").asError()
             try {
                 val seasonNumbers = _seasons.value.map { it.seasonNumber }
                 when (
@@ -280,7 +286,7 @@ class DramaDetailViewModel @Inject constructor(
                     )
                 ) {
                     is Result.Error -> {
-                        val message = metadataResult.error.toUserMessage()
+                        val message = metadataResult.error.toUiText().asError()
                         _manualMatch.value = _manualMatch.value.copy(
                             isApplying = false,
                             statusMessage = message,
@@ -291,7 +297,7 @@ class DramaDetailViewModel @Inject constructor(
                     is Result.Success -> {
                         val metadata = metadataResult.data
                         if (metadata == null) {
-                            val message = "${selectedResult.providerDisplayLabel()} 当前没有返回可应用的详情，暂时不能应用。"
+                            val message = UiText("drama_provider_no_detail", listOf(selectedResult.providerDisplayLabel()), "${selectedResult.providerDisplayLabel()} 当前没有返回可应用的详情，暂时不能应用。").asError()
                             _manualMatch.value = _manualMatch.value.copy(
                                 isApplying = false,
                                 statusMessage = message,
@@ -306,9 +312,9 @@ class DramaDetailViewModel @Inject constructor(
                         if (baseDetail == null) {
                             _manualMatch.value = _manualMatch.value.copy(
                                 isApplying = false,
-                                statusMessage = "本地详情已经失效，请先返回重进。",
+                                statusMessage = uiText("drama_detail_expired", "本地详情已经失效，请先返回重进。").asError(),
                             )
-                            _actionMessage.value = "本地详情已经失效，请先返回重进。"
+                            _actionMessage.value = uiText("drama_detail_expired", "本地详情已经失效，请先返回重进。").asError()
                             return@launch
                         }
                         val resolvedDetail = baseDetail.withResolvedMetadata(metadata)
@@ -324,7 +330,7 @@ class DramaDetailViewModel @Inject constructor(
                             tmdbConfigured = isTmdbConfigured(),
                             canRefreshMetadataOnline = canRefreshMetadataOnline(resolvedDetail),
                             persistMessage = persistMessage,
-                            successMessageOverride = "已应用手动匹配，电视剧信息已更新。",
+                            successMessageOverride = uiText("drama_apply_success", "已应用手动匹配，电视剧信息已更新。"),
                         )
                     }
                 }
@@ -339,9 +345,10 @@ class DramaDetailViewModel @Inject constructor(
         val episodesForSeason = allEpisodesWithProgress.filter { it.first.seasonNumber == seasonNumber }
         _episodesWithProgress.value = episodesForSeason
         _actionMessage.value = if (episodesForSeason.isEmpty()) {
-            "第 $seasonNumber 季还没有可播放剧集。"
+            UiText("drama_season_empty", listOf(seasonNumber), "第 $seasonNumber 季还没有可播放剧集。").asError()
         } else {
-            "已切换到第 $seasonNumber 季，共 ${episodesForSeason.size} 集。"
+            val count = episodesForSeason.size
+            UiText("drama_season_switched", listOf(seasonNumber, count), "已切换到第 $seasonNumber 季，共 $count 集。").asInfo()
         }
     }
 
@@ -393,10 +400,10 @@ class DramaDetailViewModel @Inject constructor(
     private suspend fun persistResolvedMetadata(
         detail: LibraryDramaDetail?,
         persistIndexEntries: Boolean,
-    ): String? {
+    ): UiText? {
         val resolvedMetadata = detail?.resolvedMetadata ?: return null
         resolver.cacheSeriesMetadata(detail.series.id, detail.series).onError { error ->
-            return "电视剧信息已刷新，但保存系列缓存失败：${error.toUserMessage()}"
+            return UiText("drama_cache_save_failed", listOf(error.toUiText()), "电视剧信息已刷新，但保存系列缓存失败：${error.toUiText().fallback}")
         }
         if (!persistIndexEntries) {
             return null
@@ -410,7 +417,7 @@ class DramaDetailViewModel @Inject constructor(
         }
         for (entry in updatedEntries) {
             mediaIndexRepository.upsertEntry(detail.sourceId, entry).onError { error ->
-                return "电视剧信息已刷新，但保存到本地索引失败：${error.toUserMessage()}"
+                return UiText("drama_index_save_failed", listOf(error.toUiText()), "电视剧信息已刷新，但保存到本地索引失败：${error.toUiText().fallback}")
             }
         }
         currentDetail = detail.copy(indexEntries = updatedEntries)
@@ -423,8 +430,8 @@ class DramaDetailViewModel @Inject constructor(
         surfacePassiveMetadataFailure: Boolean,
         tmdbConfigured: Boolean,
         canRefreshMetadataOnline: Boolean,
-        persistMessage: String?,
-        successMessageOverride: String? = null,
+        persistMessage: UiText?,
+        successMessageOverride: UiText? = null,
     ) {
         currentDetail = detail
         _series.value = detail?.series
@@ -456,17 +463,26 @@ class DramaDetailViewModel @Inject constructor(
             ?.boundMetadataProviderRef()
             ?.let(dramaMetadataRepository::canFetchMetadataByProviderRef)
             ?: false
+        val failedDetailMessage = metadataMessage
         _actionMessage.value = when {
-            showRefreshFeedback && !metadataMessage.isNullOrBlank() -> "刷新电视剧信息失败：$metadataMessage"
+            showRefreshFeedback && failedDetailMessage != null -> UiText(
+                "drama_refresh_failed_detail",
+                listOf(failedDetailMessage),
+                "刷新电视剧信息失败：${failedDetailMessage.fallback}",
+            ).asError()
             showRefreshFeedback && !canRefreshMetadataOnline ->
-                "当前没有可直接刷新的在线详情源；在线手动匹配仍可继续使用。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。"
-            showRefreshFeedback && !persistMessage.isNullOrBlank() -> persistMessage
-            showRefreshFeedback && !successMessageOverride.isNullOrBlank() -> successMessageOverride
-            showRefreshFeedback && detail?.resolvedMetadata != null -> "电视剧信息已刷新。"
-            showRefreshFeedback -> "未获取到电视剧在线信息。"
+                uiText(
+                    "drama_no_refresh_source",
+                    "当前没有可直接刷新的在线详情源；在线手动匹配仍可继续使用。如果还没绑定在线来源，也可以配置 TMDB Token 来启用按标题直接刷新。",
+                ).asError()
+            showRefreshFeedback && persistMessage != null -> persistMessage.asInfo()
+            showRefreshFeedback && successMessageOverride != null -> successMessageOverride.asInfo()
+            showRefreshFeedback && detail?.resolvedMetadata != null ->
+                uiText("drama_refreshed", "电视剧信息已刷新。").asInfo()
+            showRefreshFeedback -> uiText("drama_no_online_info", "未获取到电视剧在线信息。").asError()
             detail == null -> null
-            episodesForSeason.isEmpty() -> "当前详情还没有可播放剧集。"
-            surfacePassiveMetadataFailure && !metadataMessage.isNullOrBlank() -> metadataMessage
+            episodesForSeason.isEmpty() -> uiText("drama_no_episodes", "当前详情还没有可播放剧集。").asError()
+            surfacePassiveMetadataFailure && metadataMessage != null -> metadataMessage?.asError()
             else -> null
         }
     }
@@ -511,7 +527,7 @@ data class DramaManualMatchUiState(
     val selectedResult: DramaMetadataSearchResult? = null,
     val isSearching: Boolean = false,
     val isApplying: Boolean = false,
-    val statusMessage: String? = null,
+    val statusMessage: UiMessage? = null,
 )
 
 private const val DRAMA_MANUAL_MATCH_RESULT_LIMIT = 12

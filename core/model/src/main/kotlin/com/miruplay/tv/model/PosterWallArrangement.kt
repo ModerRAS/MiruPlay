@@ -1,5 +1,7 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.uiText
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -9,7 +11,7 @@ enum class PosterWallArrangement {
 }
 
 data class PosterWallAnimeSection(
-    val title: String?,
+    val title: UiText?,
     val anime: List<Anime>,
 )
 
@@ -18,6 +20,9 @@ data class AnimeReleaseSeason(
     val startMonth: Int,
 ) {
     val title: String = "${year}年${startMonth}月新番"
+
+    fun localizedTitle(): UiText =
+        UiText("poster_season_title", listOf(year, startMonth), title)
 }
 
 fun Anime.releaseSeason(): AnimeReleaseSeason? =
@@ -49,24 +54,36 @@ fun List<Anime>.posterWallSections(
     }
 
     return sorted
-        .groupBy { it.posterWallReleaseSeasonTitle() ?: posterWallUnknownReleaseSeasonTitle() }
-        .map { (title, anime) -> PosterWallAnimeSection(title = title, anime = anime) }
+        .groupBy { it.posterWallReleaseSeasonTitle() }
+        .map { (_, anime) ->
+            PosterWallAnimeSection(
+                title = anime.firstOrNull()?.releaseSeason()?.localizedTitle()
+                    ?: posterWallUnknownReleaseSeasonTitle(),
+                anime = anime,
+            )
+        }
 }
 
-fun posterWallArrangementLabel(arrangement: PosterWallArrangement): String =
+fun posterWallArrangementLabel(arrangement: PosterWallArrangement): UiText =
     when (arrangement) {
-        PosterWallArrangement.TITLE -> "按标题"
-        PosterWallArrangement.RELEASE_SEASON -> "按新番季"
+        PosterWallArrangement.TITLE -> uiText("poster_arrangement_title", "按标题")
+        PosterWallArrangement.RELEASE_SEASON -> uiText("poster_arrangement_season", "按新番季")
     }
 
-fun posterWallArrangementStatus(arrangement: PosterWallArrangement): String =
+fun posterWallArrangementStatus(arrangement: PosterWallArrangement): UiText =
     when (arrangement) {
-        PosterWallArrangement.TITLE -> "海报墙当前按标题排序：中文名优先，其次使用原名。"
-        PosterWallArrangement.RELEASE_SEASON -> "海报墙会按播出日期归入 1/4/7/9 月新番；没有播出日期的条目排在最后。"
+        PosterWallArrangement.TITLE -> uiText(
+            "poster_arrangement_title_desc",
+            "海报墙当前按标题排序：中文名优先，其次使用原名。",
+        )
+        PosterWallArrangement.RELEASE_SEASON -> uiText(
+            "poster_arrangement_season_desc",
+            "海报墙会按播出日期归入 1/4/7/9 月新番；没有播出日期的条目排在最后。",
+        )
     }
 
-fun posterWallUnknownReleaseSeasonTitle(): String =
-    "未识别播出日期"
+fun posterWallUnknownReleaseSeasonTitle(): UiText =
+    uiText("poster_unknown_season", "未识别播出日期")
 
 private fun List<Anime>.sortedByDisplayTitle(): List<Anime> =
     sortedBy { it.displayTitle().lowercase() }

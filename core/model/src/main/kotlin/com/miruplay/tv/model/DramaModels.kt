@@ -1,5 +1,10 @@
 package com.miruplay.tv.model
 
+import com.miruplay.tv.core.common.UiText
+import com.miruplay.tv.core.common.joinUiText
+import com.miruplay.tv.core.common.rawUiText
+import com.miruplay.tv.core.common.uiText
+
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -133,26 +138,42 @@ fun DramaMetadataSearchResult.aggregatedSourceLabel(): String =
         .joinToString(" / ")
         .ifBlank { providerDisplayLabel() }
 
-fun DramaSeries.dramaPosterSubtitle(): String =
-    buildList {
-        if (seasonCount > 1) add("共 ${seasonCount.coerceAtLeast(0)} 季")
-        if (episodeCount > 0) add("${episodeCount.coerceAtLeast(0)} 集")
-    }.joinToString(" · ")
+fun DramaSeries.dramaPosterSubtitle(): UiText {
+    val parts = buildList {
+        if (seasonCount > 1) add(dramaSeasonCountLabel(seasonCount))
+        if (episodeCount > 0) {
+            val safe = episodeCount.coerceAtLeast(0)
+            add(UiText("drama_poster_episodes", listOf(safe), "$safe 集"))
+        }
+    }
+    return joinUiText(parts)
+}
 
-fun DramaSeries.dramaFeatureSubtitle(): String =
-    buildList {
-        firstAirDate?.takeIf { it.isNotBlank() }?.let(::add)
-        dramaPosterSubtitle().takeIf { it.isNotBlank() }?.let(::add)
-    }.joinToString(" · ").ifBlank { displayTitle() }
+fun DramaSeries.dramaFeatureSubtitle(): UiText {
+    val parts = buildList {
+        firstAirDate?.takeIf { it.isNotBlank() }?.let { add(rawUiText(it)) }
+        dramaPosterSubtitle().takeIf { it.fallback.isNotBlank() }?.let(::add)
+    }
+    if (parts.isEmpty()) return rawUiText(displayTitle())
+    return joinUiText(parts)
+}
 
-fun dramaEpisodeCountLabel(episodeCount: Int): String =
-    "全 ${episodeCount.coerceAtLeast(0)} 集"
+fun dramaEpisodeCountLabel(episodeCount: Int): UiText {
+    val safe = episodeCount.coerceAtLeast(0)
+    return UiText("drama_episode_count", listOf(safe), "全 $safe 集")
+}
 
-fun dramaSeasonCountLabel(seasonCount: Int): String =
-    "共 ${seasonCount.coerceAtLeast(0)} 季"
+fun dramaSeasonCountLabel(seasonCount: Int): UiText {
+    val safe = seasonCount.coerceAtLeast(0)
+    return UiText("drama_season_count", listOf(safe), "共 $safe 季")
+}
 
-fun dramaRefreshActionLabel(isRefreshing: Boolean): String =
-    if (isRefreshing) "刷新中" else "刷新信息"
+fun dramaRefreshActionLabel(isRefreshing: Boolean): UiText =
+    if (isRefreshing) {
+        uiText("drama_refreshing", "刷新中")
+    } else {
+        uiText("drama_refresh_action", "刷新信息")
+    }
 
 fun dramaMetadataStatusMessage(
     hasBoundMetadata: Boolean,
@@ -160,17 +181,35 @@ fun dramaMetadataStatusMessage(
     isRefreshing: Boolean,
     boundProviderLabel: String? = null,
     canRefreshBoundMetadata: Boolean = false,
-): String =
+): UiText =
     when {
-        isRefreshing -> "正在刷新在线信息，当前页面会继续保留本地剧集列表。"
+        isRefreshing -> uiText(
+            "drama_metadata_refreshing",
+            "正在刷新在线信息，当前页面会继续保留本地剧集列表。",
+        )
         hasBoundMetadata -> {
             val providerLabel = boundProviderLabel?.takeIf { it.isNotBlank() } ?: "在线"
             if (canRefreshBoundMetadata || boundProviderLabel.equals("TMDB", ignoreCase = true)) {
-                "已记住 $providerLabel 元数据条目，后续刷新会优先按已保存来源更新。"
+                UiText(
+                    "drama_metadata_bound_refreshable",
+                    listOf(providerLabel),
+                    "已记住 $providerLabel 元数据条目，后续刷新会优先按已保存来源更新。",
+                )
             } else {
-                "已记住 $providerLabel 元数据条目；当前自动详情补全仍优先使用已支持的详情源。"
+                UiText(
+                    "drama_metadata_bound_locked",
+                    listOf(providerLabel),
+                    "已记住 $providerLabel 元数据条目；当前自动详情补全仍优先使用已支持的详情源。",
+                )
             }
         }
-        hasTmdbToken -> "当前先显示本地索引结果。若还没绑定在线来源，可用“刷新信息”按标题走 TMDB 补全海报、简介和单集标题。"
-        else -> "当前只显示本地索引结果。现在可以先用“在线手动匹配”搜索多源候选；如果还没绑定可直刷的在线来源，也可以在设置里配置 TMDB Token 来启用按标题直接刷新。"
+        hasTmdbToken -> UiText(
+            "drama_metadata_tmdb_hint",
+            listOf(dramaRefreshActionLabel(false)),
+            "当前先显示本地索引结果。若还没绑定在线来源，可用“${dramaRefreshActionLabel(false).fallback}”按标题走 TMDB 补全海报、简介和单集标题。",
+        )
+        else -> uiText(
+            "drama_metadata_local_hint",
+            "当前只显示本地索引结果。现在可以先用“在线手动匹配”搜索多源候选；如果还没绑定可直刷的在线来源，也可以在设置里配置 TMDB Token 来启用按标题直接刷新。",
+        )
     }
