@@ -29,6 +29,7 @@ dependencies {
     implementation(project(":player-ijkplayer-android"))
     api(project(":media-source"))
     api(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.media3.effect)
     api(libs.androidx.media3.ui)
     api(libs.androidx.media3.session)

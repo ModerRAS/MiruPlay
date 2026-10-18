@@ -7,6 +7,7 @@ import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
 import com.miruplay.tv.model.connectionPassword
 import com.miruplay.tv.model.connectionUsername
+import com.miruplay.tv.model.proxyConfig
 import com.miruplay.tv.model.isDefaultCloudDriveWebDavEndpoint
 import com.miruplay.tv.model.remoteUrl
 import com.miruplay.tv.model.webDavDirectoryWarmupChain
@@ -22,6 +23,13 @@ class PlaybackHttpRequestResolver @Inject constructor(
 ) {
     suspend fun configFor(source: PlaybackSource): PlaybackHttpRequestConfig {
         val mediaSource = findMediaSource(source) ?: return PlaybackHttpRequestConfig.Empty
+        if (mediaSource.type == MediaSourceType.ANI) {
+            return PlaybackHttpRequestConfig(
+                baseUrl = "",
+                headers = emptyMap(),
+                proxy = mediaSource.proxyConfig(),
+            )
+        }
         if (mediaSource.type != MediaSourceType.WEBDAV) return PlaybackHttpRequestConfig.Empty
 
         val remoteUrl = mediaSource.remoteUrl().orEmpty()
@@ -55,6 +63,12 @@ class PlaybackHttpRequestResolver @Inject constructor(
     }
 
     private suspend fun findMediaSource(source: PlaybackSource): MediaSourceInfo? {
+        source.sourceIdHint()?.let { sourceId ->
+            mediaSources.getSourceById(sourceId)
+                .getOrNull()
+                ?.takeIf { it.type == MediaSourceType.ANI }
+                ?.let { return it }
+        }
         source.sourceIdHint()?.let { sourceId ->
             mediaSources.getSourceById(sourceId)
                 .getOrNull()

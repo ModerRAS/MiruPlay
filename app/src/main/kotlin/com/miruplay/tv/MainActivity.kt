@@ -415,10 +415,20 @@ class MainActivity : ComponentActivity() {
                 password = request.password,
                 recognitionMode = request.recognitionMode,
             ).let { connectionInfo ->
+                var merged = connectionInfo
+                if (request.type == MediaSourceType.ANI &&
+                    request.proxyHost.isNotBlank() && request.proxyPort > 0
+                ) {
+                    merged = merged + mapOf(
+                        MediaSourceInfoConventions.CONNECTION_PROXY_ENABLED to "true",
+                        MediaSourceInfoConventions.CONNECTION_PROXY_HOST to request.proxyHost,
+                        MediaSourceInfoConventions.CONNECTION_PROXY_PORT to request.proxyPort.toString(),
+                    )
+                }
                 if (request.disableOnlineMetadata) {
-                    connectionInfo + ("disableOnlineMetadata" to "true")
+                    merged + ("disableOnlineMetadata" to "true")
                 } else {
-                    connectionInfo
+                    merged
                 }
             },
         )
@@ -627,6 +637,8 @@ internal data class LaunchTestSourceRequest(
     val displayName: String = "",
     val username: String = "",
     val password: String = "",
+    val proxyHost: String = "",
+    val proxyPort: Int = 0,
     val contentMode: MediaContentMode,
     val recognitionMode: MediaRecognitionMode = MediaRecognitionMode.DIRECTORY,
     val disableOnlineMetadata: Boolean,
@@ -642,6 +654,8 @@ internal data class LaunchIntentSnapshot(
     val rawDisplayName: String?,
     val rawUsername: String?,
     val rawPassword: String?,
+    val rawProxyHost: String? = null,
+    val rawProxyPort: String? = null,
     val rawContentMode: String?,
     val rawRecognitionMode: String?,
     val disableOnlineMetadata: Boolean,
@@ -740,6 +754,8 @@ internal fun buildLaunchBootstrapPlan(
             rawDisplayName = snapshot.rawDisplayName,
             rawUsername = snapshot.rawUsername,
             rawPassword = snapshot.rawPassword,
+            rawProxyHost = snapshot.rawProxyHost,
+            rawProxyPort = snapshot.rawProxyPort,
             rawContentMode = snapshot.rawContentMode,
             rawRecognitionMode = snapshot.rawRecognitionMode,
             disableOnlineMetadata = snapshot.disableOnlineMetadata,
@@ -759,6 +775,8 @@ internal fun captureLaunchIntentSnapshot(intent: Intent?): LaunchIntentSnapshot 
         rawDisplayName = intent?.getStringExtra("test_source_display_name"),
         rawUsername = intent?.getStringExtra("test_source_username"),
         rawPassword = intent?.getStringExtra("test_source_password"),
+        rawProxyHost = intent?.getStringExtra("test_proxy_host"),
+        rawProxyPort = intent?.getStringExtra("test_proxy_port"),
         rawContentMode = intent?.getStringExtra("test_content_mode"),
         rawRecognitionMode = intent?.getStringExtra("test_source_recognition_mode"),
         disableOnlineMetadata = intent?.getBooleanExtra("test_disable_online_metadata", false) == true,
@@ -961,6 +979,7 @@ internal fun resolveLaunchTestSourceType(
         MediaSourceType.LOCAL.name -> MediaSourceType.LOCAL
         MediaSourceType.WEBDAV.name -> MediaSourceType.WEBDAV
         MediaSourceType.SMB.name -> MediaSourceType.SMB
+        MediaSourceType.ANI.name -> MediaSourceType.ANI
         else -> {
             val normalizedLocation = location?.trim().orEmpty()
             when {
@@ -994,6 +1013,8 @@ internal fun resolveLaunchTestSourceRequest(
     rawDisplayName: String?,
     rawUsername: String?,
     rawPassword: String?,
+    rawProxyHost: String? = null,
+    rawProxyPort: String? = null,
     rawContentMode: String?,
     rawRecognitionMode: String?,
     disableOnlineMetadata: Boolean,
@@ -1027,6 +1048,8 @@ internal fun resolveLaunchTestSourceRequest(
         displayName = rawDisplayName?.trim().orEmpty(),
         username = rawUsername?.trim().orEmpty(),
         password = rawPassword.orEmpty(),
+        proxyHost = rawProxyHost?.trim().orEmpty(),
+        proxyPort = rawProxyPort?.trim()?.toIntOrNull() ?: 0,
         contentMode = resolveLaunchTestSourceContentMode(rawContentMode, fallbackMode),
         recognitionMode = resolveLaunchTestSourceRecognitionMode(rawRecognitionMode),
         disableOnlineMetadata = disableOnlineMetadata,

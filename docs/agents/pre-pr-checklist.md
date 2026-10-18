@@ -214,3 +214,23 @@ Cross-checks:
 New failure class (section 1 candidate):
 
 - **Composed-path divergence** — the JVM-tested path and the device-rendered path resolve shared data through different code: UiText.resolve(context) (tested, correct) vs UiText.resolve() composable (untested, silently fell back to Chinese for nested args). Tests green, device half-Chinese. Check: every resolution entry point used in production must be exercised by at least one test with nested args, or all entries must funnel through a single tested implementation (as now: composable delegates to the context overload).
+
+### ANi online media source (RSS direct MP4) + proxied playback
+
+Own checks (all observed on HK1, proxy 192.168.63.94:7890):
+
+- Direct HTTPS without proxy: `SocketTimeoutException` on feed fetch (443 filtered); with proxy in source connectionInfo: full scan completes (53 series dirs / 106 entries / 54 videos in ~105s), episode S/E parsed correctly on device (e.g. 黑色五葉草 S02E173)
+- Direct playback of an ANi URL through proxy: first frame ~4.5s, `c2.rk.avc.decoder[HW]` 1080p, drop≈0; embedded CHT subs render
+- Seek works over proxy (Range supported by origin): jumped 00:0x → 01:15, duration 23:45 known
+- Transient proxy throughput dip stalls playback without error; seek-back recovers instantly (Exo buffers, no crash) — environmental, not an app bug
+- No AndroidRuntime:E during scan/playback/seek
+
+Cross-checks:
+
+- Existing LOCAL/WEBDAV/SMB sources, scanner, WebDAV warmup, and longest-root matching untouched (id-lookup change scoped to ANI only — a broader change broke `configFor falls back to uri matching...` and was reverted to the scoped version)
+- Full `./gradlew test` + `lint` green; new unit tests: ANi RSS/title/season parsing, DashEpisodePattern, AniMediaSource (MockWebServer incl. 206 probe), resolver ANI-proxy test
+- Platform `MediaExtractor`/raw `HttpURLConnection` probes must never touch proxied URLs unauthenticated: container probe now opens connections through the configured proxy + UA; runtime extractor probe skips proxied sources (it would otherwise hang for minutes gating Exo start — this exact hang was observed on device before the fix)
+
+New failure class (section 1 candidate):
+
+- **Probe-gates-playback on unreachable networks** — a pre-playback metadata probe using a non-proxy transport (platform MediaExtractor, raw HttpURLConnection) hangs instead of failing fast, blocking the player start behind it with zero log signal. Check: every pre-playback network access must either share the playback transport/proxy config or have a hard timeout + skip path; verify on device with the origin blocked (direct connection must fail fast, proxy path must play).

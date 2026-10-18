@@ -25,6 +25,7 @@ internal suspend fun probeRuntimeVideoTrackMetadata(
     httpConfig: PlaybackHttpRequestConfig,
 ): RuntimeVideoTrackMetadata? {
     if (httpConfig.isWebDav(uri)) return null
+    if (httpConfig.proxy?.enabled == true) return null
     return runCatching {
         val extractor = MediaExtractor()
         try {
