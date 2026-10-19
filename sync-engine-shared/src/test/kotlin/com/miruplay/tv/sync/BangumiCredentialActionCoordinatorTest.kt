@@ -96,6 +96,8 @@ class BangumiCredentialActionCoordinatorTest {
             }
 
         override var bangumiAccessToken: String? = bangumiToken
+        override var bangumiRefreshToken: String? = null
+        override var bangumiTokenExpiresAtMillis: Long = 0L
         override var tmdbAccessToken: String? = null
         override var tmdbApiBaseUrlOverride: String? = null
 

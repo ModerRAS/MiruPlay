@@ -16,6 +16,7 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.okhttp)
+    implementation(libs.nanohttpd)
 
     testImplementation(libs.junit)
 }

@@ -631,6 +631,47 @@ fun metadataBangumiTokenEmptyMessage(): UiText =
 fun metadataBangumiTokenClearedMessage(): UiText =
     uiText("settings_metadata_bangumi_cleared_msg", "Bangumi Access Token 已清除。")
 
+fun metadataBangumiOAuthNotConfiguredMessage(): UiText =
+    uiText("settings_metadata_bangumi_oauth_unconfigured", "未配置 Bangumi OAuth 应用信息，无法登录。")
+
+fun metadataBangumiOAuthFailedMessage(detail: String = ""): UiText =
+    if (detail.isBlank()) {
+        uiText("settings_metadata_bangumi_oauth_failed", "Bangumi 登录失败。")
+    } else {
+        UiText("settings_metadata_bangumi_oauth_failed_detail", listOf(detail), "Bangumi 登录失败：$detail")
+    }
+
+fun metadataBangumiOAuthSuccessMessage(): UiText =
+    uiText("settings_metadata_bangumi_oauth_success", "Bangumi 登录成功。")
+
+fun metadataBangumiOAuthExchangingMessage(): UiText =
+    uiText("settings_metadata_bangumi_oauth_exchanging", "正在与 Bangumi 交换令牌…")
+
+fun metadataBangumiOAuthLoginActionLabel(): UiText =
+    uiText("settings_metadata_bangumi_oauth_login", "使用 Bangumi 登录")
+
+fun metadataBangumiOAuthDialogTitle(): UiText =
+    uiText("settings_metadata_bangumi_oauth_title", "Bangumi 登录")
+
+fun metadataBangumiOAuthExternalBrowserActionLabel(): UiText =
+    uiText("settings_metadata_bangumi_oauth_external", "用外部浏览器打开")
+
+fun metadataBangumiOAuthCancelActionLabel(): UiText =
+    uiText("settings_metadata_bangumi_oauth_cancel", "取消")
+
+fun metadataBangumiOAuthLogoutActionLabel(): UiText =
+    uiText("settings_metadata_bangumi_oauth_logout", "退出登录")
+
+fun metadataBangumiOAuthValidUntilMessage(expiresAtMillis: Long): UiText {
+    val text = if (expiresAtMillis > 0L) {
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(expiresAtMillis))
+    } else {
+        ""
+    }
+    return UiText("settings_metadata_bangumi_oauth_valid_until", listOf(text), "有效期至 $text")
+}
+
 fun metadataTmdbTokenSavedMessage(): UiText =
     uiText("settings_metadata_tmdb_saved_msg", "TMDB Token 已保存。")
 

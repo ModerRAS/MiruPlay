@@ -234,3 +234,26 @@ Cross-checks:
 New failure class (section 1 candidate):
 
 - **Probe-gates-playback on unreachable networks** — a pre-playback metadata probe using a non-proxy transport (platform MediaExtractor, raw HttpURLConnection) hangs instead of failing fast, blocking the player start behind it with zero log signal. Check: every pre-playback network access must either share the playback transport/proxy config or have a hard timeout + skip path; verify on device with the origin blocked (direct connection must fail fast, proxy path must play).
+
+### Bangumi OAuth 直连登录（回环回调 + 7 天轮换）
+
+Own checks (unit-tested; 真机走查待补——需测试账号 + 设备联调，提 PR 前必须补)：
+
+- 未配置 client id/secret 时构建照常通过，设置页显示"未配置"状态而非崩溃（BuildConfig 空字符串兜底；CI 同仓库 PR 带 secret，fork PR 为空）
+- 回调 `state` 对不上直接拒绝，不触发换 token；换 token 失败停留在 Failed 状态，可重试/取消
+- 刷新逻辑：有效期内直接返回现有 token；临期（24h）自动 refresh 并持久化新 pair；refresh 失败但旧 token 未过期则继续用旧 token，不把用户踢下线
+- `submitCallbackUrl` 的换 token 跑在新协程里，不占回环监听线程（izuko 踩过的坑：监听线程自取消会导致换 token 请求夭折）
+- full `./gradlew test` + `lint` green；新单测：OAuthClient 授权 URL/换 token/刷新/错误映射/MockWebServer、coordinator 状态机/去重/刷新边际/登出、SettingsViewModel 接线
+
+Cross-checks:
+
+- 手动贴 Token 链路原样保留（coordinator 只读写同一套 SecurePreferences 键，互不覆盖语义外行为）；现有 Bangumi 搜索/收藏/同步走 `tokenProvider` 读到的仍是同一份 access token
+- WebAPI/WebUI 刻意不同步 OAuth 流程：回环回调 + WebView + 外部浏览器都是设备本地能力，Web 端已有手动 token 读写端点覆盖管理面；TV 设置页为唯一入口（surface-specific，见 parity 表）
+- 新增 i18n key 四地对齐 + UiTextResolver 映射（lint MissingTranslation 通过）
+
+Device walk-through (pending, 提 PR 前必须执行并回填结果)：
+
+- TV 设置 → 元数据 → 使用 Bangumi 登录 → WebView 打开授权页 → 账号登录并授权 → 自动跳回"登录成功"，有效期显示正确
+- 外部浏览器路径：点"用外部浏览器打开" → 系统浏览器完成授权 → 回到 TV 显示成功（回环监听存活验证）
+- 杀进程重启后 token 仍有效且临期自动刷新（改系统时间或 mock 过期验证刷新分支，如需可用测试账号配合）
+- 无网络/代理未配时点登录：失败态可重试，不卡死、不崩溃；`adb logcat` 无 AndroidRuntime:E

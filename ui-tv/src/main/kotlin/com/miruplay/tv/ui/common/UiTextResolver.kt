@@ -673,6 +673,17 @@ internal fun uiTextResId(key: String): Int =
         "settings_metadata_bangumi_status_on" -> R.string.settings_metadata_bangumi_status_on
         "settings_metadata_bangumi_tile" -> R.string.settings_metadata_bangumi_tile
         "settings_metadata_bangumi_tile_detail" -> R.string.settings_metadata_bangumi_tile_detail
+        "settings_metadata_bangumi_oauth_unconfigured" -> R.string.settings_metadata_bangumi_oauth_unconfigured
+        "settings_metadata_bangumi_oauth_failed" -> R.string.settings_metadata_bangumi_oauth_failed
+        "settings_metadata_bangumi_oauth_failed_detail" -> R.string.settings_metadata_bangumi_oauth_failed_detail
+        "settings_metadata_bangumi_oauth_success" -> R.string.settings_metadata_bangumi_oauth_success
+        "settings_metadata_bangumi_oauth_exchanging" -> R.string.settings_metadata_bangumi_oauth_exchanging
+        "settings_metadata_bangumi_oauth_login" -> R.string.settings_metadata_bangumi_oauth_login
+        "settings_metadata_bangumi_oauth_title" -> R.string.settings_metadata_bangumi_oauth_title
+        "settings_metadata_bangumi_oauth_external" -> R.string.settings_metadata_bangumi_oauth_external
+        "settings_metadata_bangumi_oauth_cancel" -> R.string.settings_metadata_bangumi_oauth_cancel
+        "settings_metadata_bangumi_oauth_logout" -> R.string.settings_metadata_bangumi_oauth_logout
+        "settings_metadata_bangumi_oauth_valid_until" -> R.string.settings_metadata_bangumi_oauth_valid_until
         "settings_metadata_candidate_detail" -> R.string.settings_metadata_candidate_detail
         "settings_metadata_match_detail" -> R.string.settings_metadata_match_detail
         "settings_metadata_status" -> R.string.settings_metadata_status

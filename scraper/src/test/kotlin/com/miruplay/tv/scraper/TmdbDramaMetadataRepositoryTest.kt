@@ -409,6 +409,8 @@ class TmdbDramaMetadataRepositoryTest {
         override var cloudDriveToken: String? = null
         override var cloudDrivePassword: String? = null
         override var bangumiAccessToken: String? = null
+        override var bangumiRefreshToken: String? = null
+        override var bangumiTokenExpiresAtMillis: Long = 0L
         override var otlpAccessToken: String? = null
 
         override fun clearCloudDriveCredentials() {

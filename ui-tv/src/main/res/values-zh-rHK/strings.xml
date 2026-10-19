@@ -690,6 +690,17 @@
     <string name="settings_metadata_bangumi_status_on">%1$s %2$s</string>
     <string name="settings_metadata_bangumi_tile">Bangumi Token</string>
     <string name="settings_metadata_bangumi_tile_detail">僅用於 Bangumi 收藏與觀看進度同步。</string>
+    <string name="settings_metadata_bangumi_oauth_unconfigured">未設定 Bangumi OAuth 應用資訊，無法登入。</string>
+    <string name="settings_metadata_bangumi_oauth_failed">Bangumi 登入失敗。</string>
+    <string name="settings_metadata_bangumi_oauth_failed_detail">Bangumi 登入失敗：%1$s</string>
+    <string name="settings_metadata_bangumi_oauth_success">Bangumi 登入成功。</string>
+    <string name="settings_metadata_bangumi_oauth_exchanging">正在與 Bangumi 交換權杖…</string>
+    <string name="settings_metadata_bangumi_oauth_login">使用 Bangumi 登入</string>
+    <string name="settings_metadata_bangumi_oauth_title">Bangumi 登入</string>
+    <string name="settings_metadata_bangumi_oauth_external">用外部瀏覽器開啟</string>
+    <string name="settings_metadata_bangumi_oauth_cancel">取消</string>
+    <string name="settings_metadata_bangumi_oauth_logout">登出</string>
+    <string name="settings_metadata_bangumi_oauth_valid_until">有效期限至 %1$s</string>
     <string name="settings_metadata_candidate_detail">批量匹配會跳過已有衝突後設資料。</string>
     <string name="settings_metadata_match_detail">支援單條應用、批量預覽、應用和撤銷。</string>
     <string name="settings_metadata_status">Bangumi 搜尋、批量預覽、應用和撤銷保留在詳情頁。</string>

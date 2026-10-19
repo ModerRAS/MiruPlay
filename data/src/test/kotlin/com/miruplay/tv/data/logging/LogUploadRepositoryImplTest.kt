@@ -195,6 +195,8 @@ class LogUploadRepositoryImplTest {
 
     private class FakeCredentialStore : AppCredentialStore {
         override var bangumiAccessToken: String? = null
+        override var bangumiRefreshToken: String? = null
+        override var bangumiTokenExpiresAtMillis: Long = 0L
         override var tmdbAccessToken: String? = null
         override var tmdbApiBaseUrlOverride: String? = null
         override var otlpAccessToken: String? = null

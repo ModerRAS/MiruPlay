@@ -2,9 +2,13 @@ package com.miruplay.tv.ui.settings
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -106,6 +110,9 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
+import com.miruplay.tv.scraper.core.BangumiOAuthConstants
+import com.miruplay.tv.sync.BangumiOAuthState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -242,6 +249,16 @@ import com.miruplay.tv.model.pictureSettingsDescriptionLabel
 import com.miruplay.tv.model.pictureSettingsTitleLabel
 import com.miruplay.tv.model.playbackBackendLabel
 import com.miruplay.tv.model.metadataPanelTitleLabel
+import com.miruplay.tv.model.metadataBangumiOAuthCancelActionLabel
+import com.miruplay.tv.model.metadataBangumiOAuthDialogTitle
+import com.miruplay.tv.model.metadataBangumiOAuthExchangingMessage
+import com.miruplay.tv.model.metadataBangumiOAuthExternalBrowserActionLabel
+import com.miruplay.tv.model.metadataBangumiOAuthFailedMessage
+import com.miruplay.tv.model.metadataBangumiOAuthLoginActionLabel
+import com.miruplay.tv.model.metadataBangumiOAuthLogoutActionLabel
+import com.miruplay.tv.model.metadataBangumiOAuthNotConfiguredMessage
+import com.miruplay.tv.model.metadataBangumiOAuthSuccessMessage
+import com.miruplay.tv.model.metadataBangumiOAuthValidUntilMessage
 import com.miruplay.tv.model.metadataBangumiTokenFieldLabel
 import com.miruplay.tv.model.metadataBangumiTokenMissingStatus
 import com.miruplay.tv.model.metadataBangumiTokenOptionalHint
@@ -425,6 +442,8 @@ fun AddSourceScreen(
     val sources by viewModel.sources.collectAsStateWithLifecycle()
     val testResult by viewModel.testResult.collectAsStateWithLifecycle()
     val savedToken by viewModel.bangumiToken.collectAsStateWithLifecycle()
+    val bangumiOAuthState by viewModel.bangumiOAuthState.collectAsStateWithLifecycle()
+    val bangumiTokenExpiryMs by viewModel.bangumiTokenExpiryMs.collectAsStateWithLifecycle()
     val autoScanEnabled by viewModel.autoScanEnabled.collectAsStateWithLifecycle()
     val autoScanIntervalHours by viewModel.autoScanIntervalHours.collectAsStateWithLifecycle()
     val lastScanAt by viewModel.lastScanAt.collectAsStateWithLifecycle()
@@ -801,6 +820,12 @@ fun AddSourceScreen(
                         tokenInput = ""
                         tokenSaved = false
                     },
+                    oauthState = bangumiOAuthState,
+                    tokenExpiryMs = bangumiTokenExpiryMs,
+                    onStartOAuth = viewModel::startBangumiOAuth,
+                    onCancelOAuth = viewModel::cancelBangumiOAuth,
+                    onOAuthCallback = viewModel::submitBangumiOAuthCallback,
+                    onLogoutOAuth = viewModel::logoutBangumiOAuth,
                     onSyncAll = viewModel::syncBangumiAll,
                     syncState = bangumiSyncState,
                     savedTmdbToken = savedTmdbToken,
@@ -1295,6 +1320,12 @@ private fun SettingsContent(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    oauthState: BangumiOAuthState,
+    tokenExpiryMs: Long,
+    onStartOAuth: () -> String?,
+    onCancelOAuth: () -> Unit,
+    onOAuthCallback: (String) -> Unit,
+    onLogoutOAuth: () -> Unit,
     onSyncAll: () -> Unit,
     syncState: BangumiSyncAllUiState,
     savedTmdbToken: String,
@@ -1624,6 +1655,12 @@ private fun SettingsContent(
                 onTokenChange = onTokenChange,
                 onSaveToken = onSaveToken,
                 onClearToken = onClearToken,
+                oauthState = oauthState,
+                tokenExpiryMs = tokenExpiryMs,
+                onStartOAuth = onStartOAuth,
+                onCancelOAuth = onCancelOAuth,
+                onOAuthCallback = onOAuthCallback,
+                onLogoutOAuth = onLogoutOAuth,
                 onSyncAll = onSyncAll,
                 syncState = syncState,
                 savedTmdbToken = savedTmdbToken,
@@ -4520,6 +4557,159 @@ private fun ProxySettingsPanel(
 }
 
 @Composable
+private fun BangumiOAuthSection(
+    hasToken: Boolean,
+    tokenExpiryMs: Long,
+    oauthState: BangumiOAuthState,
+    onStartOAuth: () -> String?,
+    onCancelOAuth: () -> Unit,
+    onOAuthCallback: (String) -> Unit,
+    onLogoutOAuth: () -> Unit,
+) {
+    val context = LocalContext.current
+    var dialogUrl by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(oauthState) {
+        if (oauthState is BangumiOAuthState.Success) dialogUrl = null
+    }
+
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (hasToken) {
+            TvButton(
+                text = metadataBangumiOAuthLogoutActionLabel().resolve(),
+                icon = Icons.Filled.Delete,
+                onClick = onLogoutOAuth,
+            )
+        } else {
+            TvButton(
+                text = metadataBangumiOAuthLoginActionLabel().resolve(),
+                icon = Icons.Filled.Key,
+                onClick = {
+                    dialogUrl = onStartOAuth()
+                },
+            )
+        }
+    }
+
+    val statusText: String? = when (val state = oauthState) {
+        is BangumiOAuthState.Authorizing -> null
+        BangumiOAuthState.Exchanging -> metadataBangumiOAuthExchangingMessage().resolve()
+        BangumiOAuthState.Success -> metadataBangumiOAuthSuccessMessage().resolve()
+        is BangumiOAuthState.Failed -> state.message.resolve()
+        BangumiOAuthState.NotConfigured -> metadataBangumiOAuthNotConfiguredMessage().resolve()
+        BangumiOAuthState.Idle -> if (hasToken && tokenExpiryMs > 0L) {
+            metadataBangumiOAuthValidUntilMessage(tokenExpiryMs).resolve()
+        } else {
+            null
+        }
+    }
+    if (statusText != null) {
+        Spacer(Modifier.height(8.dp))
+        StatusMessage(
+            icon = if (oauthState is BangumiOAuthState.Failed) Icons.Filled.Warning else Icons.Filled.CheckCircle,
+            text = statusText,
+            color = if (oauthState is BangumiOAuthState.Failed) WarningYellow else TextSecondary,
+        )
+    }
+
+    val url = dialogUrl
+    if (url != null) {
+        BangumiOAuthDialog(
+            authorizeUrl = url,
+            onExternalBrowser = {
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                }
+            },
+            onCallback = onOAuthCallback,
+            onDismiss = {
+                dialogUrl = null
+                onCancelOAuth()
+            },
+        )
+    }
+}
+
+@Composable
+private fun BangumiOAuthDialog(
+    authorizeUrl: String,
+    onExternalBrowser: () -> Unit,
+    onCallback: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    BackHandler {
+        val webView = webViewRef
+        if (webView != null && webView.canGoBack()) {
+            webView.goBack()
+        } else {
+            onDismiss()
+        }
+    }
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .width(960.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(DarkSurface)
+                .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = metadataBangumiOAuthDialogTitle().resolve(),
+                style = TvTypography.subtitle,
+                color = TextPrimary,
+            )
+            AndroidView(
+                factory = { context ->
+                    WebView(context).apply {
+                        settings.javaScriptEnabled = true
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                            ): Boolean {
+                                val target = request?.url?.toString().orEmpty()
+                                return if (target.startsWith(BangumiOAuthConstants.CALLBACK_URL)) {
+                                    onCallback(target)
+                                    true
+                                } else {
+                                    false
+                                }
+                            }
+                        }
+                        loadUrl(authorizeUrl)
+                    }
+                },
+                update = { webViewRef = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(520.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                onRelease = { webView ->
+                    webView.stopLoading()
+                    webView.destroy()
+                },
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                TvButton(
+                    text = metadataBangumiOAuthExternalBrowserActionLabel().resolve(),
+                    icon = Icons.Filled.Language,
+                    onClick = onExternalBrowser,
+                )
+                TvButton(
+                    text = metadataBangumiOAuthCancelActionLabel().resolve(),
+                    icon = Icons.Filled.Close,
+                    onClick = onDismiss,
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun MetadataPanel(
     savedToken: String,
     tokenInput: String,
@@ -4527,6 +4717,12 @@ private fun MetadataPanel(
     onTokenChange: (String) -> Unit,
     onSaveToken: () -> Unit,
     onClearToken: () -> Unit,
+    oauthState: BangumiOAuthState,
+    tokenExpiryMs: Long,
+    onStartOAuth: () -> String?,
+    onCancelOAuth: () -> Unit,
+    onOAuthCallback: (String) -> Unit,
+    onLogoutOAuth: () -> Unit,
     onSyncAll: () -> Unit,
     syncState: BangumiSyncAllUiState,
     savedTmdbToken: String,
@@ -4588,6 +4784,16 @@ private fun MetadataPanel(
             icon = if (hasToken) Icons.Filled.CheckCircle else Icons.Filled.Key,
             text = if (hasToken) metadataBangumiTokenSavedStatus().resolve() else metadataBangumiTokenMissingStatus().resolve(),
             color = if (hasToken) ProgressGreen else TextSecondary
+        )
+
+        BangumiOAuthSection(
+            hasToken = hasToken,
+            tokenExpiryMs = tokenExpiryMs,
+            oauthState = oauthState,
+            onStartOAuth = onStartOAuth,
+            onCancelOAuth = onCancelOAuth,
+            onOAuthCallback = onOAuthCallback,
+            onLogoutOAuth = onLogoutOAuth,
         )
 
         Spacer(Modifier.height(16.dp))

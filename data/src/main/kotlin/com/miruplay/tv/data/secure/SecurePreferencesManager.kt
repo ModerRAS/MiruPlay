@@ -57,6 +57,18 @@ class SecurePreferencesManager @Inject constructor(
             securePrefs.edit().putString(KEY_BANGUMI_TOKEN, value).apply()
         }
 
+    override var bangumiRefreshToken: String?
+        get() = securePrefs.getString(KEY_BANGUMI_REFRESH_TOKEN, null)
+        set(value) {
+            securePrefs.edit().putString(KEY_BANGUMI_REFRESH_TOKEN, value).apply()
+        }
+
+    override var bangumiTokenExpiresAtMillis: Long
+        get() = securePrefs.getLong(KEY_BANGUMI_TOKEN_EXPIRES_AT, 0L)
+        set(value) {
+            securePrefs.edit().putLong(KEY_BANGUMI_TOKEN_EXPIRES_AT, value).apply()
+        }
+
     override var tmdbAccessToken: String?
         get() = securePrefs.getString(KEY_TMDB_TOKEN, null)
         set(value) {
@@ -128,7 +140,11 @@ class SecurePreferencesManager @Inject constructor(
     }
 
     override fun clearBangumiToken() {
-        securePrefs.edit().remove(KEY_BANGUMI_TOKEN).apply()
+        securePrefs.edit()
+            .remove(KEY_BANGUMI_TOKEN)
+            .remove(KEY_BANGUMI_REFRESH_TOKEN)
+            .remove(KEY_BANGUMI_TOKEN_EXPIRES_AT)
+            .apply()
     }
 
     override fun clearTmdbToken() {
@@ -157,6 +173,8 @@ class SecurePreferencesManager @Inject constructor(
         private const val SECURE_PREFERENCES_NAME = "miruplay_secure_prefs"
         private const val COMPATIBILITY_PREFERENCES_NAME = "miruplay_secure_prefs_compat"
         private const val KEY_BANGUMI_TOKEN = "bangumi_access_token"
+        private const val KEY_BANGUMI_REFRESH_TOKEN = "bangumi_refresh_token"
+        private const val KEY_BANGUMI_TOKEN_EXPIRES_AT = "bangumi_token_expires_at"
         private const val KEY_TMDB_TOKEN = "tmdb_access_token"
         private const val KEY_TMDB_API_BASE_URL_OVERRIDE = "tmdb_api_base_url_override"
         private const val KEY_CLOUD_DRIVE_TOKEN = "cloud_drive_token"
