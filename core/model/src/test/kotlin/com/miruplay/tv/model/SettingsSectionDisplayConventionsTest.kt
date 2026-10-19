@@ -369,7 +369,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("SMB 媒体源 · SMB", settingsLinkedSourceLabel(listOf(smb.copy(name = "")), 3L).fallback)
         assertEquals(settingsNoSourceSelectedValue().fallback, settingsLinkedSourceLabel(sources, null).fallback)
         assertEquals(settingsMissingSourceValue(99L).fallback, settingsLinkedSourceLabel(sources, 99L).fallback)
-        assertEquals("尚未添加本地、WebDAV 或 SMB 源。", settingsSourceTypeBreakdown(emptyList()).fallback)
+        assertEquals("尚未添加本地、WebDAV、SMB 或 RSS 源。", settingsSourceTypeBreakdown(emptyList()).fallback)
         assertEquals("本地 1 · WebDAV 1 · SMB 1", settingsSourceTypeBreakdown(sources).fallback)
     }
 

@@ -18,6 +18,7 @@ import com.miruplay.tv.mediasource.WebDavRequestCoordinator
 import com.miruplay.tv.mediasource.WebDavRequestKind
 import com.miruplay.tv.mediasource.WebDavTransportResult
 import com.miruplay.tv.model.MediaPathConventions
+import com.miruplay.tv.model.ProxyConfig
 import dagger.hilt.android.qualifiers.ApplicationContext
 import java.io.File
 import java.io.InputStream
@@ -30,27 +31,48 @@ import javax.inject.Singleton
 
 @Singleton
 class PlaybackDataSourceFactory @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) : DataSource.Factory {
-    private val upstreamFactory = DefaultDataSource.Factory(
-        context,
-        DefaultHttpDataSource.Factory(),
-    )
+    @Volatile
+    private var upstreamFactory: DataSource.Factory = defaultUpstreamFactory()
 
     @Volatile
     private var httpConfig: PlaybackHttpRequestConfig = PlaybackHttpRequestConfig.Empty
 
     fun setHttpConfig(config: PlaybackHttpRequestConfig) {
         httpConfig = config
+        upstreamFactory = config.proxy
+            ?.takeIf { it.enabled && it.host.isNotBlank() && it.port > 0 }
+            ?.let(::proxyUpstreamFactory)
+            ?: defaultUpstreamFactory()
     }
 
     fun clearHttpConfig() {
         httpConfig = PlaybackHttpRequestConfig.Empty
+        upstreamFactory = defaultUpstreamFactory()
     }
 
     override fun createDataSource(): DataSource =
         GatedPlaybackDataSource(upstreamFactory.createDataSource()) { httpConfig }
+
+    private fun defaultUpstreamFactory(): DataSource.Factory =
+        DefaultDataSource.Factory(
+            context,
+            DefaultHttpDataSource.Factory(),
+        )
+
+    private fun proxyUpstreamFactory(proxy: ProxyConfig): DataSource.Factory {
+        val client = okhttp3.OkHttpClient.Builder()
+            .proxy(java.net.Proxy(java.net.Proxy.Type.HTTP, java.net.InetSocketAddress(proxy.host, proxy.port)))
+            .build()
+        val httpFactory = androidx.media3.datasource.okhttp.OkHttpDataSource.Factory(client)
+            .setUserAgent(PLAYBACK_USER_AGENT)
+        return DefaultDataSource.Factory(context, httpFactory)
+    }
 }
+
+private const val PLAYBACK_USER_AGENT =
+    "Mozilla/5.0 (Linux; Android 11; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 MiruPlay"
 
 internal fun canonicalPlaybackUri(uri: String): String =
     if (uri.startsWith("http://", ignoreCase = true) || uri.startsWith("https://", ignoreCase = true)) {
@@ -62,6 +84,7 @@ internal fun canonicalPlaybackUri(uri: String): String =
 data class PlaybackHttpRequestConfig(
     private val baseUrl: String,
     private val headers: Map<String, String>,
+    val proxy: ProxyConfig? = null,
 ) {
     private val normalizedBaseUrl = baseUrl.trimEnd('/')
     private val decodedBaseUrl = MediaPathConventions.decodePath(normalizedBaseUrl)

@@ -18,6 +18,8 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
+import java.net.InetSocketAddress
+import java.net.Proxy
 import java.net.URL
 
 internal suspend fun probeContainerVideoSignalDescriptor(
@@ -317,12 +319,19 @@ private fun readHttpProbeBytes(
     startOffset: Long,
 ): ByteArray? {
     val openConnection = {
-        (URL(uri).openConnection() as HttpURLConnection).apply {
+        val proxy = httpConfig.proxy?.takeIf { it.enabled && it.host.isNotBlank() && it.port > 0 }
+        val rawConnection = if (proxy != null) {
+            URL(uri).openConnection(Proxy(Proxy.Type.HTTP, InetSocketAddress(proxy.host, proxy.port)))
+        } else {
+            URL(uri).openConnection()
+        }
+        (rawConnection as HttpURLConnection).apply {
             instanceFollowRedirects = false
             requestMethod = "GET"
             connectTimeout = HTTP_TIMEOUT_MS
             readTimeout = HTTP_TIMEOUT_MS
             setRequestProperty("Range", "bytes=$startOffset-${startOffset + maxProbeBytes - 1}")
+            setRequestProperty("User-Agent", PLAYBACK_PROBE_USER_AGENT)
             httpConfig.headersFor(uri).forEach { (key, value) ->
                 setRequestProperty(key, value)
             }
@@ -450,6 +459,9 @@ private const val STSD_PREFIX_BYTES = 8
 private const val VISUAL_SAMPLE_ENTRY_PREFIX_BYTES = 78
 private const val DV_MIN_PAYLOAD_BYTES = 5
 private const val HTTP_TIMEOUT_MS = 8_000
+
+private const val PLAYBACK_PROBE_USER_AGENT =
+    "Mozilla/5.0 (Linux; Android 11; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 MiruPlay"
 private const val MAX_ADDITIONAL_PROBE_WINDOWS = 1
 private const val MP4_EXTENDED_SIZE_MARKER = 1L
 private const val MP4_BOX_EXTENDS_TO_EOF = 0L

@@ -39,6 +39,7 @@ import com.miruplay.tv.model.CloudDriveLibraryMode
 import com.miruplay.tv.model.directoryBrowserRootDisplayName
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
+import com.miruplay.tv.model.ProxyConfig
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.RssSubscriptionInfo
@@ -662,7 +663,13 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun testConnection(type: MediaSourceType, url: String, username: String = "", password: String = "") {
+    fun testConnection(
+        type: MediaSourceType,
+        url: String,
+        username: String = "",
+        password: String = "",
+        proxy: ProxyConfig? = null,
+    ) {
         viewModelScope.launch {
             _testResult.value = ConnectionTestResult.Testing
             val info = MediaSourceInfo(
@@ -674,7 +681,7 @@ class SettingsViewModel @Inject constructor(
                     location = url,
                     username = username,
                     password = password,
-                )
+                ) + proxyConnectionInfo(proxy),
             )
             val sourceResult = mediaSourceFactory.create(info)
             sourceResult.onSuccess { ms ->
@@ -688,6 +695,17 @@ class SettingsViewModel @Inject constructor(
                 _testResult.value = ConnectionTestResult.Failed(error.toUiText())
             }
         }
+    }
+
+    private fun proxyConnectionInfo(proxy: ProxyConfig?): Map<String, String> {
+        if (proxy == null || !proxy.enabled || proxy.host.isBlank() || proxy.port <= 0) {
+            return emptyMap()
+        }
+        return mapOf(
+            MediaSourceInfoConventions.CONNECTION_PROXY_ENABLED to "true",
+            MediaSourceInfoConventions.CONNECTION_PROXY_HOST to proxy.host,
+            MediaSourceInfoConventions.CONNECTION_PROXY_PORT to proxy.port.toString(),
+        )
     }
 
     fun saveBangumiToken(token: String) {

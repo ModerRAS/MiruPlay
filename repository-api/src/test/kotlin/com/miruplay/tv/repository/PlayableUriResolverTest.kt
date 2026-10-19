@@ -11,6 +11,16 @@ import org.junit.Test
 
 class PlayableUriResolverTest {
     @Test
+    fun `rss source keeps direct https episode urls unchanged`() {
+        val info = MediaSourceInfo(
+            name = "RSS",
+            type = MediaSourceType.RSS,
+            connectionInfo = mapOf("url" to "https://api.ani.rip/ani-download.xml"),
+        )
+        val url = "https://resources.ani.rip/2026-10/ep16.mp4?d=mp4"
+        assertEquals(url, info.playableUriForIndexedPath(url))
+    }
+    @Test
     fun `resolvePlayableUri leaves already playable uri unchanged`() = runBlocking {
         val repository = FakeMediaSourceRepository(
             listOf(MediaSourceInfoConventions.webDav(url = "https://dav.example/anime", name = "DAV")),

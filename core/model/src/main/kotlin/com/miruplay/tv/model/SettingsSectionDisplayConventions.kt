@@ -904,7 +904,7 @@ fun settingsMissingSourceValue(sourceId: Long): UiText =
 
 fun settingsSourceTypeBreakdown(sources: List<MediaSourceInfo>): UiText {
     if (sources.isEmpty()) {
-        return uiText("settings_source_empty", "尚未添加本地、WebDAV 或 SMB 源。")
+        return uiText("settings_source_empty", "尚未添加本地、WebDAV、SMB 或 RSS 源。")
     }
     return joinUiText(
         MediaSourceType.entries.mapNotNull { type ->

@@ -36,6 +36,26 @@ object MediaSourceInfoConventions {
             isConnected = isConnected,
         )
 
+    fun rss(
+        feedUrl: String = RSS_DEFAULT_FEED_URL,
+        name: String = rssDisplayName(feedUrl),
+        proxy: ProxyConfig? = null,
+        isConnected: Boolean = false,
+    ): MediaSourceInfo =
+        MediaSourceInfo(
+            name = name,
+            type = MediaSourceType.RSS,
+            connectionInfo = buildMap {
+                put(CONNECTION_URL, feedUrl.trim())
+                if (proxy != null) {
+                    put(CONNECTION_PROXY_ENABLED, proxy.enabled.toString())
+                    put(CONNECTION_PROXY_HOST, proxy.host)
+                    put(CONNECTION_PROXY_PORT, proxy.port.toString())
+                }
+            },
+            isConnected = isConnected,
+        )
+
     fun smb(
         url: String,
         domain: String = "",
@@ -114,6 +134,7 @@ object MediaSourceInfoConventions {
             MediaSourceType.LOCAL -> localPath
             MediaSourceType.WEBDAV -> ""
             MediaSourceType.SMB -> SMB_SCHEME
+            MediaSourceType.RSS -> RSS_DEFAULT_FEED_URL
         }
 
     fun normalizeSmbRoot(rawUrl: String): String {
@@ -128,6 +149,9 @@ object MediaSourceInfoConventions {
 
     fun webDavDisplayName(url: String): String =
         url.substringAfter("://", url).trim('/').ifBlank { "WebDAV" }
+
+    fun rssDisplayName(feedUrl: String): String =
+        feedUrl.substringAfter("://", feedUrl).trim('/').ifBlank { "RSS" }
 
     fun smbDisplayName(url: String): String =
         normalizeSmbRoot(url)
@@ -146,6 +170,7 @@ object MediaSourceInfoConventions {
             MediaSourceType.WEBDAV -> trimmed.startsWith("/")
             MediaSourceType.SMB -> trimmed.startsWith(SMB_SCHEME, ignoreCase = true)
             MediaSourceType.LOCAL,
+            MediaSourceType.RSS,
             null -> false
         }
     }
@@ -158,6 +183,9 @@ object MediaSourceInfoConventions {
         if (startsWith(prefix, ignoreCase = true)) substring(prefix.length) else this
 
     const val CONNECTION_PATH = "path"
+    const val CONNECTION_PROXY_ENABLED = "proxyEnabled"
+    const val CONNECTION_PROXY_HOST = "proxyHost"
+    const val CONNECTION_PROXY_PORT = "proxyPort"
     const val CONNECTION_URL = "url"
     const val CONNECTION_USERNAME = "username"
     const val CONNECTION_PASSWORD = "password"
@@ -237,3 +265,19 @@ fun MediaSourceInfo.withMlipMetadataMode(mode: MlipMetadataMode): MediaSourceInf
 
 fun MediaSourceInfo.sourceLocation(): String? =
     localRootPath() ?: remoteUrl()
+
+data class ProxyConfig(
+    val enabled: Boolean = false,
+    val host: String = "",
+    val port: Int = 0,
+)
+
+fun MediaSourceInfo.proxyConfig(): ProxyConfig? {
+    val enabled = connectionInfo[MediaSourceInfoConventions.CONNECTION_PROXY_ENABLED]
+        ?.toBooleanStrictOrNull() ?: return null
+    if (!enabled) return ProxyConfig(enabled = false)
+    val host = connectionInfo[MediaSourceInfoConventions.CONNECTION_PROXY_HOST].orEmpty()
+    val port = connectionInfo[MediaSourceInfoConventions.CONNECTION_PROXY_PORT]?.toIntOrNull() ?: 0
+    if (host.isBlank() || port <= 0) return null
+    return ProxyConfig(enabled = true, host = host, port = port)
+}

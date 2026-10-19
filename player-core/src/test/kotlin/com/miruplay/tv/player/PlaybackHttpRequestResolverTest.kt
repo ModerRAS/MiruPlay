@@ -8,6 +8,7 @@ import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.MediaSourceInfoConventions
 import com.miruplay.tv.model.MediaSourceType
 import com.miruplay.tv.model.PlaybackSource
+import com.miruplay.tv.model.ProxyConfig
 import com.miruplay.tv.repository.MediaSourceRepository
 import io.mockk.coEvery
 import io.mockk.coVerifySequence
@@ -45,6 +46,32 @@ class PlaybackHttpRequestResolverTest {
         assertEquals(
             "Basic YWxpY2U6c2VjcmV0",
             config.headersFor("http://127.0.0.1:19798/dav/Show/Episode%2001.mkv")["Authorization"],
+        )
+    }
+
+    @Test
+    fun `configFor returns RSS proxy from episode source id`() = runBlocking {
+        val resolver = PlaybackHttpRequestResolver(
+            FakeMediaSourceRepository(
+                listOf(
+                    MediaSourceInfoConventions.rss(
+                        proxy = ProxyConfig(enabled = true, host = "192.168.63.94", port = 7890),
+                    ).copy(id = 12),
+                ),
+            ),
+        )
+
+        val config = resolver.configFor(
+            PlaybackSource(
+                uri = "https://resources.ani.rip/2026-10/ep16.mp4?d=mp4",
+                mediaSourceId = "anime",
+                episodeId = "12:https://resources.ani.rip/2026-10/ep16.mp4?d=mp4",
+            ),
+        )
+
+        assertEquals(
+            ProxyConfig(enabled = true, host = "192.168.63.94", port = 7890),
+            config.proxy,
         )
     }
 
