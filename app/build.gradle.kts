@@ -43,6 +43,17 @@ val releaseStoreFile = providers.environmentVariable("RELEASE_STORE_FILE")
 val releaseStorePassword = providers.environmentVariable("STORE_PASSWORD")
 val releaseKeyAlias = providers.environmentVariable("KEY_ALIAS")
 val releaseKeyPassword = providers.environmentVariable("KEY_PASSWORD")
+// Bangumi OAuth app credentials (https://bgm.tv/dev/app).
+// CI injects them from secrets; fork PRs get empty strings and the app
+// reports OAuth "not configured" instead of failing the build.
+// Local builds: -PBANGUMI_CLIENT_ID=.. or env BANGUMI_CLIENT_ID, or
+// ~/.gradle/gradle.properties. Never commit real values.
+val bangumiClientId = providers.gradleProperty("BANGUMI_CLIENT_ID").orNull.nonBlankOrNull()
+    ?: providers.environmentVariable("BANGUMI_CLIENT_ID").orNull.nonBlankOrNull()
+    ?: ""
+val bangumiClientSecret = providers.gradleProperty("BANGUMI_CLIENT_SECRET").orNull.nonBlankOrNull()
+    ?: providers.environmentVariable("BANGUMI_CLIENT_SECRET").orNull.nonBlankOrNull()
+    ?: ""
 
 android {
     namespace = "com.miruplay.tv"
@@ -53,6 +64,8 @@ android {
         versionName = appVersionName
         minSdk = 28
         targetSdk = 35
+        buildConfigField("String", "BANGUMI_CLIENT_ID", "\"$bangumiClientId\"")
+        buildConfigField("String", "BANGUMI_CLIENT_SECRET", "\"$bangumiClientSecret\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")
