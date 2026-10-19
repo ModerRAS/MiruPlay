@@ -36,15 +36,15 @@ object MediaSourceInfoConventions {
             isConnected = isConnected,
         )
 
-    fun ani(
-        feedUrl: String = ANI_DEFAULT_FEED_URL,
-        name: String = aniDisplayName(feedUrl),
+    fun rss(
+        feedUrl: String = RSS_DEFAULT_FEED_URL,
+        name: String = rssDisplayName(feedUrl),
         proxy: ProxyConfig? = null,
         isConnected: Boolean = false,
     ): MediaSourceInfo =
         MediaSourceInfo(
             name = name,
-            type = MediaSourceType.ANI,
+            type = MediaSourceType.RSS,
             connectionInfo = buildMap {
                 put(CONNECTION_URL, feedUrl.trim())
                 if (proxy != null) {
@@ -134,7 +134,7 @@ object MediaSourceInfoConventions {
             MediaSourceType.LOCAL -> localPath
             MediaSourceType.WEBDAV -> ""
             MediaSourceType.SMB -> SMB_SCHEME
-            MediaSourceType.ANI -> ANI_DEFAULT_FEED_URL
+            MediaSourceType.RSS -> RSS_DEFAULT_FEED_URL
         }
 
     fun normalizeSmbRoot(rawUrl: String): String {
@@ -150,8 +150,8 @@ object MediaSourceInfoConventions {
     fun webDavDisplayName(url: String): String =
         url.substringAfter("://", url).trim('/').ifBlank { "WebDAV" }
 
-    fun aniDisplayName(feedUrl: String): String =
-        feedUrl.substringAfter("://", feedUrl).trim('/').ifBlank { "ANi" }
+    fun rssDisplayName(feedUrl: String): String =
+        feedUrl.substringAfter("://", feedUrl).trim('/').ifBlank { "RSS" }
 
     fun smbDisplayName(url: String): String =
         normalizeSmbRoot(url)
@@ -170,7 +170,7 @@ object MediaSourceInfoConventions {
             MediaSourceType.WEBDAV -> trimmed.startsWith("/")
             MediaSourceType.SMB -> trimmed.startsWith(SMB_SCHEME, ignoreCase = true)
             MediaSourceType.LOCAL,
-            MediaSourceType.ANI,
+            MediaSourceType.RSS,
             null -> false
         }
     }

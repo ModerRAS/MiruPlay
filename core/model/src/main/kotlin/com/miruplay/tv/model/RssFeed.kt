@@ -6,10 +6,22 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import javax.xml.parsers.DocumentBuilderFactory
 
-const val ANI_DEFAULT_FEED_URL = "https://api.ani.rip/ani-download.xml"
+const val RSS_DEFAULT_FEED_URL = "https://api.ani.rip/ani-download.xml"
 
-/** Single downloadable episode entry from the ANi RSS feed. */
-data class AniFeedItem(
+/**
+ * Generic RSS 2.0 media feed: each `<item>` carries one directly playable file.
+ *
+ * Supported URL locations, in priority order: `<enclosure url>` (when it is a
+ * plain http(s) file link), then `<link>`. Items with no direct http(s) URL
+ * (e.g. magnet-only entries) are skipped — this source plays streams, it does
+ * not download torrents. `<category>` is used as the series key when present;
+ * otherwise items are grouped by parsed series title.
+ *
+ * The default feed is ANi (`RSS_DEFAULT_FEED_URL`); any feed with the same
+ * shape (Mikan-style subject feeds, direct-link shares) works by just
+ * changing the source URL.
+ */
+data class RssMediaItem(
     val guid: String,
     val url: String,
     val title: String,
@@ -19,14 +31,14 @@ data class AniFeedItem(
     val sizeBytes: Long = 0L,
 )
 
-data class AniEpisodeRef(
+data class RssEpisodeRef(
     val seriesTitle: String,
     val seasonNumber: Int = 1,
     val episodeNumber: Int,
 )
 
-object AniRssParser {
-    fun parse(xml: String): List<AniFeedItem> {
+object RssFeedParser {
+    fun parse(xml: String): List<RssMediaItem> {
         if (xml.isBlank()) return emptyList()
         val factory = DocumentBuilderFactory.newInstance()
         factory.isNamespaceAware = true
@@ -35,18 +47,47 @@ object AniRssParser {
         val nodes = doc.getElementsByTagName("item")
         return (0 until nodes.length).mapNotNull { index ->
             val element = nodes.item(index) as? Element ?: return@mapNotNull null
-            val link = element.text("link").takeIf { it.isNotBlank() }
-                ?: return@mapNotNull null
-            AniFeedItem(
-                guid = element.text("guid").takeIf { it.isNotBlank() } ?: link,
-                url = link,
-                title = element.text("title").ifBlank { fileNameOf(link) },
+            val url = element.directFileUrl() ?: return@mapNotNull null
+            RssMediaItem(
+                guid = element.text("guid").takeIf { it.isNotBlank() } ?: url,
+                url = url,
+                title = element.text("title").ifBlank { fileNameOf(url) },
                 category = element.text("category"),
                 pubDateMs = parsePubDateMs(element.text("pubDate")),
-                sizeBytes = parseSizeBytes(element.text("size")),
+                sizeBytes = parseSizeBytes(element.text("size"))
+                    .takeIf { it > 0L }
+                    ?: element.enclosureLength(),
             )
         }
     }
+
+    private fun Element.directFileUrl(): String? {
+        enclosureUrl()?.takeIf { it.isHttpUrl() }?.let { return it }
+        return text("link").takeIf { it.isNotBlank() && it.isHttpUrl() }
+    }
+
+    private fun Element.enclosureUrl(): String? {
+        val nodes = getElementsByTagName("enclosure")
+        for (index in 0 until nodes.length) {
+            val url = (nodes.item(index) as? Element)?.getAttribute("url")
+            if (!url.isNullOrBlank()) return url.trim()
+        }
+        return null
+    }
+
+    private fun Element.enclosureLength(): Long {
+        val nodes = getElementsByTagName("enclosure")
+        for (index in 0 until nodes.length) {
+            val length = (nodes.item(index) as? Element)
+                ?.getAttribute("length")?.toLongOrNull()
+            if (length != null && length > 0L) return length
+        }
+        return 0L
+    }
+
+    private fun String.isHttpUrl(): Boolean =
+        startsWith("http://", ignoreCase = true) ||
+            startsWith("https://", ignoreCase = true)
 
     fun parseSizeBytes(raw: String): Long {
         val match = SIZE_REGEX.find(raw.trim().uppercase(Locale.US)) ?: return 0L
@@ -88,7 +129,7 @@ object AniRssParser {
     private val SIZE_REGEX = Regex("""([\d.]+)\s*([KMG]?B)""")
 }
 
-object AniTitleParser {
+object RssTitleParser {
     private val episodeSuffix = Regex("""^(.*?)\s+-\s+(\d{1,4})(?:\s*\[.*)?\.[A-Za-z0-9]+$""")
     private val groupPrefix = Regex("""^(?:\[[^\]]+\]\s*)+""")
     private val seasonSuffix = Regex("""\s*(?:[Ss]eason\s*\d+|第[0-9一二三四五六七八九十百]+\s*季)\s*$""")
@@ -96,12 +137,12 @@ object AniTitleParser {
     private val seasonTagged = Regex("""[Ss](\d+)\s*E""")
     private val seasonChinese = Regex("""第\s*([0-9一二三四五六七八九十百]+)\s*季""")
 
-    fun parse(fileName: String): AniEpisodeRef? {
+    fun parse(fileName: String): RssEpisodeRef? {
         val match = episodeSuffix.find(fileName.trim()) ?: return null
         val rawSeries = match.groupValues[1].trim().replace(groupPrefix, "").trim()
         if (rawSeries.isEmpty()) return null
         val episode = match.groupValues[2].toIntOrNull() ?: return null
-        return AniEpisodeRef(
+        return RssEpisodeRef(
             seriesTitle = rawSeries.replace(seasonSuffix, "").trim().ifBlank { rawSeries },
             seasonNumber = seasonOf(rawSeries),
             episodeNumber = episode,

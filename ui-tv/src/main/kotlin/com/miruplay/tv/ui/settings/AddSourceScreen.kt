@@ -65,7 +65,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Language
-import androidx.compose.material.icons.filled.LiveTv
+import androidx.compose.material.icons.filled.RssFeed
 import androidx.compose.material.icons.filled.PhotoFilter
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -607,7 +607,7 @@ fun AddSourceScreen(
                 password = password,
                 recognitionMode = effectiveRecognitionMode,
             ) + buildMap {
-                if (selectedType == MediaSourceType.ANI && rssProxyEnabled && rssProxyHost.isNotBlank()) {
+                if (selectedType == MediaSourceType.RSS && rssProxyEnabled && rssProxyHost.isNotBlank()) {
                     val proxyPort = parseRssProxyPort(rssProxyPort)
                     if (proxyPort > 0) {
                         put(MediaSourceInfoConventions.CONNECTION_PROXY_ENABLED, "true")
@@ -730,7 +730,7 @@ fun AddSourceScreen(
                     isEditingSource = editingSourceId != null,
                     onNewSource = { resetSourceForm() },
                     onTestConnection = {
-                        val proxy = if (selectedType == MediaSourceType.ANI) {
+                        val proxy = if (selectedType == MediaSourceType.RSS) {
                             ProxyConfig(
                                 enabled = rssProxyEnabled,
                                 host = rssProxyHost.trim(),
@@ -4968,7 +4968,7 @@ private fun MediaSourceType.sourceIcon(): ImageVector = when (this) {
     MediaSourceType.LOCAL -> Icons.Filled.Folder
     MediaSourceType.WEBDAV -> Icons.Filled.Cloud
     MediaSourceType.SMB -> Icons.Filled.Dns
-    MediaSourceType.ANI -> Icons.Filled.LiveTv
+    MediaSourceType.RSS -> Icons.Filled.RssFeed
 }
 
 private fun displayNameForTreeUri(uri: Uri, context: Context): String {

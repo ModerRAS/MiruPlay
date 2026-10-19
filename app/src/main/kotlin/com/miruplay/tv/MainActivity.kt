@@ -416,7 +416,7 @@ class MainActivity : ComponentActivity() {
                 recognitionMode = request.recognitionMode,
             ).let { connectionInfo ->
                 var merged = connectionInfo
-                if (request.type == MediaSourceType.ANI &&
+                if (request.type == MediaSourceType.RSS &&
                     request.proxyHost.isNotBlank() && request.proxyPort > 0
                 ) {
                     merged = merged + mapOf(
@@ -979,7 +979,7 @@ internal fun resolveLaunchTestSourceType(
         MediaSourceType.LOCAL.name -> MediaSourceType.LOCAL
         MediaSourceType.WEBDAV.name -> MediaSourceType.WEBDAV
         MediaSourceType.SMB.name -> MediaSourceType.SMB
-        MediaSourceType.ANI.name -> MediaSourceType.ANI
+        MediaSourceType.RSS.name -> MediaSourceType.RSS
         else -> {
             val normalizedLocation = location?.trim().orEmpty()
             when {
@@ -1001,7 +1001,7 @@ internal fun normalizeLaunchTestSourceLocation(
         MediaSourceType.SMB -> MediaSourceInfoConventions.normalizeSmbRoot(location)
         MediaSourceType.LOCAL,
         MediaSourceType.WEBDAV,
-        MediaSourceType.ANI -> location.trim()
+        MediaSourceType.RSS -> location.trim()
     }
 
 internal fun resolveLaunchTestSourceRequest(
@@ -1041,7 +1041,7 @@ internal fun resolveLaunchTestSourceRequest(
             MediaSourceType.LOCAL -> "ADB Test Local"
             MediaSourceType.WEBDAV -> "ADB Test WebDAV"
             MediaSourceType.SMB -> "ADB Test SMB"
-            MediaSourceType.ANI -> "ADB Test ANi"
+            MediaSourceType.RSS -> "ADB Test RSS"
         },
         type = sourceType,
         location = location,

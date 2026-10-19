@@ -50,11 +50,11 @@ class PlaybackHttpRequestResolverTest {
     }
 
     @Test
-    fun `configFor returns ANi proxy from episode source id`() = runBlocking {
+    fun `configFor returns RSS proxy from episode source id`() = runBlocking {
         val resolver = PlaybackHttpRequestResolver(
             FakeMediaSourceRepository(
                 listOf(
-                    MediaSourceInfoConventions.ani(
+                    MediaSourceInfoConventions.rss(
                         proxy = ProxyConfig(enabled = true, host = "192.168.63.94", port = 7890),
                     ).copy(id = 12),
                 ),

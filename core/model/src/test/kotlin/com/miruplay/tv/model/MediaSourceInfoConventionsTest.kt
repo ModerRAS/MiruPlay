@@ -106,17 +106,17 @@ class MediaSourceInfoConventionsTest {
         assertEquals("D:/Anime", MediaSourceType.LOCAL.defaultSourceLocation("D:/Anime"))
         assertEquals("", MediaSourceType.WEBDAV.defaultSourceLocation("D:/Anime"))
         assertEquals("smb://", MediaSourceType.SMB.defaultSourceLocation("D:/Anime"))
-        assertEquals(ANI_DEFAULT_FEED_URL, MediaSourceType.ANI.defaultSourceLocation("D:/Anime"))
+        assertEquals(RSS_DEFAULT_FEED_URL, MediaSourceType.RSS.defaultSourceLocation("D:/Anime"))
     }
 
     @Test
-    fun `ani factory stores feed url and optional proxy`() {
-        val direct = MediaSourceInfoConventions.ani()
-        assertEquals(MediaSourceType.ANI, direct.type)
-        assertEquals(ANI_DEFAULT_FEED_URL, direct.connectionInfo["url"])
+    fun `rss factory stores feed url and optional proxy`() {
+        val direct = MediaSourceInfoConventions.rss()
+        assertEquals(MediaSourceType.RSS, direct.type)
+        assertEquals(RSS_DEFAULT_FEED_URL, direct.connectionInfo["url"])
         assertNull(direct.proxyConfig())
 
-        val proxied = MediaSourceInfoConventions.ani(
+        val proxied = MediaSourceInfoConventions.rss(
             proxy = ProxyConfig(enabled = true, host = "127.0.0.1", port = 7890),
         )
         assertEquals(ProxyConfig(enabled = true, host = "127.0.0.1", port = 7890), proxied.proxyConfig())

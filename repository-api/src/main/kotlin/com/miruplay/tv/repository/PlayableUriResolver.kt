@@ -110,7 +110,7 @@ private fun MediaSourceInfo.matchesPath(path: String): Boolean =
         }
         MediaSourceType.WEBDAV -> path.startsWith("/")
         MediaSourceType.SMB -> path.startsWith("smb://")
-        MediaSourceType.ANI -> false
+        MediaSourceType.RSS -> false
     }
 
 private fun String.isAlreadyPlayableUri(): Boolean =

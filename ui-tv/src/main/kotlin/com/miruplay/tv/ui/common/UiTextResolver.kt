@@ -413,14 +413,14 @@ internal fun uiTextResId(key: String): Int =
         "mediasource_default_local" -> R.string.mediasource_default_local
         "mediasource_default_smb" -> R.string.mediasource_default_smb
         "mediasource_default_webdav" -> R.string.mediasource_default_webdav
-        "mediasource_default_ani" -> R.string.mediasource_default_ani
+        "mediasource_default_rss" -> R.string.mediasource_default_rss
         "mediasource_display_label" -> R.string.mediasource_display_label
         "mediasource_display_status" -> R.string.mediasource_display_status
         "mediasource_empty_list" -> R.string.mediasource_empty_list
         "mediasource_endpoint_local" -> R.string.mediasource_endpoint_local
         "mediasource_endpoint_smb" -> R.string.mediasource_endpoint_smb
         "mediasource_endpoint_webdav" -> R.string.mediasource_endpoint_webdav
-        "mediasource_endpoint_ani" -> R.string.mediasource_endpoint_ani
+        "mediasource_endpoint_rss" -> R.string.mediasource_endpoint_rss
         "mediasource_field_display_name" -> R.string.mediasource_field_display_name
         "mediasource_field_index_query" -> R.string.mediasource_field_index_query
         "mediasource_field_local_root" -> R.string.mediasource_field_local_root
@@ -433,11 +433,11 @@ internal fun uiTextResId(key: String): Int =
         "mediasource_generic_local" -> R.string.mediasource_generic_local
         "mediasource_generic_smb" -> R.string.mediasource_generic_smb
         "mediasource_generic_webdav" -> R.string.mediasource_generic_webdav
-        "mediasource_generic_ani" -> R.string.mediasource_generic_ani
+        "mediasource_generic_rss" -> R.string.mediasource_generic_rss
         "mediasource_hint_local" -> R.string.mediasource_hint_local
         "mediasource_hint_smb" -> R.string.mediasource_hint_smb
         "mediasource_hint_webdav" -> R.string.mediasource_hint_webdav
-        "mediasource_hint_ani" -> R.string.mediasource_hint_ani
+        "mediasource_hint_rss" -> R.string.mediasource_hint_rss
         "mediasource_indexed_no_match" -> R.string.mediasource_indexed_no_match
         "mediasource_indexed_results" -> R.string.mediasource_indexed_results
         "mediasource_list_title" -> R.string.mediasource_list_title
@@ -446,11 +446,11 @@ internal fun uiTextResId(key: String): Int =
         "mediasource_location_missing" -> R.string.mediasource_location_missing
         "mediasource_location_smb" -> R.string.mediasource_location_smb
         "mediasource_location_webdav" -> R.string.mediasource_location_webdav
-        "mediasource_location_ani" -> R.string.mediasource_location_ani
+        "mediasource_location_rss" -> R.string.mediasource_location_rss
         "mediasource_open_local" -> R.string.mediasource_open_local
         "mediasource_open_smb" -> R.string.mediasource_open_smb
         "mediasource_open_webdav" -> R.string.mediasource_open_webdav
-        "mediasource_open_ani" -> R.string.mediasource_open_ani
+        "mediasource_open_rss" -> R.string.mediasource_open_rss
         "mediasource_page_unit" -> R.string.mediasource_page_unit
         "mediasource_password_field" -> R.string.mediasource_password_field
         "mediasource_password_keep" -> R.string.mediasource_password_keep

@@ -408,7 +408,7 @@
     <string name="mediasource_connection_testing">正在驗證連線…</string>
     <string name="mediasource_default_local">本地下載</string>
     <string name="mediasource_default_smb">SMB 共享</string>
-    <string name="mediasource_default_ani">ANi 在線</string>
+    <string name="mediasource_default_rss">RSS 訂閱</string>
     <string name="mediasource_default_webdav">WebDAV 媒體庫</string>
     <string name="mediasource_display_label">%1$s · %2$s</string>
     <string name="mediasource_display_status">%1$s · %2$s</string>
@@ -416,7 +416,7 @@
     <string name="mediasource_endpoint_local">填寫本地媒體庫路徑</string>
     <string name="mediasource_endpoint_smb">填寫 SMB 共享位址</string>
     <string name="mediasource_endpoint_webdav">填寫 WebDAV 位址</string>
-    <string name="mediasource_endpoint_ani">填寫 ANi RSS 位址</string>
+    <string name="mediasource_endpoint_rss">填寫 RSS 位址</string>
     <string name="mediasource_field_display_name">顯示名稱</string>
     <string name="mediasource_field_index_query">索引搜尋</string>
     <string name="mediasource_field_local_root">本地媒體庫路徑</string>
@@ -429,11 +429,11 @@
     <string name="mediasource_generic_local">本地媒體源</string>
     <string name="mediasource_generic_smb">SMB 媒體源</string>
     <string name="mediasource_generic_webdav">WebDAV 媒體源</string>
-    <string name="mediasource_generic_ani">ANi 在線來源</string>
+    <string name="mediasource_generic_rss">RSS 在線來源</string>
     <string name="mediasource_hint_local">裝置文件夾</string>
     <string name="mediasource_hint_smb">區域網絡共享</string>
     <string name="mediasource_hint_webdav">HTTP 檔案服務</string>
-    <string name="mediasource_hint_ani">線上 RSS</string>
+    <string name="mediasource_hint_rss">線上 RSS</string>
     <string name="mediasource_indexed_no_match">沒有匹配 \"%1$s\" 的索引媒體。</string>
     <string name="mediasource_indexed_results">顯示 %1$s 條索引影片結果。</string>
     <string name="mediasource_list_title">媒體源</string>
@@ -442,11 +442,11 @@
     <string name="mediasource_location_missing">未設定路徑</string>
     <string name="mediasource_location_smb">SMB 位址</string>
     <string name="mediasource_location_webdav">WebDAV 位址</string>
-    <string name="mediasource_location_ani">RSS 位址</string>
+    <string name="mediasource_location_rss">RSS 位址</string>
     <string name="mediasource_open_local">開啟本地</string>
     <string name="mediasource_open_smb">開啟 SMB</string>
     <string name="mediasource_open_webdav">開啟 WebDAV</string>
-    <string name="mediasource_open_ani">開啟 ANi</string>
+    <string name="mediasource_open_rss">開啟 RSS</string>
     <string name="mediasource_page_unit">個條目</string>
     <string name="mediasource_password_field">%1$s 密碼</string>
     <string name="mediasource_password_keep">密碼（留空則保留）</string>
@@ -756,7 +756,7 @@
     <string name="settings_selected_entry_detail">詳情頁會顯示可應用的 Bangumi 匹配。</string>
     <string name="settings_selected_media_detail">從海報牆或詳情頁選擇後可直接播放。</string>
     <string name="settings_source_breakdown_item">%1$s %2$s</string>
-    <string name="settings_source_empty">尚未新增本地、WebDAV、SMB 或 ANi 源。</string>
+    <string name="settings_source_empty">尚未新增本地、WebDAV、SMB 或 RSS 源。</string>
     <string name="settings_tile_active_source">目前源</string>
     <string name="settings_tile_candidate_scope">候選範圍</string>
     <string name="settings_tile_credential_detail">權杖只儲存設定狀態，清理後會停止上報。</string>

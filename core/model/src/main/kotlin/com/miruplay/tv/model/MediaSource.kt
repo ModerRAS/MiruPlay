@@ -3,7 +3,7 @@ package com.miruplay.tv.model
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class MediaSourceType { LOCAL, WEBDAV, SMB, ANI }
+enum class MediaSourceType { LOCAL, WEBDAV, SMB, RSS }
 
 @Serializable
 enum class MediaContentMode { ANIME, DRAMA, MUSIC }

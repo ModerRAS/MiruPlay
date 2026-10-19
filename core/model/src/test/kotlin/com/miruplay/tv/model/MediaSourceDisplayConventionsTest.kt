@@ -10,7 +10,7 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("本地", MediaSourceType.LOCAL.tvLabel().fallback)
         assertEquals("WebDAV", MediaSourceType.WEBDAV.tvLabel().fallback)
         assertEquals("SMB", MediaSourceType.SMB.tvLabel().fallback)
-        assertEquals("ANi", MediaSourceType.ANI.tvLabel().fallback)
+        assertEquals("RSS", MediaSourceType.RSS.tvLabel().fallback)
 
         assertEquals("本地", MediaSourceType.LOCAL.tvBadgeLabel().fallback)
         assertEquals("DAV", MediaSourceType.WEBDAV.tvBadgeLabel().fallback)
@@ -19,22 +19,22 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("本地下载", MediaSourceType.LOCAL.defaultSourceName().fallback)
         assertEquals("WebDAV 媒体库", MediaSourceType.WEBDAV.defaultSourceName().fallback)
         assertEquals("SMB 共享", MediaSourceType.SMB.defaultSourceName().fallback)
-        assertEquals("ANi 在线", MediaSourceType.ANI.defaultSourceName().fallback)
+        assertEquals("RSS 订阅", MediaSourceType.RSS.defaultSourceName().fallback)
 
         assertEquals("本地媒体源", MediaSourceType.LOCAL.genericSourceName().fallback)
         assertEquals("WebDAV 媒体源", MediaSourceType.WEBDAV.genericSourceName().fallback)
         assertEquals("SMB 媒体源", MediaSourceType.SMB.genericSourceName().fallback)
-        assertEquals("ANi 在线源", MediaSourceType.ANI.genericSourceName().fallback)
+        assertEquals("RSS 在线源", MediaSourceType.RSS.genericSourceName().fallback)
 
         assertEquals("设备文件夹", MediaSourceType.LOCAL.tvSourceHint().fallback)
         assertEquals("HTTP 文件服务", MediaSourceType.WEBDAV.tvSourceHint().fallback)
         assertEquals("局域网共享", MediaSourceType.SMB.tvSourceHint().fallback)
-        assertEquals("在线 RSS", MediaSourceType.ANI.tvSourceHint().fallback)
+        assertEquals("在线 RSS", MediaSourceType.RSS.tvSourceHint().fallback)
 
         assertEquals("媒体文件夹", MediaSourceType.LOCAL.tvLocationLabel().fallback)
         assertEquals("WebDAV 地址", MediaSourceType.WEBDAV.tvLocationLabel().fallback)
         assertEquals("SMB 地址", MediaSourceType.SMB.tvLocationLabel().fallback)
-        assertEquals("RSS 地址", MediaSourceType.ANI.tvLocationLabel().fallback)
+        assertEquals("RSS 地址", MediaSourceType.RSS.tvLocationLabel().fallback)
     }
 
     @Test
@@ -145,7 +145,7 @@ class MediaSourceDisplayConventionsTest {
         assertEquals("打开本地", MediaSourceType.LOCAL.openSourceActionLabel().fallback)
         assertEquals("打开 WebDAV", MediaSourceType.WEBDAV.openSourceActionLabel().fallback)
         assertEquals("打开 SMB", MediaSourceType.SMB.openSourceActionLabel().fallback)
-        assertEquals("打开 ANi", MediaSourceType.ANI.openSourceActionLabel().fallback)
+        assertEquals("打开 RSS", MediaSourceType.RSS.openSourceActionLabel().fallback)
         assertEquals("扫描", mediaSourceScanActionLabel().fallback)
         assertEquals("搜索", mediaSourceSearchActionLabel().fallback)
         assertEquals("清空索引", mediaSourceClearIndexActionLabel().fallback)

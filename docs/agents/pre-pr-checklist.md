@@ -215,7 +215,7 @@ New failure class (section 1 candidate):
 
 - **Composed-path divergence** — the JVM-tested path and the device-rendered path resolve shared data through different code: UiText.resolve(context) (tested, correct) vs UiText.resolve() composable (untested, silently fell back to Chinese for nested args). Tests green, device half-Chinese. Check: every resolution entry point used in production must be exercised by at least one test with nested args, or all entries must funnel through a single tested implementation (as now: composable delegates to the context overload).
 
-### ANi online media source (RSS direct MP4) + proxied playback
+### Generic RSS online source (verified with ANi feed) + proxied playback
 
 Own checks (all observed on HK1, proxy 192.168.63.94:7890):
 

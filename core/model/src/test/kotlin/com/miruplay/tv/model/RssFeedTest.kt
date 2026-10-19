@@ -5,10 +5,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class AniFeedTest {
+class RssFeedTest {
     @Test
     fun `parse reads guid link category pubDate and size`() {
-        val items = AniRssParser.parse(SAMPLE_XML)
+        val items = RssFeedParser.parse(SAMPLE_XML)
 
         assertEquals(2, items.size)
         val first = items[0]
@@ -21,64 +21,82 @@ class AniFeedTest {
 
     @Test
     fun `parse falls back to link when guid is missing`() {
-        val items = AniRssParser.parse(SAMPLE_XML)
+        val items = RssFeedParser.parse(SAMPLE_XML)
         assertEquals("https://resources.ani.rip/2026-10/ep02.mp4?d=mp4", items[1].guid)
         assertEquals("", items[1].category)
     }
 
     @Test
     fun `parse returns empty list for blank input`() {
-        assertTrue(AniRssParser.parse("").isEmpty())
-        assertTrue(AniRssParser.parse("<rss></rss>").isEmpty())
+        assertTrue(RssFeedParser.parse("").isEmpty())
+        assertTrue(RssFeedParser.parse("<rss></rss>").isEmpty())
+    }
+
+    @Test
+    fun `parse prefers enclosure url and skips magnet-only items`() {
+        val xml = """<?xml version="1.0" encoding="UTF-8"?>""" +
+            """<rss version="2.0"><channel>""" +
+            """<item><title>Show - 01 [1080P].mp4</title>""" +
+            """<link>https://example.test/page/1</link>""" +
+            """<enclosure url="https://cdn.example.test/show01.mp4" length="12345" type="video/mp4" />""" +
+            """</item>""" +
+            """<item><title>Show - 02 [1080P].mp4</title>""" +
+            """<link>magnet:?xt=urn:btih:abc123</link>""" +
+            """</item>""" +
+            """</channel></rss>"""
+        val items = RssFeedParser.parse(xml)
+        assertEquals(1, items.size)
+        assertEquals("https://cdn.example.test/show01.mp4", items[0].url)
+        assertEquals(12345L, items[0].sizeBytes)
     }
 
     @Test
     fun `parseSizeBytes handles common units`() {
-        assertEquals(479408947L, AniRssParser.parseSizeBytes("457.2 MB"))
-        assertEquals(1024L * 1024 * 1024, AniRssParser.parseSizeBytes("1.0 GB"))
-        assertEquals(900L * 1024, AniRssParser.parseSizeBytes("900 KB"))
-        assertEquals(0L, AniRssParser.parseSizeBytes(""))
-        assertEquals(0L, AniRssParser.parseSizeBytes("unknown"))
+        assertEquals(479408947L, RssFeedParser.parseSizeBytes("457.2 MB"))
+        assertEquals(1024L * 1024 * 1024, RssFeedParser.parseSizeBytes("1.0 GB"))
+        assertEquals(900L * 1024, RssFeedParser.parseSizeBytes("900 KB"))
+        assertEquals(0L, RssFeedParser.parseSizeBytes(""))
+        assertEquals(0L, RssFeedParser.parseSizeBytes("unknown"))
     }
 
     @Test
     fun `title parser splits series season and episode`() {
-        val plain = AniTitleParser.parse("[ANi] 野生的大魔王出現了！ - 16 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
+        val plain = RssTitleParser.parse("[ANi] 野生的大魔王出現了！ - 16 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
         assertEquals("野生的大魔王出現了！", plain.seriesTitle)
         assertEquals(1, plain.seasonNumber)
         assertEquals(16, plain.episodeNumber)
 
-        val season = AniTitleParser.parse("[ANi] 佐佐木與文鳥小嗶 Season 2 - 02 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
+        val season = RssTitleParser.parse("[ANi] 佐佐木與文鳥小嗶 Season 2 - 02 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
         assertEquals("佐佐木與文鳥小嗶", season.seriesTitle)
         assertEquals(2, season.seasonNumber)
         assertEquals(2, season.episodeNumber)
 
-        val chinese = AniTitleParser.parse("[ANi] 夜櫻家大作戰 第二季 - 41 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
+        val chinese = RssTitleParser.parse("[ANi] 夜櫻家大作戰 第二季 - 41 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
         assertEquals("夜櫻家大作戰", chinese.seriesTitle)
         assertEquals(2, chinese.seasonNumber)
         assertEquals(41, chinese.episodeNumber)
 
-        val absolute = AniTitleParser.parse("[ANi] 黑色五葉草 Season 2 - 173 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
+        val absolute = RssTitleParser.parse("[ANi] 黑色五葉草 Season 2 - 173 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4")!!
         assertEquals(173, absolute.episodeNumber)
         assertEquals(2, absolute.seasonNumber)
     }
 
     @Test
     fun `title parser returns null for non matching names`() {
-        assertNull(AniTitleParser.parse("Episode 01.mkv"))
-        assertNull(AniTitleParser.parse("[ANi] no episode here.mp4"))
+        assertNull(RssTitleParser.parse("Episode 01.mkv"))
+        assertNull(RssTitleParser.parse("[ANi] no episode here.mp4"))
     }
 
     @Test
     fun `parseSeasonNumber handles arabic and chinese numerals`() {
-        assertEquals(2, AniTitleParser.parseSeasonNumber("2"))
-        assertEquals(2, AniTitleParser.parseSeasonNumber("二"))
-        assertEquals(10, AniTitleParser.parseSeasonNumber("十"))
-        assertEquals(12, AniTitleParser.parseSeasonNumber("十二"))
-        assertEquals(20, AniTitleParser.parseSeasonNumber("二十"))
-        assertEquals(23, AniTitleParser.parseSeasonNumber("二十三"))
-        assertNull(AniTitleParser.parseSeasonNumber(""))
-        assertNull(AniTitleParser.parseSeasonNumber("abc"))
+        assertEquals(2, RssTitleParser.parseSeasonNumber("2"))
+        assertEquals(2, RssTitleParser.parseSeasonNumber("二"))
+        assertEquals(10, RssTitleParser.parseSeasonNumber("十"))
+        assertEquals(12, RssTitleParser.parseSeasonNumber("十二"))
+        assertEquals(20, RssTitleParser.parseSeasonNumber("二十"))
+        assertEquals(23, RssTitleParser.parseSeasonNumber("二十三"))
+        assertNull(RssTitleParser.parseSeasonNumber(""))
+        assertNull(RssTitleParser.parseSeasonNumber("abc"))
     }
 
     companion object {

@@ -11,10 +11,10 @@ import org.junit.Test
 
 class PlayableUriResolverTest {
     @Test
-    fun `ani source keeps direct https episode urls unchanged`() {
+    fun `rss source keeps direct https episode urls unchanged`() {
         val info = MediaSourceInfo(
-            name = "ANi",
-            type = MediaSourceType.ANI,
+            name = "RSS",
+            type = MediaSourceType.RSS,
             connectionInfo = mapOf("url" to "https://api.ani.rip/ani-download.xml"),
         )
         val url = "https://resources.ani.rip/2026-10/ep16.mp4?d=mp4"

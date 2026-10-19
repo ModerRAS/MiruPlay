@@ -19,7 +19,7 @@ class DefaultMediaSourceFactory @Inject constructor(
                 MediaSourceType.LOCAL -> LocalMediaSource(info, context)
                 MediaSourceType.WEBDAV -> WebDavMediaSource(info)
                 MediaSourceType.SMB -> SmbMediaSource(info)
-                MediaSourceType.ANI -> AniMediaSource(info)
+                MediaSourceType.RSS -> RssMediaSource(info)
             }
             Result.success(source)
         } catch (e: Exception) {

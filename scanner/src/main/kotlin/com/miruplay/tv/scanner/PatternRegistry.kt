@@ -1,6 +1,6 @@
 package com.miruplay.tv.scanner
 
-import com.miruplay.tv.model.AniTitleParser
+import com.miruplay.tv.model.RssTitleParser
 
 /**
  * Registry for custom episode naming patterns
@@ -43,7 +43,7 @@ class DashEpisodePattern : NamedPattern {
     override fun extract(fileName: String): EpisodeMatch? {
         val result = dashRegex.findAll(fileName).lastOrNull() ?: return null
         val episode = result.groupValues.getOrNull(1)?.toIntOrNull() ?: return null
-        val ref = AniTitleParser.parse(fileName) ?: return null
+        val ref = RssTitleParser.parse(fileName) ?: return null
         return EpisodeMatch(
             animeName = ref.seriesTitle,
             seasonNumber = ref.seasonNumber,
@@ -143,7 +143,7 @@ class DefaultEpisodeDetector : EpisodeDetector {
             .find(fileName)
             ?.groupValues
             ?.getOrNull(1)
-            ?.let(AniTitleParser::parseSeasonNumber)
+            ?.let(RssTitleParser::parseSeasonNumber)
             ?.let { return it }
         // Try S01 pattern first
         Regex("""S(\d{1,2})""", RegexOption.IGNORE_CASE)

@@ -23,7 +23,7 @@ class PlaybackHttpRequestResolver @Inject constructor(
 ) {
     suspend fun configFor(source: PlaybackSource): PlaybackHttpRequestConfig {
         val mediaSource = findMediaSource(source) ?: return PlaybackHttpRequestConfig.Empty
-        if (mediaSource.type == MediaSourceType.ANI) {
+        if (mediaSource.type == MediaSourceType.RSS) {
             return PlaybackHttpRequestConfig(
                 baseUrl = "",
                 headers = emptyMap(),
@@ -66,7 +66,7 @@ class PlaybackHttpRequestResolver @Inject constructor(
         source.sourceIdHint()?.let { sourceId ->
             mediaSources.getSourceById(sourceId)
                 .getOrNull()
-                ?.takeIf { it.type == MediaSourceType.ANI }
+                ?.takeIf { it.type == MediaSourceType.RSS }
                 ?.let { return it }
         }
         source.sourceIdHint()?.let { sourceId ->

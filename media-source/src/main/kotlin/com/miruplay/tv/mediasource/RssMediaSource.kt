@@ -3,10 +3,10 @@ package com.miruplay.tv.mediasource
 import android.util.Log
 import com.miruplay.tv.core.common.AppError
 import com.miruplay.tv.core.common.Result
-import com.miruplay.tv.model.ANI_DEFAULT_FEED_URL
-import com.miruplay.tv.model.AniFeedItem
-import com.miruplay.tv.model.AniRssParser
-import com.miruplay.tv.model.AniTitleParser
+import com.miruplay.tv.model.RSS_DEFAULT_FEED_URL
+import com.miruplay.tv.model.RssMediaItem
+import com.miruplay.tv.model.RssFeedParser
+import com.miruplay.tv.model.RssTitleParser
 import com.miruplay.tv.model.FileEntry
 import com.miruplay.tv.model.FileMetadata
 import com.miruplay.tv.model.MediaCapabilities
@@ -27,21 +27,23 @@ import java.net.URLDecoder
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
-private const val TAG = "AniMediaSource"
-private const val SERIES_PREFIX = "ani:series:"
+private const val TAG = "RssMediaSource"
+private const val SERIES_PREFIX = "rss:series:"
 private const val SNAPSHOT_TTL_MS = 10 * 60 * 1000L
-private const val ANI_USER_AGENT =
+private const val RSS_USER_AGENT =
     "Mozilla/5.0 (Linux; Android 11; TV) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36 MiruPlay"
 
 /**
- * Read-only online source backed by an ANi-style RSS feed of direct MP4 links.
+ * Read-only online source backed by a generic RSS 2.0 media feed.
  *
  * The feed is flat, so [listFiles] exposes virtual directories: the root lists
- * one directory per series ([SERIES_PREFIX] + category key), and each series
- * directory lists its episodes. Episode entries point at the direct download
- * URL, which the playback layer streams without further resolution.
+ * one directory per series (feed `<category>` or parsed series title), and
+ * each series directory lists its episodes. Episode entries point at the
+ * direct file URL, which the playback layer streams without further
+ * resolution. The feed URL lives in the source connection info, so any feed
+ * with the same shape can be added as another RSS source.
  */
-class AniMediaSource @Inject constructor() : MediaSource {
+class RssMediaSource @Inject constructor() : MediaSource {
     override val id: String = ""
     override lateinit var info: MediaSourceInfo
 
@@ -52,7 +54,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
         supportsWrite = false,
     )
 
-    private var snapshot: List<AniFeedItem> = emptyList()
+    private var snapshot: List<RssMediaItem> = emptyList()
     private var snapshotAtMs: Long = 0L
     private var client: OkHttpClient? = null
     private var clientProxyKey: String? = null
@@ -74,7 +76,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
                 Result.success(episodeEntries(items.filter { seriesKeyOf(it) == key }))
             }
         } catch (e: Exception) {
-            Log.w(TAG, "ANi listFiles failed for $path", e)
+            Log.w(TAG, "RSS listFiles failed for $path", e)
             Result.failure(AppError.MediaSourceError.ConnectionLost(info.name))
         }
     }
@@ -104,7 +106,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
                 ),
             )
         } catch (e: Exception) {
-            Log.w(TAG, "ANi getMetadata failed for $path", e)
+            Log.w(TAG, "RSS getMetadata failed for $path", e)
             Result.failure(AppError.MediaSourceError.NotFound(path))
         }
     }
@@ -122,7 +124,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
             capabilities = capabilities.copy(supportsRange = probeRangeSupport(items.first().url))
             Result.success(true)
         } catch (e: Exception) {
-            Log.w(TAG, "ANi connection test failed", e)
+            Log.w(TAG, "RSS connection test failed", e)
             Result.failure(AppError.NetworkError.ServerUnreachable(feedUrl()))
         }
     }
@@ -140,7 +142,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
                         .url(path)
                         .get()
                         .apply { rangeHeader?.let { header("Range", it) } }
-                        .header("User-Agent", ANI_USER_AGENT)
+                        .header("User-Agent", RSS_USER_AGENT)
                         .header("Referer", "https://api.ani.rip/")
                         .build(),
                 )
@@ -168,12 +170,12 @@ class AniMediaSource @Inject constructor() : MediaSource {
                     },
                 )
             } catch (e: Exception) {
-                Log.w(TAG, "ANi stream failed for $path", e)
+                Log.w(TAG, "RSS stream failed for $path", e)
                 Result.failure(AppError.NetworkError.ServerUnreachable(path))
             }
         }
 
-    private fun ensureSnapshot(): Result<List<AniFeedItem>> {
+    private fun ensureSnapshot(): Result<List<RssMediaItem>> {
         val now = System.currentTimeMillis()
         if (snapshotAtMs > 0L && now - snapshotAtMs < SNAPSHOT_TTL_MS && snapshot.isNotEmpty()) {
             return Result.success(snapshot)
@@ -181,7 +183,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
         val request = Request.Builder()
             .url(feedUrl())
             .get()
-            .header("User-Agent", ANI_USER_AGENT)
+            .header("User-Agent", RSS_USER_AGENT)
             .header("Accept", "application/rss+xml, application/xml, text/xml")
             .build()
         httpClient().newCall(request).execute().use { response ->
@@ -189,7 +191,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
                 return Result.failure(AppError.NetworkError.HttpError(response.code, response.message))
             }
             val xml = response.body?.string().orEmpty()
-            val items = AniRssParser.parse(xml)
+            val items = RssFeedParser.parse(xml)
             if (items.isEmpty()) {
                 return Result.failure(AppError.MediaSourceError.NotFound(feedUrl()))
             }
@@ -203,7 +205,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
         val request = Request.Builder()
             .url(url)
             .get()
-            .header("User-Agent", ANI_USER_AGENT)
+            .header("User-Agent", RSS_USER_AGENT)
             .header("Referer", "https://api.ani.rip/")
             .header("Range", "bytes=0-0")
             .build()
@@ -217,18 +219,18 @@ class AniMediaSource @Inject constructor() : MediaSource {
         val request = Request.Builder()
             .url(url)
             .head()
-            .header("User-Agent", ANI_USER_AGENT)
+            .header("User-Agent", RSS_USER_AGENT)
             .build()
         httpClient().newCall(request).execute().use { response ->
             return response.header("Content-Length")?.toLongOrNull()?.coerceAtLeast(0L) ?: 0L
         }
     }
 
-    private fun seriesDirectories(items: List<AniFeedItem>): List<FileEntry> {
+    private fun seriesDirectories(items: List<RssMediaItem>): List<FileEntry> {
         val latestBySeries = items.groupBy(::seriesKeyOf)
             .mapValues { (_, group) -> group.maxByOrNull { it.pubDateMs } ?: group.first() }
         return latestBySeries.map { (key, latest) ->
-            val ref = AniTitleParser.parse(latest.title)
+            val ref = RssTitleParser.parse(latest.title)
             FileEntry(
                 name = ref?.seriesTitle ?: latest.title,
                 path = SERIES_PREFIX + key,
@@ -238,7 +240,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
         }.sortedBy { it.name }
     }
 
-    private fun episodeEntries(items: List<AniFeedItem>): List<FileEntry> =
+    private fun episodeEntries(items: List<RssMediaItem>): List<FileEntry> =
         items.sortedByDescending { it.pubDateMs }.map { item ->
             FileEntry(
                 name = item.title,
@@ -250,12 +252,12 @@ class AniMediaSource @Inject constructor() : MediaSource {
             )
         }
 
-    private fun seriesKeyOf(item: AniFeedItem): String =
+    private fun seriesKeyOf(item: RssMediaItem): String =
         item.category.ifBlank {
-            AniTitleParser.parse(item.title)?.seriesTitle ?: item.guid
+            RssTitleParser.parse(item.title)?.seriesTitle ?: item.guid
         }
 
-    private fun fileNameOf(item: AniFeedItem): String = fileNameOf(item.url)
+    private fun fileNameOf(item: RssMediaItem): String = fileNameOf(item.url)
 
     private fun fileNameOf(url: String): String {
         val segment = url.substringBefore('?').substringAfterLast('/')
@@ -264,7 +266,7 @@ class AniMediaSource @Inject constructor() : MediaSource {
             .ifBlank { url }
     }
 
-    private fun feedUrl(): String = info.remoteUrl().orEmpty().ifBlank { ANI_DEFAULT_FEED_URL }
+    private fun feedUrl(): String = info.remoteUrl().orEmpty().ifBlank { RSS_DEFAULT_FEED_URL }
 
     private fun httpClient(): OkHttpClient {
         val proxy = info.proxyConfig()

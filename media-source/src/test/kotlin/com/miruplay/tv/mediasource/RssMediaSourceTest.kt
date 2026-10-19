@@ -12,7 +12,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class AniMediaSourceTest {
+class RssMediaSourceTest {
     private fun feedXml(base: String): String = """
         <?xml version="1.0" encoding="UTF-8"?>
         <rss xmlns:anime="https://resources.ani.rip" version="2.0"><channel>
@@ -52,11 +52,11 @@ class AniMediaSourceTest {
         return server
     }
 
-    private fun source(feedUrl: String): AniMediaSource =
-        AniMediaSource(
+    private fun source(feedUrl: String): RssMediaSource =
+        RssMediaSource(
             MediaSourceInfo(
-                name = "ANi",
-                type = MediaSourceType.ANI,
+                name = "RSS",
+                type = MediaSourceType.RSS,
                 connectionInfo = mapOf("url" to feedUrl),
             ),
         )
