@@ -294,6 +294,11 @@ class VideoDirectoryClassifier(
     private fun modelPathText(path: String, fileName: String): String {
         val normalized = path.replace('\\', '/').trim()
         if (normalized.isBlank()) return fileName
+        // Remote URLs carry no title signal in their machinery (scheme/host/date/hash
+        // segments); parsing the whole URL fabricates %-fragment titles (e.g. "A1%80%")
+        // that outscore the clean filename evidence. Use the filename only; real folder
+        // names still vote through FOLDER_BERT / show-context evidence.
+        if (normalized.contains("://")) return fileName
         if (normalized.length <= maxParsedTextLength) return normalized
 
         val segments = pathSegments(normalized)
@@ -458,7 +463,8 @@ class VideoDirectoryClassifier(
         this?.takeIf { it > 0 }
 
     private fun String.shouldParseContextSegment(): Boolean =
-        usableName() != null || numericContextPatterns.any { it.matches(normalizedContextName()) }
+        !isUrlMachinerySegment() &&
+            (usableName() != null || numericContextPatterns.any { it.matches(normalizedContextName()) })
 
     private fun findShowContext(
         segments: List<String>,
@@ -471,6 +477,9 @@ class VideoDirectoryClassifier(
         }
         for (index in candidateSegments.indices.reversed()) {
             val rawName = candidateSegments[index]
+            // Skip URL machinery (host/date/encoded segments): they are not show names
+            // and otherwise win show-context over the real filename evidence.
+            if (rawName.isUrlMachinerySegment()) continue
             val release = ReleaseFilenameParser.parse(rawName)
             if (release != null) {
                 val seriesName = release.seriesName.usableName()
@@ -483,6 +492,19 @@ class VideoDirectoryClassifier(
             return ShowContext(index, rawName, seriesName, split.seasonNumber, null)
         }
         return null
+    }
+
+    private fun String.isUrlMachinerySegment(): Boolean {
+        val raw = trim().trimEnd('/')
+        if (raw.isEmpty()) return true
+        if (raw.contains("://")) return true
+        if (raw.equals("https:", ignoreCase = true) || raw.equals("http:", ignoreCase = true)) return true
+        // Percent-encoded blob (series/file link segment): title signal lives in the
+        // decoded filename, not in the raw triplet soup.
+        if (PERCENT_TRIPLET_REGEX.containsMatchIn(raw)) return true
+        if (URL_HOST_SEGMENT_REGEX.matches(raw)) return true
+        if (URL_DATE_SEGMENT_REGEX.matches(raw)) return true
+        return false
     }
 
     private fun String.isGenericContextName(): Boolean {
@@ -581,6 +603,10 @@ class VideoDirectoryClassifier(
             Regex("""(?i)^(?:season|series|s)\s*\d{1,2}$"""),
             Regex("""(?i)^(?:ep|episode|part)\s*[\d一二三四五六七八九十]+(?:[a-z])?$""")
         )
+        private val PERCENT_TRIPLET_REGEX = Regex("%[0-9A-Fa-f]{2}")
+        private val URL_HOST_SEGMENT_REGEX =
+            Regex("""^[A-Za-z0-9]([A-Za-z0-9.\-]*[A-Za-z0-9])?\.[A-Za-z]{2,}(:\d+)?$""")
+        private val URL_DATE_SEGMENT_REGEX = Regex("""^\d{4}-\d{1,2}(-\d{1,2})?$""")
     }
 }
 

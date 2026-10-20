@@ -11,6 +11,7 @@ suspend fun BangumiApiClient.searchByAlias(
     normalizedName: String,
     candidates: List<String>,
     confidenceThreshold: Float = BANGUMI_ALIAS_CONFIDENCE_THRESHOLD,
+    includeArchive: Boolean = true,
 ): Result<ScraperResult?> = PerformanceLog.measureSuspendResult(
     tag = "BangumiPerformance",
     operation = "bangumi.alias_search",
@@ -34,7 +35,14 @@ suspend fun BangumiApiClient.searchByAlias(
 
     val matches = linkedMapOf<String, ScraperResult>()
     for (candidate in uniqueCandidates) {
-        val result = searchAnime(candidate).getOrNull().orEmpty()
+        val result = searchAnime(
+            candidate,
+            archiveMinimumConfidence = confidenceThreshold,
+            includeOnlineWhenArchiveMatches = false,
+            includeDirectIdResult = false,
+            onlineLimit = 10,
+            includeArchive = includeArchive,
+        ).getOrNull().orEmpty()
             .firstOrNull { it.confidence >= confidenceThreshold }
         if (result != null) {
             val existing = matches[result.animeId]

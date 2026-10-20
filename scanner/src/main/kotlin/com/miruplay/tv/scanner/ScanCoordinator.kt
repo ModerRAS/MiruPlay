@@ -657,7 +657,11 @@ class ScanCoordinator @Inject constructor(
                     "confidence_threshold" to RECOGNITION_CONFIDENCE_THRESHOLD.toString(),
                 )
             )
-            var match = bangumi.searchByAlias(animeName, candidates).getOrNull()
+            // Auto-scan always has network (it just fetched the feed) and must stay
+            // responsive over dozens of series: the 1GB offline archive costs minutes
+            // per query on TV hardware (full parse + match + sort, no index yet),
+            // so scans use online-only search. Manual search keeps the archive path.
+            var match = bangumi.searchByAlias(animeName, candidates, includeArchive = false).getOrNull()
             var matchedBy = "alias"
             if (match != null) {
                 MiruLog.i(
@@ -681,7 +685,7 @@ class ScanCoordinator @Inject constructor(
                     if (fallbackAttemptSample.size < MAX_RECOGNITION_ATTEMPT_SAMPLE_IN_LOG) {
                         fallbackAttemptSample += candidate
                     }
-                    match = bangumi.searchAnime(candidate).getOrNull()
+                    match = bangumi.searchAnime(candidate, includeArchive = false).getOrNull()
                         ?.firstOrNull { it.confidence >= RECOGNITION_CONFIDENCE_THRESHOLD }
                     if (match != null) {
                         matchedBy = "fallback_search"

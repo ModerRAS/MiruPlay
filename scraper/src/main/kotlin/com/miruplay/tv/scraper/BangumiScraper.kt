@@ -48,8 +48,13 @@ class BangumiScraper @Inject constructor(
     override val hasToken: Boolean
         get() = api.hasToken
 
-    override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
-        withConfiguredProxy("bangumi.scraper.search", query.performanceQueryAttributes()) { api.searchAnime(query) }
+    override suspend fun searchAnime(
+        query: String,
+        includeArchive: Boolean,
+    ): Result<List<ScraperResult>> =
+        withConfiguredProxy("bangumi.scraper.search", query.performanceQueryAttributes()) {
+            api.searchAnime(query, includeArchive = includeArchive)
+        }
 
     override suspend fun searchManualAnime(query: String): Result<List<ScraperResult>> =
         withConfiguredProxy("bangumi.scraper.manual_search", query.performanceQueryAttributes()) {
@@ -69,14 +74,18 @@ class BangumiScraper @Inject constructor(
             api.getEpisodes(animeId).map { episodes -> episodes.map { it.toEpisodeMetadata() } }
         }
 
-    override suspend fun searchByAlias(normalizedName: String, candidates: List<String>): Result<ScraperResult?> =
+    override suspend fun searchByAlias(
+        normalizedName: String,
+        candidates: List<String>,
+        includeArchive: Boolean,
+    ): Result<ScraperResult?> =
         withConfiguredProxy(
             operation = "bangumi.scraper.alias_search",
             attributes = mapOf(
                 "normalized_query_length" to normalizedName.length.toString(),
                 "candidate_count" to candidates.size.toString(),
             ),
-        ) { api.searchByAlias(normalizedName, candidates) }
+        ) { api.searchByAlias(normalizedName, candidates, includeArchive = includeArchive) }
 
     override suspend fun getEpisodeComments(episodeId: Int): Result<List<BangumiEpisodeComment>> =
         withConfiguredProxy(

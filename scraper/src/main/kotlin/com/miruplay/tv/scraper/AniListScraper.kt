@@ -75,7 +75,10 @@ class AniListScraper @Inject constructor() : MetadataScraper {
         }"""
     }
 
-    override suspend fun searchAnime(query: String): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
+    override suspend fun searchAnime(
+        query: String,
+        includeArchive: Boolean,
+    ): Result<List<ScraperResult>> = withContext(Dispatchers.IO) {
         try {
             val variables = buildJsonObject {
                 put("search", query)
@@ -162,7 +165,7 @@ class AniListScraper @Inject constructor() : MetadataScraper {
         Result.success(emptyList())
     }
 
-    override suspend fun searchByAlias(normalizedName: String, candidates: List<String>): Result<ScraperResult?> = withContext(Dispatchers.IO) {
+    override suspend fun searchByAlias(normalizedName: String, candidates: List<String>, includeArchive: Boolean): Result<ScraperResult?> = withContext(Dispatchers.IO) {
         try {
             for (candidate in candidates) {
                 val results = searchAnime(candidate)

@@ -3,6 +3,7 @@ package com.miruplay.tv.scanner
 import com.miruplay.tv.model.FilenameMetadataParser
 import com.miruplay.tv.model.FilenameParseResult
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -356,6 +357,32 @@ class VideoDirectoryClassifierTest {
         assertEquals("逐玉", result.animeName)
         assertTrue(result.titleCandidates.contains("逐玉"))
         assertTrue(result.titleCandidates.none { it.contains("电视剧/逐玉") })
+    }
+
+    @Test
+    fun `remote URL path does not outvote filename title`() {
+        val fileName = "[ANi] BLEACH 死神 千年血戰篇-禍進譚- - 49 [1080P][Baha][WEB-DL][AAC AVC][CHT].mp4"
+        val result = classifier.classifyVideo(
+            path = "https://resources.ani.rip/2026-10/%5BANi%5D%20BLEACH%20%E6%AD%BB%E7%A5%9E%20%E5%8D%83%E5%B9%B4%E8%A1%80%E6%88%B0%E7%AF%87-%E7%A6%8D%E9%80%B2%E8%AD%9A-%20-%2049%20%5B1080P%5D%5BBaha%5D%5BWEB-DL%5D%5BAAC%20AVC%5D%5BCHT%5D.mp4?d=mp4",
+            fileName = fileName,
+        )
+
+        // Host/date/percent-triplet URL machinery must never become the show name.
+        assertFalse(result.animeName.contains("%"))
+        assertFalse(result.animeName.contains("resources", ignoreCase = true))
+        assertFalse(result.animeName.contains("2026"))
+        assertTrue(result.animeName.contains("BLEACH"))
+    }
+
+    @Test
+    fun `encoded path segment is not treated as show context`() {
+        val result = classifier.classifyVideo(
+            path = "https://resources.ani.rip/2026-10/%E9%BB%91%20test.mp4",
+            fileName = "黑 test.mp4",
+        )
+
+        assertFalse(result.animeName.contains("%"))
+        assertFalse(result.animeName.contains("2026"))
     }
 
     private class StaticFilenameParser(

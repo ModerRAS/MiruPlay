@@ -42,7 +42,10 @@ private class RecordingManualScraper : MetadataScraper, ManualMetadataSearchScra
         return Result.success(listOf(result(query)))
     }
 
-    override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+    override suspend fun searchAnime(
+        query: String,
+        includeArchive: Boolean,
+    ): Result<List<ScraperResult>> =
         Result.success(listOf(result(query)))
 
     override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
@@ -54,6 +57,7 @@ private class RecordingManualScraper : MetadataScraper, ManualMetadataSearchScra
     override suspend fun searchByAlias(
         normalizedName: String,
         candidates: List<String>,
+        includeArchive: Boolean,
     ): Result<ScraperResult?> {
         aliasSearches += candidates
         return Result.success(null)

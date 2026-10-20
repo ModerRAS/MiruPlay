@@ -355,7 +355,10 @@ class BangumiIndexMetadataCoordinatorTest {
 
         override val sourceName: String = "Bangumi"
 
-        override suspend fun searchAnime(query: String): Result<List<ScraperResult>> {
+        override suspend fun searchAnime(
+            query: String,
+            includeArchive: Boolean,
+        ): Result<List<ScraperResult>> {
             searchQueries += query
             return Result.success(searchResults[query].orEmpty())
         }
@@ -369,6 +372,7 @@ class BangumiIndexMetadataCoordinatorTest {
         override suspend fun searchByAlias(
             normalizedName: String,
             candidates: List<String>,
+            includeArchive: Boolean,
         ): Result<ScraperResult?> {
             aliasCandidates += candidates
             return Result.success(null)
