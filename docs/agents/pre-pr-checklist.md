@@ -234,3 +234,36 @@ Cross-checks:
 New failure class (section 1 candidate):
 
 - **Probe-gates-playback on unreachable networks** — a pre-playback metadata probe using a non-proxy transport (platform MediaExtractor, raw HttpURLConnection) hangs instead of failing fast, blocking the player start behind it with zero log signal. Check: every pre-playback network access must either share the playback transport/proxy config or have a hard timeout + skip path; verify on device with the origin blocked (direct connection must fail fast, proxy path must play).
+
+### Bangumi OAuth 直连登录（回环回调 + 7 天轮换）(v2.18)
+
+Own checks (unit-tested + 真机闭环已验证，HK1 @ 2026-10-20)：
+
+- 未配置 client id/secret 时构建照常通过，设置页显示"未配置"状态而非崩溃（BuildConfig 空字符串兜底；CI 同仓库 PR 带 secret，fork PR 为空）
+- 回调 `state` 对不上直接拒绝，不触发换 token；换 token 失败停留在 Failed 状态，可重试/取消
+- 刷新逻辑：有效期内直接返回现有 token；临期（24h）自动 refresh 并持久化新 pair；refresh 失败但旧 token 未过期则继续用旧 token，不把用户踢下线
+- `submitCallbackUrl` 的换 token 跑在新协程里，不占回环监听线程（izuko 踩过的坑：监听线程自取消会导致换 token 请求夭折）
+- full `./gradlew assembleDebug test lint` green；新单测：OAuthClient 授权 URL/换 token/刷新/错误映射/MockWebServer、coordinator 状态机/去重/刷新边际/登出、SettingsViewModel 接线
+- [真机] WebView 授权页加载 → 账号登录并授权 → 自动跳回：显示"Token 已保存在加密存储中。"+"有效期至 2026-10-27 20:57"（7 天 TTL 与 bgm access_token 一致，证明换 token 解析与落库正确）+ 退出登录按钮 + 左侧"元数据 已设置 1 项"
+- [真机] 到达成功态本身即证明全链：授权 URL 三件正确 → 回环接住 code → token 端点 200 → 加密持久化 → UI 状态刷新
+- [真机] force-stop 冷启动后登录态仍在，无崩溃；操作全程 logcat 无 AndroidRuntime:E
+
+Cross-checks：
+
+- 手动贴 Token 链路原样保留（coordinator 只读写同一套 SecurePreferences 键，互不覆盖语义外行为）；现有 Bangumi 搜索/收藏/同步走 `tokenProvider` 读到的仍是同一份 access token
+- WebAPI/WebUI 刻意不同步 OAuth 流程：回环回调 + WebView + 外部浏览器都是设备本地能力，Web 端已有手动 token 读写端点覆盖管理面；TV 设置页为唯一入口（surface-specific，见 parity 表）
+- 新增 i18n key 四地对齐 + UiTextResolver 映射（lint MissingTranslation 通过）
+- [真机] 同步全部 Bangumi 进度在空媒体库下点按无可见变化——符合设计（`animeCount > 0` 才显示结果行，`syncAllBangumi()` 空库直接返回零统计且不联网），不是 bug
+
+Not device-verified (to be covered by follow-ups, reason recorded)：
+
+- 外部浏览器路径（回环监听在外部浏览器回调下的存活）——当时设备无可用系统浏览器做对照，且 WebView 路径已证明回环有效
+- 退出登录清理 —— 会登出用户刚登录的真实账号，需用户授权后再测
+- 临期自动刷新 —— 需改系统时间或等 6 天窗口，单测已覆盖分支
+- 无网络/代理未配失败态 —— 墙内直连 bgm.tv 本就超时，失败重试分支走单测
+
+New findings (section 1 candidates / product constraints)：
+
+- **WebView 不走应用代理，只认系统全局代理**：墙内网络下没有系统代理的盒子连授权页都打不开（ERR_CONNECTION_TIMED_OUT），OAuth 登录页加载完全不受 App 代理配置保护；只有 token 交换（OkHttp）走应用代理。面向墙内用户的登录方案必须把系统代理写进前置条件，或做二维码等不依赖 TV 出站的替代路径
+- **bgm 验证码是自动化天敌**：可疑 IP（代理出口）下几乎必弹验证码，自动化连错 4 次后停手（锁号风险）；TV 端遥控器输验证码同样痛苦。验证码环节建议只做人走查，不进自动化
+- **Composed-path divergence（沿用 v2.16 条目）**：本次同样先 unit-test 后真机，设备行为与单测一致，未复现发散

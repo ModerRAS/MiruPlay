@@ -80,6 +80,7 @@ Suggested scope for the subagent:
 | Feature | TV settings | WebAPI | WebUI | Notes |
 |---|---|---|---|---|
 | Topping DAC 控制（toppingctl 协议） | ✅ AUDIO_DSP 区内 `ToppingDacControls` | ✅ `/api/topping/{status,volume,preset,flat,gain,power,preamp,usb-permission}` | ✅ 音频 DSP 视图 Topping DAC 卡片 | 音量仅 DX5 II（音量不在 HID 上的型号禁用输入）；> −10 dB 需确认；未 confirmed 型号拒写 |
+| Bangumi OAuth 直连登录（回环回调） | ✅ 元数据区登录按钮 + WebView 对话框 + 外部浏览器入口 | ➖ 刻意不同步（回环回调/鉴权全在设备本地；token 管理沿用已有 bangumi-token 端点） | ➖ 同左（手动贴 token 链路不变） | surface-specific：Web 侧无法完成 127.0.0.1 回调；有效期/状态仅 TV 展示 |
 
 ## Fast File Pointers
 - TV settings UI: `ui-tv/src/main/kotlin/com/miruplay/tv/ui/settings/`

@@ -47,6 +47,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.File
@@ -70,6 +71,7 @@ class SettingsViewModelTokenTest {
     @MockK lateinit var cloudDriveScheduler: CloudDriveRssScheduler
     @MockK lateinit var bangumiArchiveStore: BangumiArchiveStore
     @MockK lateinit var bangumiSyncEngine: BangumiSyncEngine
+    @MockK lateinit var bangumiOAuth: com.miruplay.tv.sync.BangumiOAuthCoordinator
     @MockK lateinit var backgroundTasks: BackgroundTaskForegroundController
 
     private val logStatus = MutableStateFlow(LogUploadStatus())
@@ -78,6 +80,8 @@ class SettingsViewModelTokenTest {
     fun setUp() {
         MockKAnnotations.init(this, relaxUnitFun = true)
         Dispatchers.setMain(UnconfinedTestDispatcher())
+        every { bangumiOAuth.state } returns
+            MutableStateFlow(com.miruplay.tv.sync.BangumiOAuthState.Idle)
 
         coEvery { mediaRepository.getSources() } returns Result.success(emptyList())
         coEvery { appModePreferences.getSelectionState() } returns
@@ -87,6 +91,7 @@ class SettingsViewModelTokenTest {
             )
 
         every { securePrefs.bangumiAccessToken } returns null
+        every { securePrefs.bangumiTokenExpiresAtMillis } returns 0L
         every { securePrefs.tmdbAccessToken } returns null
         every { securePrefs.cloudDriveToken } returns null
         every { securePrefs.cloudDrivePassword } returns null
@@ -188,6 +193,54 @@ class SettingsViewModelTokenTest {
         assertEquals(true, viewModel.perfMonitorEnabled.value)
     }
 
+    @Test
+    fun `startBangumiOAuth delegates to coordinator and exposes state`() = runTest {
+        val state = MutableStateFlow<com.miruplay.tv.sync.BangumiOAuthState>(
+            com.miruplay.tv.sync.BangumiOAuthState.Idle
+        )
+        every { bangumiOAuth.state } returns state
+        every { bangumiOAuth.startAuthorize() } returns "https://bgm.tv/oauth/authorize?x=1"
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        assertEquals("https://bgm.tv/oauth/authorize?x=1", viewModel.startBangumiOAuth())
+        assertTrue(viewModel.bangumiOAuthState.value is com.miruplay.tv.sync.BangumiOAuthState.Idle)
+    }
+
+    @Test
+    fun `submitBangumiOAuthCallback refreshes token state on accepted callback`() = runTest {
+        every { bangumiOAuth.state } returns MutableStateFlow(com.miruplay.tv.sync.BangumiOAuthState.Authorizing("u"))
+        coEvery { bangumiOAuth.submitCallbackUrl(any()) } returns true
+        every { securePrefs.bangumiAccessToken } returns "oauth-token"
+        every { securePrefs.bangumiTokenExpiresAtMillis } returns 9_999L
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.submitBangumiOAuthCallback("http://127.0.0.1:13712/callback?code=x&state=y")
+        advanceUntilIdle()
+
+        assertEquals("oauth-token", viewModel.bangumiToken.value)
+        assertEquals(9_999L, viewModel.bangumiTokenExpiryMs.value)
+    }
+
+    @Test
+    fun `logoutBangumiOAuth clears token state`() = runTest {
+        every { bangumiOAuth.state } returns MutableStateFlow(com.miruplay.tv.sync.BangumiOAuthState.Success)
+        every { securePrefs.bangumiAccessToken } returns null
+        every { securePrefs.bangumiTokenExpiresAtMillis } returns 0L
+        every { bangumiOAuth.logout() } answers {
+            every { securePrefs.bangumiAccessToken } returns null
+        }
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.logoutBangumiOAuth()
+        advanceUntilIdle()
+
+        assertEquals("", viewModel.bangumiToken.value)
+        assertEquals(0L, viewModel.bangumiTokenExpiryMs.value)
+    }
+
     private fun createViewModel(): SettingsViewModel =
         SettingsViewModel(
             mediaRepository = mediaRepository,
@@ -207,6 +260,7 @@ class SettingsViewModelTokenTest {
             cloudDriveScheduler = cloudDriveScheduler,
             bangumiArchiveStore = bangumiArchiveStore,
             bangumiSyncEngine = bangumiSyncEngine,
+            bangumiOAuth = bangumiOAuth,
             backgroundTasks = backgroundTasks,
             appContext = appContext,
             audioMeasureController = audioMeasureController,

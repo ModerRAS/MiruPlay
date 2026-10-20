@@ -229,6 +229,17 @@
     <string name="settings_metadata_tmdb_missing">No TMDB token set.</string>
     <string name="settings_metadata_bangumi_tile">Bangumi token</string>
     <string name="settings_metadata_bangumi_tile_detail">Only used for Bangumi collection and watch-progress sync.</string>
+    <string name="settings_metadata_bangumi_oauth_unconfigured">Bangumi OAuth app is not configured, sign-in unavailable.</string>
+    <string name="settings_metadata_bangumi_oauth_failed">Bangumi sign-in failed.</string>
+    <string name="settings_metadata_bangumi_oauth_failed_detail">Bangumi sign-in failed: %1$s</string>
+    <string name="settings_metadata_bangumi_oauth_success">Signed in with Bangumi.</string>
+    <string name="settings_metadata_bangumi_oauth_exchanging">Exchanging tokens with Bangumi…</string>
+    <string name="settings_metadata_bangumi_oauth_login">Sign in with Bangumi</string>
+    <string name="settings_metadata_bangumi_oauth_title">Bangumi sign-in</string>
+    <string name="settings_metadata_bangumi_oauth_external">Open in external browser</string>
+    <string name="settings_metadata_bangumi_oauth_cancel">Cancel</string>
+    <string name="settings_metadata_bangumi_oauth_logout">Sign out</string>
+    <string name="settings_metadata_bangumi_oauth_valid_until">Valid until %1$s</string>
     <string name="settings_metadata_bangumi_saved_msg">Bangumi token saved.</string>
     <string name="settings_metadata_bangumi_empty_msg">Bangumi access token is empty; not saved.</string>
     <string name="settings_metadata_bangumi_cleared_msg">Bangumi access token cleared.</string>

@@ -105,6 +105,8 @@ import com.miruplay.tv.sync.rss.CloudDriveDirectoryTarget
 import com.miruplay.tv.sync.rss.loadCloudDriveDirectory
 import com.miruplay.tv.sync.rss.loadingFor
 import com.miruplay.tv.sync.rss.prepareCloudDriveDirectoryBrowser
+import com.miruplay.tv.sync.BangumiOAuthCoordinator
+import com.miruplay.tv.sync.BangumiOAuthState
 import com.miruplay.tv.sync.BangumiSyncEngine
 import com.miruplay.tv.model.rssSubscriptionDeletedStatus
 import com.miruplay.tv.model.rssSubscriptionSavedStatus
@@ -164,6 +166,7 @@ class SettingsViewModel @Inject constructor(
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
     private val bangumiSyncEngine: BangumiSyncEngine,
+    private val bangumiOAuth: BangumiOAuthCoordinator,
     @ApplicationContext private val appContext: Context,
     private val audioMeasureController: AudioMeasureController,
     private val toppingController: com.miruplay.tv.topping.ToppingController,
@@ -188,6 +191,10 @@ class SettingsViewModel @Inject constructor(
 
     private val _bangumiToken = MutableStateFlow(securePrefs.bangumiAccessToken ?: "")
     val bangumiToken: StateFlow<String> = _bangumiToken.asStateFlow()
+
+    val bangumiOAuthState: StateFlow<BangumiOAuthState> = bangumiOAuth.state
+    private val _bangumiTokenExpiryMs = MutableStateFlow(securePrefs.bangumiTokenExpiresAtMillis)
+    val bangumiTokenExpiryMs: StateFlow<Long> = _bangumiTokenExpiryMs.asStateFlow()
 
     private val _tmdbToken = MutableStateFlow(securePrefs.tmdbAccessToken ?: "")
     val tmdbToken: StateFlow<String> = _tmdbToken.asStateFlow()
@@ -715,11 +722,37 @@ class SettingsViewModel @Inject constructor(
         )
         securePrefs.bangumiAccessToken = result.token
         _bangumiToken.value = result.token.orEmpty()
+        _bangumiTokenExpiryMs.value = securePrefs.bangumiTokenExpiresAtMillis
     }
 
     fun clearBangumiToken() {
         securePrefs.clearBangumiToken()
         _bangumiToken.value = ""
+        _bangumiTokenExpiryMs.value = 0L
+    }
+
+    fun startBangumiOAuth(): String? = bangumiOAuth.startAuthorize()
+
+    fun cancelBangumiOAuth() {
+        bangumiOAuth.cancel()
+    }
+
+    fun submitBangumiOAuthCallback(url: String) {
+        viewModelScope.launch {
+            if (bangumiOAuth.submitCallbackUrl(url)) {
+                refreshBangumiTokenState()
+            }
+        }
+    }
+
+    fun logoutBangumiOAuth() {
+        bangumiOAuth.logout()
+        refreshBangumiTokenState()
+    }
+
+    private fun refreshBangumiTokenState() {
+        _bangumiToken.value = securePrefs.bangumiAccessToken.orEmpty()
+        _bangumiTokenExpiryMs.value = securePrefs.bangumiTokenExpiresAtMillis
     }
 
     fun saveTmdbToken(token: String) {

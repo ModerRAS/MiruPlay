@@ -3,13 +3,23 @@ package com.miruplay.tv.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.migration.Migration
+import com.miruplay.tv.BuildConfig
 import com.miruplay.tv.audiomeasure.AudioMeasureController
 import com.miruplay.tv.data.db.MiruPlayDatabase
+import com.miruplay.tv.repository.AppCredentialStore
+import com.miruplay.tv.repository.CloudDriveAutomationRepository
+import com.miruplay.tv.scraper.core.BangumiHttpProxyConfig
+import com.miruplay.tv.scraper.core.BangumiOAuthClient
+import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
+import com.miruplay.tv.sync.BangumiOAuthCoordinator
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.util.concurrent.TimeUnit
@@ -55,6 +65,27 @@ object AppModule {
     @Singleton
     fun provideToppingController(@ApplicationContext context: Context): com.miruplay.tv.topping.ToppingController {
         return com.miruplay.tv.topping.ToppingController(com.miruplay.tv.topping.ToppingUsb(context))
+    }
+
+    @Provides
+    @Singleton
+    fun provideBangumiOAuthCoordinator(
+        credentials: AppCredentialStore,
+        cloudDriveRepository: CloudDriveAutomationRepository,
+    ): BangumiOAuthCoordinator {
+        val client = BangumiOAuthClient(
+            clientId = BuildConfig.BANGUMI_CLIENT_ID,
+            clientSecret = BuildConfig.BANGUMI_CLIENT_SECRET,
+        )
+        return BangumiOAuthCoordinator(
+            credentials = credentials,
+            client = client.takeIf { it.isConfigured },
+            scope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
+            proxyConfig = {
+                cloudDriveRepository.getConfig().getOrNull()?.toBangumiHttpProxyConfig()
+                    ?: BangumiHttpProxyConfig.Disabled
+            },
+        )
     }
 }
 
