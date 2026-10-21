@@ -17,7 +17,10 @@ interface MetadataScraper {
     /**
      * Search for anime by query.
      */
-    suspend fun searchAnime(query: String): Result<List<ScraperResult>>
+    suspend fun searchAnime(
+        query: String,
+        includeArchive: Boolean = true,
+    ): Result<List<ScraperResult>>
 
     /**
      * Get full anime details by ID.
@@ -35,6 +38,7 @@ interface MetadataScraper {
     suspend fun searchByAlias(
         normalizedName: String,
         candidates: List<String>,
+        includeArchive: Boolean = true,
     ): Result<ScraperResult?>
 }
 

@@ -148,6 +148,49 @@ class BangumiApiClientTest {
     }
 
     @Test
+    fun `searchAnime skips archive when includeArchive is false`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody(
+                    """
+                    {
+                      "data": [
+                        {
+                          "id": 500000,
+                          "name": "Online Only Special",
+                          "name_cn": "在线特别篇",
+                          "rating": { "score": 8.0 }
+                        }
+                      ]
+                    }
+                    """.trimIndent()
+                )
+            )
+            val tempDir = createTempDirectory(prefix = "bangumi-api-noarchive-test-").toFile()
+            val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+            subjectFile.writeText(
+                """{"id":431767,"type":2,"name":"葬送のフリーレン","name_cn":"葬送的芙莉莲","score":8.8}"""
+            )
+            val client = BangumiApiClient(
+                baseUrl = server.url("/").toString(),
+                archiveSearch = BangumiArchiveSubjectSearch(subjectFile),
+            )
+
+            val result = client.searchAnime("葬送的芙莉莲", includeArchive = false)
+
+            assertTrue(result is Result.Success)
+            val onlineOnly = (result as Result.Success).data.single()
+            // Archive holds the perfect local hit (431767); skipping it must surface
+            // the online hit instead and actually hit the network.
+            assertEquals("500000", onlineOnly.animeId)
+            assertFalse(onlineOnly.fromLocalArchive)
+            assertEquals(1, server.requestCount)
+            tempDir.deleteRecursively()
+            Unit
+        }
+    }
+
+    @Test
     fun `manual search merges archive and online candidates`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(

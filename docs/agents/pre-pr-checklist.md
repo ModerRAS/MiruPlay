@@ -267,3 +267,24 @@ New findings (section 1 candidates / product constraints)：
 - **WebView 不走应用代理，只认系统全局代理**：墙内网络下没有系统代理的盒子连授权页都打不开（ERR_CONNECTION_TIMED_OUT），OAuth 登录页加载完全不受 App 代理配置保护；只有 token 交换（OkHttp）走应用代理。面向墙内用户的登录方案必须把系统代理写进前置条件，或做二维码等不依赖 TV 出站的替代路径
 - **bgm 验证码是自动化天敌**：可疑 IP（代理出口）下几乎必弹验证码，自动化连错 4 次后停手（锁号风险）；TV 端遥控器输验证码同样痛苦。验证码环节建议只做人走查，不进自动化
 - **Composed-path divergence（沿用 v2.16 条目）**：本次同样先 unit-test 后真机，设备行为与单测一致，未复现发散
+
+### RSS 扫描卡死修复：离线 archive 按查询全量解析 + URL 噪音系列名（patch）
+
+Own checks（HK1 真机证据 + 单测）：
+
+- [真机] ANi RSS 全量扫描冻在 55 文件/黑色五葉草约 15 分钟，取消近 10 分钟才生效；线程 CPU 时间静止（IO 阻塞非死循环）；结束后 anime/episode/index_entry 全 0 行
+- [真机] 设备 `MiruLog` 埋点钉死：`bangumi.archive.search` 单次耗时 **704993ms**（11.7 分钟），query 仅 6 字符（`A1%80%`）；986MB `subject.jsonlines` 存在（当日 13:47 下载），前一日无 archive 时同款扫描 105 秒跑完
+- 根因一定位就改小：自动扫描 enrichment 传 `includeArchive = false`（扫描恒有网，archive 只留给手动搜索）；archive 本体改为流式单遍 + 有界 top-k + 每 4096 行 `ensureActive`（取消立刻生效）；分类器对 URL 路径只用文件名做 PATH 证据、跳过 host/date/百分号段
+- 单测：`searchAnime skips archive when includeArchive is false`（archive 有完美命中也被跳过，只走在线）；`search honours coroutine cancellation`（100 万行文件 200ms 取消必抛）；分类器 `remote URL path does not outvote filename title` + `encoded path segment is not treated as show context`；扫描单测断言 enrichment 全传 `false`
+- 现有 archive 排序/匹配单测全过（流式 top-k 与全排序语义一致；季节降权只降不升，top-k 内重排等价）
+
+Cross-checks：
+
+- 手动搜索（`searchManualAnime`/`searchPreferredWith` 聚合）仍走 archive + 在线双路，行为不变；手动搜索 ViewModel 自带 35s/90s `withTimeout`，现在因 archive 循环可协作取消而真正有效
+- `AniListScraper` 等其他 `MetadataScraper` 实现同步加参（忽略该标志，无行为变化）；单测 fake 全量更新
+- WebDAV/SMB 本地语义路径不受分类器改动影响（machinery 过滤只认 scheme/host/日期/百分号段；`Season N`/第 x 季等季节模式原样保留）
+- full `./gradlew assembleDebug test lint` green
+
+New failure class (section 1 candidate)：
+
+- **Offline-index-at-query-time** —— 离线 archive/索引文件在每次查询时全量解析 + 全排序，单测里几行 fixture 毫秒级全过，真机上 1GB 文件把 50MB 堆的 TV 盒子拖进 10 分钟 GC 泥潭。检查：任何“加载本地大文件再查询”的路径，必须验证真实量级文件在目标设备上的单次耗时；查询必须是流式 + 有界内存 + 可取消；耗时型预处理只做一次（构建期/下载期），绝不在查询热路径上

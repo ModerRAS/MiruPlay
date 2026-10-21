@@ -1,6 +1,9 @@
 package com.miruplay.tv.scraper.core
 
 import com.miruplay.tv.core.common.Result
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
@@ -20,6 +23,37 @@ import java.util.zip.ZipOutputStream
 import kotlin.io.path.createTempDirectory
 
 class BangumiArchiveTest {
+    @Test
+    fun `search honours coroutine cancellation instead of hanging the caller`() = runBlocking {
+        val tempDir = createTempDirectory(prefix = "bangumi-archive-cancel-test-").toFile()
+        val subjectFile = File(tempDir, BangumiArchiveStore.SUBJECT_FILE_NAME)
+        // Enough lines to outlast the cancel delay: without cooperative cancellation
+        // the search would run to completion and return normally.
+        subjectFile.bufferedWriter().use { out ->
+            repeat(1_000_000) { index ->
+                out.write("""{"id":${1_000_000 + index},"type":2,"name":"Filler Anime Number $index","score":5.0}""")
+                out.newLine()
+            }
+        }
+        val search = BangumiArchiveSubjectSearch(subjectFile)
+
+        // Run off the test thread: the search is blocking IO, the cancel signal
+        // must be delivered from another thread (same as Dispatchers.IO in prod).
+        val job = async(Dispatchers.Default) { search.search("zzz-no-such-anime-zzz") }
+        delay(200)
+        job.cancel()
+        var cancelled = false
+        try {
+            job.await()
+        } catch (error: kotlinx.coroutines.CancellationException) {
+            cancelled = true
+        }
+
+        assertTrue("Archive search must abort promptly when cancelled", cancelled)
+        assertTrue(job.isCancelled)
+        tempDir.deleteRecursively()
+        Unit
+    }
     @Test
     fun `downloadLatest uses configured HTTP proxy for latest and zip requests`() = runBlocking {
         val archiveZip = zipOf(
@@ -314,7 +348,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("Frieren")
+        val result = runBlocking { search.search("Frieren") }
 
         assertEquals("431767", result.single().animeId)
         assertEquals("Frieren", result.single().matchedTitle)
@@ -335,7 +369,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("Sousou no Frieren")
+        val result = runBlocking { search.search("Sousou no Frieren") }
 
         assertEquals("431767", result.single().animeId)
         assertEquals("Sousou no Frieren", result.single().matchedTitle)
@@ -355,7 +389,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("Dr STONE 新石纪 第四季")
+        val result = runBlocking { search.search("Dr STONE 新石纪 第四季") }
 
         assertEquals("471578", result.single().animeId)
         assertTrue(result.single().confidence >= 0.62f)
@@ -376,7 +410,7 @@ class BangumiArchiveTest {
             normalizeQuery = { value -> if (value == "繁體標題") "简体标题" else value },
         )
 
-        val result = search.search("繁體標題")
+        val result = runBlocking { search.search("繁體標題") }
 
         assertEquals("10", result.single().animeId)
         assertEquals(1.0f, result.single().confidence)
@@ -396,7 +430,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("431767")
+        val result = runBlocking { search.search("431767") }
 
         assertEquals(1, result.size)
         assertEquals("431767", result.single().animeId)
@@ -415,7 +449,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("葬送的芙莉莲")
+        val result = runBlocking { search.search("葬送的芙莉莲") }
 
         assertEquals("431767", result.single().animeId)
         assertFalse("Android-compatible archive search should not create Lucene sidecar files", luceneDirectory.exists())
@@ -434,7 +468,7 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        val result = search.search("葬送的芙莉莲")
+        val result = runBlocking { search.search("葬送的芙莉莲") }
 
         assertEquals("431767", result.single().animeId)
         assertTrue("Legacy Lucene sidecar file should not be touched by Android-compatible search", luceneDirectory.isFile)
@@ -455,9 +489,9 @@ class BangumiArchiveTest {
 
         val search = BangumiArchiveSubjectSearch(subjectFile)
 
-        assertEquals("1", search.search("Re ZERO").single().animeId)
-        assertEquals("2", search.search("Fate stay night").single().animeId)
-        assertEquals("3", search.search("Dr STONE 新石纪 第四季").single().animeId)
+        assertEquals("1", runBlocking { search.search("Re ZERO") }.single().animeId)
+        assertEquals("2", runBlocking { search.search("Fate stay night") }.single().animeId)
+        assertEquals("3", runBlocking { search.search("Dr STONE 新石纪 第四季") }.single().animeId)
         tempDir.deleteRecursively()
     }
 }

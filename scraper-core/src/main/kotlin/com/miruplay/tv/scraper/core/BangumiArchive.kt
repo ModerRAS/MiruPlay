@@ -6,6 +6,8 @@ import com.miruplay.tv.core.common.logging.PerformanceLog
 import com.miruplay.tv.model.Anime
 import com.miruplay.tv.model.ScraperResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -423,11 +425,11 @@ class BangumiArchiveSubjectSearch(
 
     private val mapper = BangumiArchiveDocumentMapper(normalizeQuery)
 
-    fun search(
+    suspend fun search(
         query: String,
         limit: Int = 10,
         minimumConfidence: Float = this.minimumConfidence,
-    ): List<ScraperResult> = PerformanceLog.measure(
+    ): List<ScraperResult> = PerformanceLog.measureSuspend(
         tag = ARCHIVE_PERFORMANCE_TAG,
         operation = "bangumi.archive.search",
         attributes = archiveQueryAttributes(query) + mapOf(
@@ -436,54 +438,80 @@ class BangumiArchiveSubjectSearch(
         ),
     ) {
         val trimmedQuery = query.trim()
-        if (trimmedQuery.isBlank()) return@measure emptyList()
+        if (trimmedQuery.isBlank()) return@measureSuspend emptyList()
         val subjectId = trimmedQuery.takeIf { it.all(Char::isDigit) }?.toIntOrNull()
         if (subjectId != null) {
-            return@measure findById(trimmedQuery)?.let { subject ->
+            return@measureSuspend findById(trimmedQuery)?.let { subject ->
                 listOf(subject.toArchiveHit(trimmedQuery, confidence = 1.0f).toScraperResult())
             }.orEmpty()
         }
 
         val requestedSeason = extractArchiveSeasonNumber(trimmedQuery)
             ?: extractArchiveSeasonNumber(normalizeArchiveIndexedText(trimmedQuery, normalizeQuery))
-        readSubjects()
-            .asSequence()
-            .map { subject ->
-                val match = mapper.matchSubject(subject, trimmedQuery)
-                ArchiveHit(
-                    subject = subject,
-                    matchedTitle = match.title,
-                    confidence = match.confidence,
-                )
+        val take = limit.coerceAtLeast(1)
+        // Single streaming pass over the ~1GB subject file: score each line, keep only
+        // a bounded top-k heap, discard the subject. Never materializes the full list
+        // (a 400k-subject object graph thrashes a 50MB TV heap for 10+ minutes) and
+        // never fully sorts. Seasonal demotion applies to the top-k after the pass:
+        // it only demotes, so nothing outside the raw top-k could displace into it.
+        val heap = java.util.PriorityQueue<ArchiveHit>(take, ARCHIVE_HIT_ORDER.reversed())
+        val subjectFile = subjectFileProvider()
+        if (subjectFile.isFile) {
+            var linesSinceYield = 0
+            subjectFile.useLines { lines ->
+                for (line in lines) {
+                    val subject = mapper.parseSubject(line) ?: continue
+                    val match = mapper.matchSubject(subject, trimmedQuery)
+                    if (match.confidence >= minimumConfidence) {
+                        val hit = ArchiveHit(
+                            subject = subject,
+                            matchedTitle = match.title,
+                            confidence = match.confidence,
+                        )
+                        if (heap.size < take) {
+                            heap.add(hit)
+                        } else if (ARCHIVE_HIT_ORDER.compare(hit, heap.peek()) < 0) {
+                            heap.poll()
+                            heap.add(hit)
+                        }
+                    }
+                    if (++linesSinceYield >= 4096) {
+                        linesSinceYield = 0
+                        currentCoroutineContext().ensureActive()
+                    }
+                }
             }
+        }
+        heap.toList()
+            .asSequence()
             .adjustSeasonalConfidence(requestedSeason)
             .filter { it.confidence >= minimumConfidence }
-            .sortedWith(
-                compareByDescending<ArchiveHit> { it.confidence }
-                    .thenBy { it.subject.rank ?: Int.MAX_VALUE }
-                    .thenByDescending { it.subject.score ?: 0f }
-                    .thenByDescending { it.subject.date.orEmpty() }
-            )
-            .take(limit.coerceAtLeast(1))
+            .sortedWith(ARCHIVE_HIT_ORDER)
+            .take(take)
             .map(ArchiveHit::toScraperResult)
             .toList()
     }
 
-    fun findById(animeId: String): BangumiArchiveSubject? = PerformanceLog.measure(
+    suspend fun findById(animeId: String): BangumiArchiveSubject? = PerformanceLog.measureSuspend(
         tag = ARCHIVE_PERFORMANCE_TAG,
         operation = "bangumi.archive.find_by_id",
         attributes = mapOf("anime_id" to animeId),
     ) {
-        val subjectId = animeId.toIntOrNull() ?: return@measure null
-        readSubjects().firstOrNull { it.id == subjectId }
-    }
-
-    private fun readSubjects(): List<BangumiArchiveSubject> {
+        val subjectId = animeId.toIntOrNull() ?: return@measureSuspend null
         val subjectFile = subjectFileProvider()
-        if (!subjectFile.isFile) return emptyList()
-        return subjectFile.useLines { lines ->
-            lines.mapNotNull(mapper::parseSubject).toList()
+        if (!subjectFile.isFile) return@measureSuspend null
+        var linesSinceYield = 0
+        subjectFile.useLines { lines ->
+            for (line in lines) {
+                val subject = mapper.parseSubject(line) ?: continue
+                if (subject.id == subjectId) return@measureSuspend subject
+                if (++linesSinceYield >= 4096) {
+                    linesSinceYield = 0
+                    currentCoroutineContext().ensureActive()
+                }
+            }
         }
+        null
     }
 
     private fun BangumiArchiveSubject.toArchiveHit(
@@ -496,6 +524,12 @@ class BangumiArchiveSubjectSearch(
             confidence = confidence,
         )
 }
+
+private val ARCHIVE_HIT_ORDER: Comparator<ArchiveHit> =
+    compareByDescending<ArchiveHit> { it.confidence }
+        .thenBy { it.subject.rank ?: Int.MAX_VALUE }
+        .thenByDescending { it.subject.score ?: 0f }
+        .thenByDescending { it.subject.date.orEmpty() }
 
 private data class ArchiveHit(
     val subject: BangumiArchiveSubject,

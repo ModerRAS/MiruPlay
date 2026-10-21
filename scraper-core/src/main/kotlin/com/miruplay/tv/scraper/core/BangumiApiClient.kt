@@ -57,13 +57,17 @@ class BangumiApiClient(
         client.configureProxy(proxyConfig)
     }
 
-    suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+    suspend fun searchAnime(
+        query: String,
+        includeArchive: Boolean = true,
+    ): Result<List<ScraperResult>> =
         searchAnime(
             query = query,
             archiveMinimumConfidence = ARCHIVE_AUTO_MINIMUM_CONFIDENCE,
             includeOnlineWhenArchiveMatches = false,
             includeDirectIdResult = false,
             onlineLimit = 10,
+            includeArchive = includeArchive,
         )
 
     suspend fun searchAnimeForManualMatch(query: String): Result<List<ScraperResult>> =
@@ -75,12 +79,13 @@ class BangumiApiClient(
             onlineLimit = 20,
         )
 
-    private suspend fun searchAnime(
+    internal suspend fun searchAnime(
         query: String,
         archiveMinimumConfidence: Float,
         includeOnlineWhenArchiveMatches: Boolean,
         includeDirectIdResult: Boolean,
         onlineLimit: Int,
+        includeArchive: Boolean = true,
     ): Result<List<ScraperResult>> = PerformanceLog.measureSuspendResult(
         tag = PERFORMANCE_TAG,
         operation = "bangumi.search",
@@ -89,6 +94,7 @@ class BangumiApiClient(
             "online_limit" to onlineLimit.toString(),
             "include_direct_id_result" to includeDirectIdResult.toString(),
             "archive_minimum_confidence" to archiveMinimumConfidence.toString(),
+            "include_archive" to includeArchive.toString(),
         ),
     ) {
         withContext(Dispatchers.IO) {
@@ -98,11 +104,15 @@ class BangumiApiClient(
                     directIdSearchResult(query)?.let { merged.addBest(it) }
                 }
 
-                val localResults = archiveSearch?.search(
-                    query = query,
-                    limit = onlineLimit,
-                    minimumConfidence = archiveMinimumConfidence,
-                ).orEmpty()
+                val localResults = if (includeArchive) {
+                    archiveSearch?.search(
+                        query = query,
+                        limit = onlineLimit,
+                        minimumConfidence = archiveMinimumConfidence,
+                    ).orEmpty()
+                } else {
+                    emptyList()
+                }
                 localResults.forEach { merged.addBest(it) }
                 if (localResults.isNotEmpty() && !includeOnlineWhenArchiveMatches) {
                     return@withContext Result.success(localResults)

@@ -353,9 +353,9 @@ private class AnimeDetailFakeBangumiCollectionService : BangumiCollectionService
 private class NoOpBangumiScraper : MetadataScraper {
     override val sourceName: String = "Bangumi"
 
-    override suspend fun searchAnime(query: String) = Result.success(emptyList<com.miruplay.tv.model.ScraperResult>())
+    override suspend fun searchAnime(query: String, includeArchive: Boolean) = Result.success(emptyList<com.miruplay.tv.model.ScraperResult>())
     override suspend fun getAnimeDetails(animeId: String) = Result.success(Anime(id = animeId, title = animeId))
     override suspend fun getEpisodes(animeId: String) = Result.success(emptyList<com.miruplay.tv.scraper.EpisodeMetadata>())
-    override suspend fun searchByAlias(normalizedName: String, candidates: List<String>) =
+    override suspend fun searchByAlias(normalizedName: String, candidates: List<String>, includeArchive: Boolean) =
         Result.success(null)
 }

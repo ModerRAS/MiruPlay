@@ -177,6 +177,10 @@ class ScanCoordinatorTest {
         assertEquals(25, indexRepository.entries.single().episodeNumber)
         assertEquals("Dr STONE 新石紀", scraper.normalizedName)
         assertTrue(scraper.aliasCandidates.contains("Dr STONE 新石紀 第四季"))
+        assertTrue(
+            "Auto-scan must skip the offline archive (full 1GB parse per query hangs TV scans)",
+            scraper.includeArchiveFlags.isNotEmpty() && scraper.includeArchiveFlags.all { !it },
+        )
     }
 
     @Test
@@ -1093,9 +1097,13 @@ class ScanCoordinatorTest {
         override val sourceName: String = "Bangumi"
         var normalizedName: String? = null
         var aliasCandidates: List<String> = emptyList()
+        val includeArchiveFlags = mutableListOf<Boolean>()
 
-        override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
-            Result.success(emptyList())
+        override suspend fun searchAnime(
+            query: String,
+            includeArchive: Boolean,
+        ): Result<List<ScraperResult>> =
+            Result.success<List<ScraperResult>>(emptyList()).also { includeArchiveFlags += includeArchive }
 
         override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
             Result.failure(AppError.ScrapingError.NoMatchFound(animeId))
@@ -1105,10 +1113,12 @@ class ScanCoordinatorTest {
 
         override suspend fun searchByAlias(
             normalizedName: String,
-            candidates: List<String>
+            candidates: List<String>,
+            includeArchive: Boolean,
         ): Result<ScraperResult?> {
             this.normalizedName = normalizedName
             this.aliasCandidates = candidates
+            includeArchiveFlags += includeArchive
             return Result.success(null)
         }
     }
@@ -1118,7 +1128,10 @@ class ScanCoordinatorTest {
     ) : MetadataScraper {
         override val sourceName: String = "Bangumi"
 
-        override suspend fun searchAnime(query: String): Result<List<ScraperResult>> =
+        override suspend fun searchAnime(
+            query: String,
+            includeArchive: Boolean,
+        ): Result<List<ScraperResult>> =
             Result.success(listOf(match()))
 
         override suspend fun getAnimeDetails(animeId: String): Result<Anime> =
@@ -1136,7 +1149,8 @@ class ScanCoordinatorTest {
 
         override suspend fun searchByAlias(
             normalizedName: String,
-            candidates: List<String>
+            candidates: List<String>,
+            includeArchive: Boolean,
         ): Result<ScraperResult?> = Result.success(match())
 
         private fun match(): ScraperResult =
