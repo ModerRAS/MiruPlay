@@ -26,8 +26,9 @@ class MusicSrcBypassPipelineTest {
     private fun makePipeline(dspEnabled: Boolean, nativeRate: Int, sampleRate: Int, channels: Int): AudioProcessingPipeline {
         val runtime = AudioDspRuntimeConfig().also { it.update(AudioDspConfig(enabled = dspEnabled)) }
         val dsp = DspAudioProcessor(runtime)
+        val balance = AudioBalanceAudioProcessor(runtime)
         val musicSrc = MusicSrcBypassProcessor(nativeRate)
-        val chain = DefaultAudioSink.DefaultAudioProcessorChain(dsp, musicSrc)
+        val chain = DefaultAudioSink.DefaultAudioProcessorChain(dsp, balance, musicSrc)
         val pipeline = AudioProcessingPipeline(ImmutableList.copyOf(chain.audioProcessors))
         val format = AudioProcessor.AudioFormat(sampleRate, channels, C.ENCODING_PCM_16BIT)
         pipeline.configure(format)

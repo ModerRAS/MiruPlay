@@ -99,6 +99,8 @@ class WebControlSettingsRouteTest {
         assertTrue(body.contains("\"preferredSubtitleLanguage\":\"zh_hans\""))
         assertTrue(body.contains("\"subtitleBackgroundTransparent\":true"))
         assertTrue(body.contains("\"preferredSubtitleLanguageOptions\""))
+        assertTrue(body.contains("\"audioBalanceLevel\""))
+        assertTrue(body.contains("\"audioBalanceLevelOptions\""))
         assertTrue(body.contains("\"formatAwareToneMapping\""))
         assertTrue(body.contains("\"backendOptions\""))
         assertTrue(body.contains("\"value\":\"EXPERIMENTAL_IJKPLAYER\""))

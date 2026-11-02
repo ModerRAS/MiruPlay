@@ -349,12 +349,14 @@ data class PlaybackSettingsDto(
     val preferredSubtitleLanguage: String,
     val subtitleBackgroundTransparent: Boolean = false,
     val perfMonitorEnabled: Boolean = false,
+    val audioBalanceLevel: String = "off",
     val formatAwareToneMapping: FormatAwareToneMappingPreferences,
     val backendOptions: List<PlaybackBackendOptionDto> = emptyList(),
     val endActionOptions: List<String> = listOf("return_to_detail", "play_next_episode"),
     val episodeVersionSelectionPolicyOptions: List<String> = listOf("auto_nearest", "manual"),
     val preferredSubtitleLanguageOptions: List<String> =
         listOf("auto", "zh_hans", "zh_hant", "zh", "en", "ja"),
+    val audioBalanceLevelOptions: List<String> = listOf("off", "low", "medium", "high"),
 )
 
 @Serializable
@@ -364,6 +366,7 @@ data class PlaybackSettingsRequest(
     val preferredSubtitleLanguage: String? = null,
     val subtitleBackgroundTransparent: Boolean? = null,
     val perfMonitorEnabled: Boolean? = null,
+    val audioBalanceLevel: String? = null,
     val formatAwareToneMapping: FormatAwareToneMappingPreferences? = null,
 )
 

@@ -20,6 +20,7 @@ import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspBand
 import com.miruplay.tv.model.AudioDspChannelTarget
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.measure.AutoEqFitter
@@ -527,6 +528,9 @@ class SettingsViewModel @Inject constructor(
 
     private val _musicSrcBypassMode = MutableStateFlow(playbackPreferences.musicSrcBypassMode)
     val musicSrcBypassMode: StateFlow<MusicSrcBypassMode> = _musicSrcBypassMode.asStateFlow()
+
+    private val _audioBalanceLevel = MutableStateFlow(playbackPreferences.audioBalanceLevel)
+    val audioBalanceLevel: StateFlow<AudioBalanceLevel> = _audioBalanceLevel.asStateFlow()
 
     private val _webUiUrls = MutableStateFlow<List<String>>(emptyList())
     val webUiUrls: StateFlow<List<String>> = _webUiUrls.asStateFlow()
@@ -1354,6 +1358,12 @@ class SettingsViewModel @Inject constructor(
         playbackPreferences.musicSrcBypassMode = mode
         audioDspRuntimeConfig.updateMusicMode(mode)
         _musicSrcBypassMode.value = mode
+    }
+
+    fun setAudioBalanceLevel(level: AudioBalanceLevel) {
+        playbackPreferences.audioBalanceLevel = level
+        audioDspRuntimeConfig.updateAudioBalanceLevel(level)
+        _audioBalanceLevel.value = level
     }
 
     fun setDefaultPlaybackBackend(backend: PlaybackRenderBackend) {

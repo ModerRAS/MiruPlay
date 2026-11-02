@@ -911,6 +911,16 @@
     <string name="settings_music_src_system_desc">System mixer SRC (most compatible; may pass Speex resampling)</string>
     <string name="settings_music_src_software_desc">High-quality soft SRC to native rate (coexists with DSP; skips low-grade system SRC)</string>
     <string name="settings_music_src_direct_desc">Passthrough/offload (bit-perfect without DSP; falls back to soft SRC with DSP)</string>
+    <string name="settings_audio_balance_title">Audio balance</string>
+    <string name="settings_audio_balance_desc">Exo playback only: tracks loudness to reduce swings within an episode. Not supported on IJK/MPV.</string>
+    <string name="settings_audio_balance_off">Off</string>
+    <string name="settings_audio_balance_low">Low</string>
+    <string name="settings_audio_balance_medium">Medium</string>
+    <string name="settings_audio_balance_high">High</string>
+    <string name="settings_audio_balance_off_desc">No loudness balancing; original dynamics.</string>
+    <string name="settings_audio_balance_low_desc">Gentle balancing with slower gain changes.</string>
+    <string name="settings_audio_balance_medium_desc">Recommended: moderate strength for dialogue and effects.</string>
+    <string name="settings_audio_balance_high_desc">Stronger, faster tracking; dense mixes may feel slightly compressed.</string>
     <string name="settings_topping_title">Topping DAC control</string>
     <string name="settings_topping_probing">Probing for a USB DAC…</string>
     <string name="settings_topping_not_found">No Topping DAC detected</string>

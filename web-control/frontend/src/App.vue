@@ -1109,6 +1109,17 @@
                   />
                   <div class="muted">记录解码掉帧/主线程卡顿/字幕耗时并写入日志，下次播放生效</div>
                 </el-form-item>
+                <el-form-item label="音频平衡">
+                  <el-select v-model="playbackForm.audioBalanceLevel">
+                    <el-option
+                      v-for="value in playbackSettings.audioBalanceLevelOptions"
+                      :key="value"
+                      :label="audioBalanceLevelLabels[value] || value"
+                      :value="value"
+                    />
+                  </el-select>
+                  <div class="muted">仅 Exo/Media3 生效；IJK/MPV 暂不支持。切换后正在播放的会话会立即应用。</div>
+                </el-form-item>
                 <el-form-item label="默认播放后端">
                   <el-select v-model="playbackForm.defaultBackend">
                     <el-option
@@ -2106,7 +2117,8 @@ const playbackSettings = reactive({
   backendOptions: [],
   endActionOptions: ['return_to_detail', 'play_next_episode'],
   episodeVersionSelectionPolicyOptions: ['auto_nearest', 'manual'],
-  preferredSubtitleLanguageOptions: ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
+  preferredSubtitleLanguageOptions: ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja'],
+  audioBalanceLevelOptions: ['off', 'low', 'medium', 'high']
 })
 const playbackForm = reactive({
   endAction: 'return_to_detail',
@@ -2114,6 +2126,7 @@ const playbackForm = reactive({
   preferredSubtitleLanguage: 'auto',
   subtitleBackgroundTransparent: false,
   perfMonitorEnabled: false,
+  audioBalanceLevel: 'off',
   defaultBackend: ''
 })
 const translationLanguageOptions = [
@@ -2255,6 +2268,7 @@ const appLocaleOptions = ['system', 'zh-CN', 'zh-TW', 'zh-HK', 'en-US', 'en-GB']
 const appLocale = reactive({ language: 'system' })
 const posterWallArrangementLabels = { TITLE: '按标题', RELEASE_SEASON: '按新番季' }
 const endActionLabels = { return_to_detail: '返回详情页', play_next_episode: '播放下一集' }
+const audioBalanceLevelLabels = { off: '关', low: '低', medium: '中', high: '高' }
 const episodeVersionSelectionPolicyLabels = { auto_nearest: '自动选择相近路径', manual: '每集手动选择版本' }
 const subtitleLanguageLabels = {
   auto: '自动',
@@ -4098,16 +4112,19 @@ function applyPlaybackSettings(data) {
   playbackSettings.preferredSubtitleLanguage = data.preferredSubtitleLanguage || 'auto'
   playbackSettings.subtitleBackgroundTransparent = Boolean(data.subtitleBackgroundTransparent)
   playbackSettings.perfMonitorEnabled = Boolean(data.perfMonitorEnabled)
+  playbackSettings.audioBalanceLevel = data.audioBalanceLevel || 'off'
   playbackSettings.formatAwareToneMapping = data.formatAwareToneMapping || null
   playbackSettings.backendOptions = Array.isArray(data.backendOptions) ? data.backendOptions : []
   playbackSettings.endActionOptions = data.endActionOptions || ['return_to_detail', 'play_next_episode']
   playbackSettings.episodeVersionSelectionPolicyOptions = data.episodeVersionSelectionPolicyOptions || ['auto_nearest', 'manual']
   playbackSettings.preferredSubtitleLanguageOptions = data.preferredSubtitleLanguageOptions || ['auto', 'zh_hans', 'zh_hant', 'zh', 'en', 'ja']
+  playbackSettings.audioBalanceLevelOptions = data.audioBalanceLevelOptions || ['off', 'low', 'medium', 'high']
   playbackForm.endAction = playbackSettings.endAction
   playbackForm.episodeVersionSelectionPolicy = playbackSettings.episodeVersionSelectionPolicy
   playbackForm.preferredSubtitleLanguage = playbackSettings.preferredSubtitleLanguage
   playbackForm.subtitleBackgroundTransparent = playbackSettings.subtitleBackgroundTransparent
   playbackForm.perfMonitorEnabled = Boolean(playbackSettings.perfMonitorEnabled)
+  playbackForm.audioBalanceLevel = playbackSettings.audioBalanceLevel || 'off'
   playbackForm.defaultBackend = playbackSettings.formatAwareToneMapping?.defaultBackend || ''
 }
 
@@ -4130,6 +4147,7 @@ async function savePlaybackSettings() {
       preferredSubtitleLanguage: playbackForm.preferredSubtitleLanguage,
       subtitleBackgroundTransparent: playbackForm.subtitleBackgroundTransparent,
       perfMonitorEnabled: playbackForm.perfMonitorEnabled,
+      audioBalanceLevel: playbackForm.audioBalanceLevel,
       formatAwareToneMapping: { ...existing, defaultBackend: playbackForm.defaultBackend }
     }
     applyPlaybackSettings(await api('/api/settings/playback', {

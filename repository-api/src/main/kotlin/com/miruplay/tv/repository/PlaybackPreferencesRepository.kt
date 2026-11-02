@@ -4,6 +4,7 @@ import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 import kotlinx.serialization.Serializable
@@ -27,6 +28,9 @@ interface PlaybackPreferencesRepository {
     suspend fun setAudioDspConfig(config: AudioDspConfig) = Unit
     suspend fun getMusicSrcBypassMode(): MusicSrcBypassMode = MusicSrcBypassMode.SOFTWARE
     suspend fun setMusicSrcBypassMode(mode: MusicSrcBypassMode) = Unit
+    /** Exo/Media3 loudness balance strength; default off. */
+    suspend fun getAudioBalanceLevel(): AudioBalanceLevel = AudioBalanceLevel.OFF
+    suspend fun setAudioBalanceLevel(level: AudioBalanceLevel) = Unit
     /** All saved mic calibrations plus the id of the active one (null = none). */
     /** User-picked sweep-measurement microphone (AudioDeviceInfo.id); null = default. */
     suspend fun getAudioMeasureMicId(): Int? = null
