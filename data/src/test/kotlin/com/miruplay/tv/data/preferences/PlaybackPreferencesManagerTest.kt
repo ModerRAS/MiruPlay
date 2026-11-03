@@ -11,6 +11,7 @@ import com.miruplay.tv.model.SubtitleLanguagePreference
 import com.miruplay.tv.model.ToneMappingCurvePreset
 import com.miruplay.tv.model.ToneMappingRuleSet
 import com.miruplay.tv.model.VideoRenderRuleKey
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.AudioDspPreset
 import kotlinx.coroutines.runBlocking
@@ -87,6 +88,16 @@ class PlaybackPreferencesManagerTest {
 
         assertEquals(true, manager.getPerfMonitorEnabled())
         assertEquals(true, manager.perfMonitorEnabled)
+    }
+
+    @Test
+    fun `manager persists audio balance level default off`() = runBlocking {
+        assertEquals(AudioBalanceLevel.OFF, manager.getAudioBalanceLevel())
+
+        manager.setAudioBalanceLevel(AudioBalanceLevel.MEDIUM)
+
+        assertEquals(AudioBalanceLevel.MEDIUM, manager.getAudioBalanceLevel())
+        assertEquals(AudioBalanceLevel.MEDIUM, manager.audioBalanceLevel)
     }
 
     @Test

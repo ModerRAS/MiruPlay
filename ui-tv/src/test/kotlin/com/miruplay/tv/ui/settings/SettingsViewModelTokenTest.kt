@@ -8,6 +8,7 @@ import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.CloudDriveAutomationConfig
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.MusicSrcBypassMode
@@ -110,6 +111,7 @@ class SettingsViewModelTokenTest {
         every { playbackPreferences.formatAwareToneMappingPreferences } returns FormatAwareToneMappingPreferences()
         every { playbackPreferences.audioDspConfig } returns AudioDspConfig.neutral()
         every { playbackPreferences.musicSrcBypassMode } returns MusicSrcBypassMode.SOFTWARE
+        every { playbackPreferences.audioBalanceLevel } returns AudioBalanceLevel.OFF
 
         every { webControlPreferences.webControlEnabled } returns false
         every { webControlPreferences.accessToken } returns "test-token"

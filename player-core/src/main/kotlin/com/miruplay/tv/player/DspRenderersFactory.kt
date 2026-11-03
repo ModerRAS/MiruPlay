@@ -33,9 +33,13 @@ class DspRenderersFactory(
         val processors = when (mode) {
             MusicSrcBypassMode.SOFTWARE -> arrayOf(
                 DspAudioProcessor(runtimeConfig),
-                MusicSrcBypassProcessor(nativeRate)
+                AudioBalanceAudioProcessor(runtimeConfig),
+                MusicSrcBypassProcessor(nativeRate),
             )
-            else -> arrayOf(DspAudioProcessor(runtimeConfig))
+            else -> arrayOf(
+                DspAudioProcessor(runtimeConfig),
+                AudioBalanceAudioProcessor(runtimeConfig),
+            )
         }
         return DefaultAudioSink.Builder(context)
             .setEnableFloatOutput(enableFloatOutput || policy.forcePcm)

@@ -61,6 +61,8 @@ import androidx.compose.material.icons.filled.PowerSettingsNew
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Speaker
 import androidx.compose.material.icons.filled.Usb
+import androidx.compose.material.icons.filled.VolumeDown
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.GraphicEq
@@ -149,6 +151,7 @@ import com.miruplay.tv.model.cloudDriveRootDisplayName
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspChannelTarget
 import com.miruplay.tv.model.AudioDspConfig
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.model.MediaContentMode
 import com.miruplay.tv.model.MediaRecognitionMode
@@ -459,6 +462,7 @@ fun AddSourceScreen(
     val audioDspConfig by viewModel.audioDspConfig.collectAsStateWithLifecycle()
     val audioMeasure by viewModel.audioMeasure.collectAsStateWithLifecycle()
     val musicSrcBypassMode by viewModel.musicSrcBypassMode.collectAsStateWithLifecycle()
+    val audioBalanceLevel by viewModel.audioBalanceLevel.collectAsStateWithLifecycle()
     val savedTmdbToken by viewModel.tmdbToken.collectAsStateWithLifecycle()
     val webUiUrls by viewModel.webUiUrls.collectAsStateWithLifecycle()
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
@@ -800,6 +804,8 @@ fun AddSourceScreen(
                     onOpenCalibrationWizard = { calibrationWizardOpen = true },
                     musicSrcBypassMode = musicSrcBypassMode,
                     onMusicSrcBypassModeSelected = viewModel::setMusicSrcBypassMode,
+                    audioBalanceLevel = audioBalanceLevel,
+                    onAudioBalanceLevelSelected = viewModel::setAudioBalanceLevel,
                     savedToken = savedToken,
                     tokenInput = tokenInput,
                     tokenSaved = tokenSaved,
@@ -1314,6 +1320,8 @@ private fun SettingsContent(
     onOpenCalibrationWizard: () -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
+    audioBalanceLevel: AudioBalanceLevel,
+    onAudioBalanceLevelSelected: (AudioBalanceLevel) -> Unit,
     savedToken: String,
     tokenInput: String,
     tokenSaved: Boolean,
@@ -1590,6 +1598,8 @@ private fun SettingsContent(
                 onToneMappingPresetSelected = onToneMappingPresetSelected,
                 musicSrcBypassMode = musicSrcBypassMode,
                 onMusicSrcBypassModeSelected = onMusicSrcBypassModeSelected,
+                audioBalanceLevel = audioBalanceLevel,
+                onAudioBalanceLevelSelected = onAudioBalanceLevelSelected,
             )
         }
 
@@ -3412,6 +3422,8 @@ private fun PlaybackPanel(
     onToneMappingPresetSelected: (VideoRenderRuleKey, ToneMappingProfilePreset) -> Unit,
     musicSrcBypassMode: MusicSrcBypassMode,
     onMusicSrcBypassModeSelected: (MusicSrcBypassMode) -> Unit,
+    audioBalanceLevel: AudioBalanceLevel,
+    onAudioBalanceLevelSelected: (AudioBalanceLevel) -> Unit,
 ) {
     SettingsPanel {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -3464,6 +3476,11 @@ private fun PlaybackPanel(
         MusicSrcBypassTvControls(
             mode = musicSrcBypassMode,
             onModeSelected = onMusicSrcBypassModeSelected,
+        )
+
+        AudioBalanceTvControls(
+            level = audioBalanceLevel,
+            onLevelSelected = onAudioBalanceLevelSelected,
         )
 
         Spacer(Modifier.height(24.dp))
@@ -4068,6 +4085,79 @@ private fun MusicSrcBypassTvControls(
             MusicSrcBypassMode.DIRECT -> stringResource(R.string.settings_music_src_direct_desc)
         },
         color = if (mode == MusicSrcBypassMode.SOFTWARE) ProgressGreen else TextSecondary,
+    )
+}
+
+@Composable
+private fun AudioBalanceTvControls(
+    level: AudioBalanceLevel,
+    onLevelSelected: (AudioBalanceLevel) -> Unit,
+) {
+    Spacer(Modifier.height(24.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Filled.VolumeUp,
+            contentDescription = null,
+            tint = TextPrimary,
+            modifier = Modifier.size(26.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = stringResource(R.string.settings_audio_balance_title),
+            style = TvTypography.subtitle,
+            color = TextPrimary,
+        )
+    }
+    Spacer(Modifier.height(6.dp))
+    Text(
+        text = stringResource(R.string.settings_audio_balance_desc),
+        style = TvTypography.body,
+        color = TextSecondary,
+    )
+    Spacer(Modifier.height(14.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        ScanOptionChip(
+            text = stringResource(R.string.settings_audio_balance_off),
+            icon = Icons.Filled.VolumeOff,
+            selected = level == AudioBalanceLevel.OFF,
+            enabled = true,
+            onClick = { onLevelSelected(AudioBalanceLevel.OFF) },
+            modifier = Modifier.width(90.dp),
+        )
+        ScanOptionChip(
+            text = stringResource(R.string.settings_audio_balance_low),
+            icon = Icons.Filled.VolumeDown,
+            selected = level == AudioBalanceLevel.LOW,
+            enabled = true,
+            onClick = { onLevelSelected(AudioBalanceLevel.LOW) },
+            modifier = Modifier.width(90.dp),
+        )
+        ScanOptionChip(
+            text = stringResource(R.string.settings_audio_balance_medium),
+            icon = Icons.Filled.VolumeUp,
+            selected = level == AudioBalanceLevel.MEDIUM,
+            enabled = true,
+            onClick = { onLevelSelected(AudioBalanceLevel.MEDIUM) },
+            modifier = Modifier.width(90.dp),
+        )
+        ScanOptionChip(
+            text = stringResource(R.string.settings_audio_balance_high),
+            icon = Icons.Filled.GraphicEq,
+            selected = level == AudioBalanceLevel.HIGH,
+            enabled = true,
+            onClick = { onLevelSelected(AudioBalanceLevel.HIGH) },
+            modifier = Modifier.width(90.dp),
+        )
+    }
+    StatusMessage(
+        icon = Icons.Filled.CheckCircle,
+        text = when (level) {
+            AudioBalanceLevel.OFF -> stringResource(R.string.settings_audio_balance_off_desc)
+            AudioBalanceLevel.LOW -> stringResource(R.string.settings_audio_balance_low_desc)
+            AudioBalanceLevel.MEDIUM -> stringResource(R.string.settings_audio_balance_medium_desc)
+            AudioBalanceLevel.HIGH -> stringResource(R.string.settings_audio_balance_high_desc)
+        },
+        color = if (level == AudioBalanceLevel.MEDIUM) ProgressGreen else TextSecondary,
     )
 }
 

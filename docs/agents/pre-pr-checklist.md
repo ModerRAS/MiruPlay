@@ -288,3 +288,26 @@ Cross-checks：
 New failure class (section 1 candidate)：
 
 - **Offline-index-at-query-time** —— 离线 archive/索引文件在每次查询时全量解析 + 全排序，单测里几行 fixture 毫秒级全过，真机上 1GB 文件把 50MB 堆的 TV 盒子拖进 10 分钟 GC 泥潭。检查：任何“加载本地大文件再查询”的路径，必须验证真实量级文件在目标设备上的单次耗时；查询必须是流式 + 有界内存 + 可取消；耗时型预处理只做一次（构建期/下载期），绝不在查询热路径上
+
+### Exo 音频平衡（响度 AGC）
+
+Own checks（HK1 真机证据 + 单测）：
+
+- [真机] 冷启动无崩溃；test_local_path + test_scan_after_add 建库（AudioTest 1 文件）；详情页播完回详情且标“已看”（进度记录正常）
+- [真机] 设置 → 播放 → 音频平衡四档（关/低/中/高）渲染正常，默认关；切中/高档即时落盘 `player_audio_balance_level`，分档文案正确
+- [真机] TV→WebAPI：`GET /api/settings/playback` 返回 `audioBalanceLevel=medium`；WebAPI→TV：`PUT` 高/低档后 prefs 与 TV 面板一致
+- [真机] Exo 播放 AudioTest（balance=高/中/低）：position 正常推进，无 error；播放中 `PUT low` 热更新后继续播到 EOF，无 error；全程 logcat 无 `AndroidRuntime:E` / `Player error` / `Fatal signal`
+- [真机] IJK 后端播同片无崩溃（功能按设计不生效）；MPV 内嵌在该盒子因 OpenGL 版本过旧起不来 VO（pre-existing 环境问题，与本 PR 无关），进程存活无崩溃
+- [真机] 外挂 ASS 字幕渲染正常（`EXTERNAL ASS TRACK 1` 可见），`MiruLibass: Resolved libass API from packaged libmpv.so`，`Skipped malformed ASS` = 0
+- 单测：`LoudnessBalanceProcessorTest`（静音/quiet boost/峰值限制/档位切换）、`PlaybackPreferencesManagerTest`、`MusicSrcBypassPipelineTest`（新处理器链路组合回归）、`WebControlSettingsRouteTest` 全过
+- CI 修灯：补 `values-zh-rTW` / `values-zh-rHK` 10 条翻译（lint MissingTranslation），`SettingsViewModelTokenTest` 补 `audioBalanceLevel` mock stub（构造器新增读取导致严格 mock 抛 MockKException）
+
+Cross-checks：
+
+- 字幕/libass 单 `libc++_shared.so` 路径未动（`MiruLibass` 日志确认）；DSP/音乐 SRC/进度/媒体会话等既有行为无改动（本 PR 只在 `DspRenderersFactory` 追加一个 Exo PCM 处理器 + 设置面字段）
+- IJK/MPV 不接入平衡（设置文案已说明）；WebUI 播放表单新增档位选择，浏览器侧未实测（本机无浏览器环境），TV 与 WebAPI 双向已验证
+
+Not device-verified：
+
+- 长片（>10 分钟）连续播放下的响度曲线主观听感 —— 手头 fixture 最长 2 分钟；算法分支由单测覆盖，真机只验证链路不断、无崩溃、无可闻爆音
+- WebUI 浏览器端点选（无浏览器环境；TV/WebAPI 双向 parity 已覆盖同一 DTO）

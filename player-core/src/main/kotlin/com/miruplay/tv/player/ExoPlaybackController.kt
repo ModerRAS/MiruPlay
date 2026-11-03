@@ -180,6 +180,7 @@ class ExoPlaybackController @Inject constructor(
             .normalized()
         audioDspRuntimeConfig.update(playbackPreferencesRepository.getAudioDspConfig())
         audioDspRuntimeConfig.updateMusicMode(playbackPreferencesRepository.getMusicSrcBypassMode())
+        audioDspRuntimeConfig.updateAudioBalanceLevel(playbackPreferencesRepository.getAudioBalanceLevel())
         preferredSubtitleLanguage = playbackPreferencesRepository.getPreferredSubtitleLanguage()
         subtitleSelectionWasManual = false
         _requestedRenderBackend.value = sessionState.effectiveRequestedBackend(playbackPreferences.defaultBackend)

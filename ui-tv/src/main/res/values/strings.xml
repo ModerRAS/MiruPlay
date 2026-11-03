@@ -952,6 +952,16 @@
     <string name="settings_music_src_system_desc">系统混音器 SRC（兼容最好，可能经 Speex 重采样）</string>
     <string name="settings_music_src_software_desc">高质软 SRC 到本机速率（DSP 共存，绕过系统低质 SRC）</string>
     <string name="settings_music_src_direct_desc">直通/Offload（无 DSP 时 bit-perfect，有 DSP 时回落软 SRC）</string>
+    <string name="settings_audio_balance_title">音频平衡</string>
+    <string name="settings_audio_balance_desc">Exo 播放时自动追踪响度，减轻同一集内忽大忽小。IJK/MPV 暂不支持。</string>
+    <string name="settings_audio_balance_off">关</string>
+    <string name="settings_audio_balance_low">低</string>
+    <string name="settings_audio_balance_medium">中</string>
+    <string name="settings_audio_balance_high">高</string>
+    <string name="settings_audio_balance_off_desc">关闭响度平衡，保持原始动态。</string>
+    <string name="settings_audio_balance_low_desc">轻度平衡，较慢的增益变化，适合对话为主的番剧。</string>
+    <string name="settings_audio_balance_medium_desc">默认推荐：中等强度，兼顾对白与音效。</string>
+    <string name="settings_audio_balance_high_desc">较强平衡，更快追踪；复杂混音可能略感压缩。</string>
     <string name="settings_topping_title">Topping DAC 控制</string>
     <string name="settings_topping_probing">正在检测 USB DAC…</string>
     <string name="settings_topping_not_found">未检测到 Topping DAC</string>

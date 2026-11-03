@@ -1,5 +1,6 @@
 package com.miruplay.tv.player
 
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 
@@ -7,6 +8,7 @@ class AudioDspRuntimeConfig {
     data class Snapshot(
         val config: AudioDspConfig,
         val revision: Long,
+        val audioBalanceLevel: AudioBalanceLevel = AudioBalanceLevel.OFF,
     )
 
     @Volatile
@@ -21,6 +23,9 @@ class AudioDspRuntimeConfig {
     val revision: Long
         get() = state.revision
 
+    val audioBalanceLevel: AudioBalanceLevel
+        get() = state.audioBalanceLevel
+
     val musicBypassMode: MusicSrcBypassMode
         get() = musicBypassModeState
 
@@ -30,7 +35,20 @@ class AudioDspRuntimeConfig {
         val normalized = value.normalized()
         while (true) {
             val current = state
-            val next = Snapshot(normalized, current.revision + 1L)
+            val next = Snapshot(normalized, current.revision + 1L, current.audioBalanceLevel)
+            synchronized(this) {
+                if (state === current) {
+                    state = next
+                    return
+                }
+            }
+        }
+    }
+
+    fun updateAudioBalanceLevel(level: AudioBalanceLevel) {
+        while (true) {
+            val current = state
+            val next = Snapshot(current.config, current.revision + 1L, level)
             synchronized(this) {
                 if (state === current) {
                     state = next

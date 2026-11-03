@@ -18,6 +18,7 @@ import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.MediaSourceInfo
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.audio.AudioDspPlanCompiler
 import com.miruplay.tv.audio.ChannelLayout
@@ -821,6 +822,7 @@ class WebControlService @Inject constructor(
             preferredSubtitleLanguage = preferredSubtitleLanguage.storageValue,
             subtitleBackgroundTransparent = subtitleBackgroundTransparent,
             perfMonitorEnabled = playbackPreferencesRepository.getPerfMonitorEnabled(),
+            audioBalanceLevel = playbackPreferencesRepository.getAudioBalanceLevel().storageValue,
             formatAwareToneMapping = toneMapping,
             backendOptions = supportedPlaybackRenderBackends().map { backend ->
                 PlaybackBackendOptionDto(
@@ -851,6 +853,11 @@ class WebControlService @Inject constructor(
         request.perfMonitorEnabled?.let { enabled ->
             playbackPreferencesRepository.setPerfMonitorEnabled(enabled)
             playbackDebugOverrides.libassSubtitleMonitorEnabled = enabled
+        }
+        request.audioBalanceLevel?.let { value ->
+            val level = AudioBalanceLevel.fromStorageValue(value)
+            playbackPreferencesRepository.setAudioBalanceLevel(level)
+            audioDspRuntimeConfig.updateAudioBalanceLevel(level)
         }
         request.formatAwareToneMapping?.let { prefs ->
             playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())

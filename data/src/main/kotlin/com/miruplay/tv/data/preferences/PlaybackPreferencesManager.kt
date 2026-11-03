@@ -7,6 +7,7 @@ import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.PlaybackEndAction
 import com.miruplay.tv.model.PlaybackRenderBackend
 import com.miruplay.tv.model.SubtitleLanguagePreference
+import com.miruplay.tv.model.AudioBalanceLevel
 import com.miruplay.tv.model.AudioDspConfig
 import com.miruplay.tv.model.MusicSrcBypassMode
 import com.miruplay.tv.repository.MicCalibrationSettings
@@ -99,6 +100,12 @@ class PlaybackPreferencesManager @Inject constructor(
             prefs.edit().putString(KEY_MUSIC_SRC_BYPASS_MODE, value.storageValue).apply()
         }
 
+    var audioBalanceLevel: AudioBalanceLevel
+        get() = AudioBalanceLevel.fromStorageValue(prefs.getString(KEY_AUDIO_BALANCE_LEVEL, null))
+        set(value) {
+            prefs.edit().putString(KEY_AUDIO_BALANCE_LEVEL, value.storageValue).apply()
+        }
+
     /** User-picked sweep-measurement microphone (AudioDeviceInfo.id), or null for the default. */
     var audioMeasureMicId: Int?
         get() = prefs.getInt(KEY_AUDIO_MEASURE_MIC_ID, Int.MIN_VALUE).takeIf { it != Int.MIN_VALUE }
@@ -178,6 +185,12 @@ class PlaybackPreferencesManager @Inject constructor(
         musicSrcBypassMode = mode
     }
 
+    override suspend fun getAudioBalanceLevel(): AudioBalanceLevel = audioBalanceLevel
+
+    override suspend fun setAudioBalanceLevel(level: AudioBalanceLevel) {
+        audioBalanceLevel = level
+    }
+
     companion object {
         private const val KEY_END_ACTION = "end_action"
         private const val KEY_EPISODE_VERSION_SELECTION_POLICY = "episode_version_selection_policy"
@@ -189,6 +202,7 @@ class PlaybackPreferencesManager @Inject constructor(
         private const val KEY_AUDIO_MEASURE_CALIBRATIONS = "audio_measure_calibrations"
         private const val KEY_AUDIO_MEASURE_CALIBRATION_ACTIVE = "audio_measure_calibration_active"
         private const val KEY_MUSIC_SRC_BYPASS_MODE = "music_src_bypass_mode"
+        private const val KEY_AUDIO_BALANCE_LEVEL = "player_audio_balance_level"
     private const val KEY_AUDIO_MEASURE_MIC_ID = "audio_measure_mic_id"
     }
 }
