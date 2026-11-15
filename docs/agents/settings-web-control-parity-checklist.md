@@ -63,6 +63,7 @@ Verify at least the smallest round-trip that proves parity:
 - If TV settings are affected, one app-side settings path too
 
 Prefer nearby existing tests when they exist. For UI-only copy/layout changes, a targeted manual verification is enough.
+- 代理相关文案（TV 面板 / WebUI 卡片）属 copy-only：TV 视检 + WebUI 打开「代理配置」对照即可；OAuth 登录页的 WebView 代理是 TV 运行时能力，按 `pre-pr-checklist.md` 的「Bangumi OAuth WebView 走应用出站代理（patch）」小节真机验证
 
 ### 6. Subagent follow-through
 After the main settings/menu change is done, a focused subagent may be used to audit parity gaps:
@@ -80,7 +81,8 @@ Suggested scope for the subagent:
 | Feature | TV settings | WebAPI | WebUI | Notes |
 |---|---|---|---|---|
 | Topping DAC 控制（toppingctl 协议） | ✅ AUDIO_DSP 区内 `ToppingDacControls` | ✅ `/api/topping/{status,volume,preset,flat,gain,power,preamp,usb-permission}` | ✅ 音频 DSP 视图 Topping DAC 卡片 | 音量仅 DX5 II（音量不在 HID 上的型号禁用输入）；> −10 dB 需确认；未 confirmed 型号拒写 |
-| Bangumi OAuth 直连登录（回环回调） | ✅ 元数据区登录按钮 + WebView 对话框 + 外部浏览器入口 | ➖ 刻意不同步（回环回调/鉴权全在设备本地；token 管理沿用已有 bangumi-token 端点） | ➖ 同左（手动贴 token 链路不变） | surface-specific：Web 侧无法完成 127.0.0.1 回调；有效期/状态仅 TV 展示 |
+| 出站代理（Bangumi API / Archive / RSS / OAuth 登录页） | ✅ 设置 →「出站代理」面板（`settings_proxy_panel_desc` 已含「Bangumi 登录页」，字段 `rssProxy*`）；OAuth 对话框运行时把同一配置装到内置 WebView（`BangumiOAuthWebViewProxy`，进程级 override） | ✅ `GET/PUT /api/proxy`（`NetworkProxyDto` ↔ `CloudDriveAutomationConfig.rssProxy*`） | ✅「代理配置」视图的出站代理卡片（说明文案已含「Bangumi 登录页」） | 配置面三端同源；WebView 代理是设备进程级能力，Web 端只读写配置、不参与 apply |
+| Bangumi OAuth 直连登录（回环回调 + WebView 代理） | ✅ 元数据区登录按钮 + WebView 对话框（配了出站代理则走应用代理，未配则直连）+ 外部浏览器入口 | ➖ 刻意不同步（回环回调/鉴权全在设备本地；token 管理沿用已有 bangumi-token 端点） | ➖ 同左（手动贴 token 链路不变；代理说明文案已同步「Bangumi 登录页」） | surface-specific：Web 侧无法完成 127.0.0.1 回调，也无法安装 WebView 代理；有效期/状态/代理提示仅 TV 展示 |
 
 ## Fast File Pointers
 - TV settings UI: `ui-tv/src/main/kotlin/com/miruplay/tv/ui/settings/`

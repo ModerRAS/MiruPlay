@@ -113,7 +113,9 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
+import com.miruplay.tv.scraper.core.BangumiHttpProxyConfig
 import com.miruplay.tv.scraper.core.BangumiOAuthConstants
+import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
 import com.miruplay.tv.sync.BangumiOAuthState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -386,6 +388,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.atomic.AtomicBoolean
 
 private const val DEFAULT_LOCAL_PATH = "/storage/emulated/0/Download"
 private const val QR_CODE_MATRIX_SIZE = 96
@@ -468,6 +471,7 @@ fun AddSourceScreen(
     val webControlEnabled by viewModel.webControlEnabled.collectAsStateWithLifecycle()
     val webControlAccessToken by viewModel.webControlAccessToken.collectAsStateWithLifecycle()
     val cloudDriveConfig by viewModel.cloudDriveConfig.collectAsStateWithLifecycle()
+    val bangumiOAuthProxy = remember(cloudDriveConfig) { cloudDriveConfig.toBangumiHttpProxyConfig() }
     val rssSubscriptions by viewModel.rssSubscriptions.collectAsStateWithLifecycle()
     val cloudDriveTokenConfigured by viewModel.cloudDriveTokenConfigured.collectAsStateWithLifecycle()
     val cloudDrivePasswordConfigured by viewModel.cloudDrivePasswordConfigured.collectAsStateWithLifecycle()
@@ -828,6 +832,7 @@ fun AddSourceScreen(
                     },
                     oauthState = bangumiOAuthState,
                     tokenExpiryMs = bangumiTokenExpiryMs,
+                    bangumiOAuthProxy = bangumiOAuthProxy,
                     onStartOAuth = viewModel::startBangumiOAuth,
                     onCancelOAuth = viewModel::cancelBangumiOAuth,
                     onOAuthCallback = viewModel::submitBangumiOAuthCallback,
@@ -1330,6 +1335,7 @@ private fun SettingsContent(
     onClearToken: () -> Unit,
     oauthState: BangumiOAuthState,
     tokenExpiryMs: Long,
+    bangumiOAuthProxy: BangumiHttpProxyConfig,
     onStartOAuth: () -> String?,
     onCancelOAuth: () -> Unit,
     onOAuthCallback: (String) -> Unit,
@@ -1667,6 +1673,7 @@ private fun SettingsContent(
                 onClearToken = onClearToken,
                 oauthState = oauthState,
                 tokenExpiryMs = tokenExpiryMs,
+                bangumiOAuthProxy = bangumiOAuthProxy,
                 onStartOAuth = onStartOAuth,
                 onCancelOAuth = onCancelOAuth,
                 onOAuthCallback = onOAuthCallback,
@@ -4651,6 +4658,7 @@ private fun BangumiOAuthSection(
     hasToken: Boolean,
     tokenExpiryMs: Long,
     oauthState: BangumiOAuthState,
+    proxyConfig: BangumiHttpProxyConfig,
     onStartOAuth: () -> String?,
     onCancelOAuth: () -> Unit,
     onOAuthCallback: (String) -> Unit,
@@ -4707,6 +4715,7 @@ private fun BangumiOAuthSection(
     if (url != null) {
         BangumiOAuthDialog(
             authorizeUrl = url,
+            proxyConfig = proxyConfig,
             onExternalBrowser = {
                 runCatching {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
@@ -4724,10 +4733,23 @@ private fun BangumiOAuthSection(
 @Composable
 private fun BangumiOAuthDialog(
     authorizeUrl: String,
+    proxyConfig: BangumiHttpProxyConfig,
     onExternalBrowser: () -> Unit,
     onCallback: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val context = LocalContext.current
+    val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
+    val proxyRule = remember(proxyConfig) { proxyConfig.toBangumiOAuthWebViewProxyRule() }
+    val proxySupported = remember { BangumiOAuthWebViewProxy.isSupported() }
+    val released = remember { AtomicBoolean(false) }
+    DisposableEffect(Unit) {
+        onDispose {
+            if (proxyRule != null && proxySupported) {
+                BangumiOAuthWebViewProxy.clear(mainExecutor)
+            }
+        }
+    }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     BackHandler {
         val webView = webViewRef
@@ -4752,6 +4774,24 @@ private fun BangumiOAuthDialog(
                 style = TvTypography.subtitle,
                 color = TextPrimary,
             )
+            if (proxyRule != null) {
+                if (proxySupported) {
+                    StatusMessage(
+                        icon = Icons.Filled.CheckCircle,
+                        text = stringResource(
+                            R.string.settings_metadata_bangumi_oauth_proxy_active,
+                            proxyRule.displayAddress,
+                        ),
+                        color = ProgressGreen,
+                    )
+                } else {
+                    StatusMessage(
+                        icon = Icons.Filled.Warning,
+                        text = stringResource(R.string.settings_metadata_bangumi_oauth_proxy_unsupported),
+                        color = WarningYellow,
+                    )
+                }
+            }
             AndroidView(
                 factory = { context ->
                     WebView(context).apply {
@@ -4770,7 +4810,18 @@ private fun BangumiOAuthDialog(
                                 }
                             }
                         }
-                        loadUrl(authorizeUrl)
+                        val rule = proxyRule
+                        if (rule == null || !proxySupported) {
+                            loadUrl(authorizeUrl)
+                        } else {
+                            BangumiOAuthWebViewProxy.apply(rule, mainExecutor) {
+                                if (released.get()) {
+                                    BangumiOAuthWebViewProxy.clear(mainExecutor)
+                                } else {
+                                    runCatching { loadUrl(authorizeUrl) }
+                                }
+                            }
+                        }
                     }
                 },
                 update = { webViewRef = it },
@@ -4779,6 +4830,7 @@ private fun BangumiOAuthDialog(
                     .height(520.dp)
                     .clip(RoundedCornerShape(8.dp)),
                 onRelease = { webView ->
+                    released.set(true)
                     webView.stopLoading()
                     webView.destroy()
                 },
@@ -4809,6 +4861,7 @@ private fun MetadataPanel(
     onClearToken: () -> Unit,
     oauthState: BangumiOAuthState,
     tokenExpiryMs: Long,
+    bangumiOAuthProxy: BangumiHttpProxyConfig,
     onStartOAuth: () -> String?,
     onCancelOAuth: () -> Unit,
     onOAuthCallback: (String) -> Unit,
@@ -4880,6 +4933,7 @@ private fun MetadataPanel(
             hasToken = hasToken,
             tokenExpiryMs = tokenExpiryMs,
             oauthState = oauthState,
+            proxyConfig = bangumiOAuthProxy,
             onStartOAuth = onStartOAuth,
             onCancelOAuth = onCancelOAuth,
             onOAuthCallback = onOAuthCallback,
