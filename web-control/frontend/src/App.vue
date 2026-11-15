@@ -497,7 +497,7 @@
                     active-text="代理已启用"
                     inactive-text="代理关闭"
                   />
-                  <span class="muted">Bangumi API、Archive 下载和 RSS 请求共用此 HTTP 代理。</span>
+                  <span class="muted">Bangumi API、Archive 下载、RSS 请求和 Bangumi 登录页共用此 HTTP 代理。</span>
                 </div>
 
                 <div class="form-grid">
@@ -2330,7 +2330,7 @@ const viewMeta = computed(() => ({
   library: ['片库', '浏览番剧、选择剧集并投到电视端播放。'],
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
-  proxy: ['代理配置', '设置 Bangumi、Archive 下载和 RSS 请求共用的出站 HTTP 代理。'],
+  proxy: ['代理配置', '设置 Bangumi、Archive 下载、RSS 请求和 Bangumi 登录页共用的出站 HTTP 代理。'],
   metadata: ['元数据', '配置 Bangumi/TMDB Token，让收藏和观看进度同步不必在电视上输入。'],
   scan: ['扫描设置', '自动扫描、入库归并、海报墙排列与应用内容模式。'],
   playback: ['播放设置', '默认播放结束动作与色调映射后端。'],

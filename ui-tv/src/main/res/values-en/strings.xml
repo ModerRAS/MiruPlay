@@ -156,7 +156,7 @@
     <string name="settings_log_upload_save">Save settings</string>
     <string name="settings_log_upload_run_now">Upload now</string>
     <string name="settings_proxy_panel_title">Outbound proxy</string>
-    <string name="settings_proxy_panel_desc">Bangumi API, Bangumi Archive downloads and RSS requests share this HTTP proxy.</string>
+    <string name="settings_proxy_panel_desc">Bangumi API, Bangumi Archive downloads, RSS requests and the Bangumi sign-in page share this HTTP proxy.</string>
     <string name="settings_proxy_toggle_on">Proxy enabled</string>
     <string name="settings_proxy_toggle_off">Proxy off</string>
     <string name="settings_proxy_host_field">Proxy host</string>
@@ -240,6 +240,8 @@
     <string name="settings_metadata_bangumi_oauth_cancel">Cancel</string>
     <string name="settings_metadata_bangumi_oauth_logout">Sign out</string>
     <string name="settings_metadata_bangumi_oauth_valid_until">Valid until %1$s</string>
+    <string name="settings_metadata_bangumi_oauth_proxy_active">The authorization page loads through proxy %1$s.</string>
+    <string name="settings_metadata_bangumi_oauth_proxy_unsupported">The current system WebView does not support in-app proxies, so the authorization page will load directly. If it fails to open, use an external browser or update Android System WebView.</string>
     <string name="settings_metadata_bangumi_saved_msg">Bangumi token saved.</string>
     <string name="settings_metadata_bangumi_empty_msg">Bangumi access token is empty; not saved.</string>
     <string name="settings_metadata_bangumi_cleared_msg">Bangumi access token cleared.</string>

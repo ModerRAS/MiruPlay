@@ -130,6 +130,7 @@ Re-verify when: Room schema, DAOs, repositories, Bangumi/TMDB clients, NFO.
 - ✦ **Room migrations**: schema change ⇒ new migration + test; never bump version without one
 - ✦ **Repository contracts**: interface + `*Impl` pairs in sync; no DB access outside `data`
 - ✦ **Bangumi**: metadata fetch, episode comments, bangumi-archive sync routes
+- ✦ **Bangumi OAuth 登录页代理**（TV 设置 → 元数据 → Bangumi 登录）：配置「出站代理」后对话框显示「授权页通过代理 … 加载」且授权页能打开（真机 / System WebView 109 实测：配置可达的 HTTP 代理后完整加载 Bangumi 登录页；应用代理关且系统代理为空时为 `net::ERR_CONNECTION_CLOSED`、代理侧零流量）；未配置时直连、无代理提示条；回环回调 `127.0.0.1`/`localhost` 不被代理；关闭对话框后进程内 WebView 代理已还原（再开别的 WebView 页面不受影响）。**A/B 前必须先清空系统全局代理并重启设备**，否则系统代理会掩盖应用代理缺失（见 §8 同题 failure class）
 - ✦ NFO read/write round-trip
 
 ### 5.7 Cloud sync & RSS (`sync-engine`, `cloud-drive*`)
@@ -144,7 +145,7 @@ Re-verify when: any route, DTO, server, or WebUI change. **Follow `docs/agents/s
 - ✦ **Server boots** on 9978, `/api/info` responds; no route silently renamed/removed
 - ✦ **WebUI (Vue)**: forms, playback control, library work against the real device
 - ✦ **Settings parity** TV ↔ WebAPI ↔ WebUI, both directions
-- ✦ `/api/proxy` still proxies media for WebUI playback
+- ✦ `/api/proxy` 出站代理配置面不变（`GET/PUT` + `NetworkProxyDto` ↔ `rssProxy*`，TV/WebUI 共用）；它是配置端点，不是媒体中继
 
 ### 5.9 App maintenance (`app`, CI)
 Re-verify when: app-update flow, logging, CI workflows.
@@ -264,9 +265,50 @@ Not device-verified (to be covered by follow-ups, reason recorded)：
 
 New findings (section 1 candidates / product constraints)：
 
-- **WebView 不走应用代理，只认系统全局代理**：墙内网络下没有系统代理的盒子连授权页都打不开（ERR_CONNECTION_TIMED_OUT），OAuth 登录页加载完全不受 App 代理配置保护；只有 token 交换（OkHttp）走应用代理。面向墙内用户的登录方案必须把系统代理写进前置条件，或做二维码等不依赖 TV 出站的替代路径
+- **【v2.18 当时结论 · 2026-11 已修】WebView 不走应用代理，只认系统全局代理**：墙内网络下没有系统代理的盒子连授权页都打不开（ERR_CONNECTION_TIMED_OUT），OAuth 登录页加载完全不受 App 代理配置保护；当时只有 token 交换（OkHttp）走应用代理。当时的结论是「面向墙内用户的登录方案必须把系统代理写进前置条件，或做二维码等不依赖 TV 出站的替代路径」。**2026-11 已修**：登录对话框改用 androidx.webkit `ProxyController.setProxyOverride` 给进程内 WebView 装上同一份「出站代理」（回环回调 bypass 直连），见下文「Bangumi OAuth WebView 走应用出站代理（patch）」小节；原文保留，用于追溯当时为何不敢在 WebView 内登录
 - **bgm 验证码是自动化天敌**：可疑 IP（代理出口）下几乎必弹验证码，自动化连错 4 次后停手（锁号风险）；TV 端遥控器输验证码同样痛苦。验证码环节建议只做人走查，不进自动化
 - **Composed-path divergence（沿用 v2.16 条目）**：本次同样先 unit-test 后真机，设备行为与单测一致，未复现发散
+
+### Bangumi OAuth WebView 走应用出站代理（patch）
+
+背景：v2.18 的 New findings 记过「WebView 不走应用代理，只认系统全局代理」——墙内盒子没有系统代理时连授权页都打不开。本次让 OAuth 登录对话框的内置 WebView 复用 App 自己的「出站代理」，登录页与 token 交换现在走同一条代理链路。
+
+实现要点（`ui-tv/.../settings/BangumiOAuthWebViewProxy.kt`、`AddSourceScreen.kt` 的 `BangumiOAuthDialog`）：
+
+- `androidx.webkit` 的 `ProxyController.setProxyOverride` 做进程级 WebView 代理 override；只有当 `WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)` 为 true 才安装，否则直连 + 对话框黄色提示（建议改用外部浏览器或升级 Android System WebView）
+- 代理规则由 `BangumiHttpProxyConfig.toBangumiOAuthWebViewProxyRule()` 映射成 `http://host:port`，并 bypass `localhost` / `127.0.0.1`，保证回环回调 `http://127.0.0.1:13712/callback` 不被代理；代理关闭、host 空白、端口越界（1..65535 之外）→ 不产生规则 = 走直连（与旧版行为一致）
+- 配置来源与 token 交换 / Bangumi 抓取 / Archive 下载 / RSS 完全同源：`CloudDriveAutomationConfig.toBangumiHttpProxyConfig()`（即设置里的 `rssProxy*` 字段）；OAuth coordinator 在 `exchangeCode`/`refresh` 前也会 `oauthClient.configureProxy(proxyConfig())`
+- 对话框销毁时 `clearProxyOverride` 还原直连；`apply` 生效回调里若对话框已释放（`released` 已置位）则执行 `clear` 而不是 `loadUrl`，覆盖「override 异步生效前对话框已关闭」的竞态（否则进程级 override 会残留到后续 WebView）
+- 新增依赖 `androidx.webkit:webkit:1.14.0`（`gradle/libs.versions.toml` 的 `webkit` + `androidx-webkit` alias，`ui-tv` 实现依赖）：该 AAR 元数据要求 `minCompileSdk=34`、`minAndroidGradlePluginVersion=8.1.1`；本仓库 `ui-tv` 是 compileSdk 35 / AGP 8.6.0，满足要求，不需要动 SDK 或插件版本（compileSdk 低于 34 或 AGP 低于 8.1.1 的模块会在依赖解析阶段直接失败）
+- 新增 i18n：`settings_metadata_bangumi_oauth_proxy_active`（`%1$s` = `host:port`）/ `settings_metadata_bangumi_oauth_proxy_unsupported`，values / values-en / values-zh-rTW / values-zh-rHK 四地对齐
+
+Own checks：
+
+- 单测 `BangumiOAuthWebViewProxyTest` 代理 rule 映射 7 例：代理关闭 → 无规则；host 空白（空串 / 纯空格）→ 无规则；端口 0 / 65536 → 无规则；启用 → `http://host:port` + `displayAddress` + bypass = `localhost`,`127.0.0.1`；host 首尾空白被 trim；边界端口 1 / 65535 接受
+- 代理关闭/未配置时零行为变化：`proxyRule == null` 时对话框直接 `loadUrl(authorizeUrl)`，不调 `setProxyOverride` / `clearProxyOverride`，也不显示代理提示条（推荐的对照基线：先关代理走一遍登录，再开代理走一遍；前提是系统全局代理已清空并重启设备，否则系统代理会掩盖应用代理缺失——见 New failure class）
+- 不支持分支：`PROXY_OVERRIDE` 不支持的设备直连加载 + 黄色「当前系统 WebView 不支持应用内代理…」提示；`setProxyOverride` 抛 `UnsupportedOperationException` / `IllegalStateException` 时 `apply` 返回 false 但回调仍被调用一次（同步），不卡住页面加载
+- 销毁竞态：代理 override 生效回调晚于对话框销毁时，回调执行 `clear(mainExecutor)` 而不是 `loadUrl`；重开对话框应重新安装代理、关闭后进程内不残留（真机侧按「开代理登录 → 取消 → 再打开任意 WebView 页面」观察）
+- [真机] Android 13 / SDK 33，System WebView 109.0.5414.123（被测 APK = 本次改动的本地 debug 构建，versionName 2.18.0 / versionCode 1，OAuth client id/secret 为本地占位值、真值只在 CI）——已验证：
+  - 干净基线（应用代理关）：先 `settings delete global global_http_proxy_host global_http_proxy_port` 清掉系统代理并**重启设备**，再清空 WebView 数据 → 打开 Bangumi 登录对话框，WebView 显示「网页无法打开 / net::ERR_CONNECTION_CLOSED」，本地自建日志代理（18899）**零设备 CONNECT 记录** → 确为直连
+  - 开应用代理（实验组）：系统代理仍为空，应用出站代理设为一个局域网内可达的 HTTP 代理（`192.168.x.x:7890`）→ 对话框顶部出现绿色状态行「授权页通过代理 192.168.x.x:7890 加载。」，WebView 完整加载 Bangumi 登录页（「登录至 Bangumi / Email / 密码 / 立即注册」），截图存证；状态行出现即证明走的是 `apply` 分支（`PROXY_OVERRIDE` 受支持），而不是不支持分支
+  - 路由证据：应用出站代理改设本地自建日志代理（`192.168.x.x:18899`），其日志记录到设备 IP 发起的 `CONNECT bgm.tv:443 HTTP/1.1` → override 确实作用于 WebView 进程流量，而不是系统代理的副作用
+  - 验证入口：设置 → 元数据 → 使用 Bangumi 登录；验证脚本与截图仅本地留存（不入库）
+- [真机] 未验证（不要当成已验证）：真实 client id/secret 的完整 OAuth 授权回调（回环 `http://127.0.0.1:13712/callback`）+ code 换 token 闭环 —— 本地 debug 构建是占位 client id/secret，换 token 必然失败；该链路 v2.18 真机已验证且本次未改动，建议用 CI / 发版构建（真值）再走查一次
+- full `./gradlew assembleDebug test lint`（构建与测试全绿）
+
+Cross-checks（同一配置源被多处消费，改代理语义时都要过一遍）：
+
+- 代理配置同源：TV「出站代理」保存（`SettingsViewModel.saveProxyConfig` → `CloudDriveAutomationConfig.rssProxy*`）后，WebView（本次）、token 交换（`BangumiOAuthCoordinator` → `oauthClient.configureProxy`）、Bangumi 抓取（`BangumiScraper.configureProxy`）、Archive 下载/调度（`bangumiArchiveStore.configureProxy`）、RSS 都读同一份配置——不同端不应出现两套代理状态
+- 手动贴 Token 链路原样保留：不经过 WebView / proxy override，coordinator 只读写同一套 SecurePreferences 键，语义不变
+- 既有 OAuth / 设置单测仍需绿：`BangumiOAuthClientTest`、`BangumiOAuthCoordinatorTest`、`SettingsViewModelTokenTest`（若构造器新增依赖需补 mock stub）
+- WebAPI / WebUI 配置面不变：`GET/PUT /api/proxy`（`NetworkProxyDto` ↔ `rssProxy*`，WebUI 出站代理卡片）仍读写同一配置；OAuth 流程本身仍是 TV-only（surface-specific，见 parity 表），本次只同步「代理说明里包含 Bangumi 登录页」这层文案
+- 新增两个 string key 的 lint `MissingTranslation` 通过（四地 values 对齐）；WebUI 说明文案改动只影响 WebUI
+
+New failure class (section 1 candidate)：
+
+- **进程级全局副作用** —— `ProxyController.setProxyOverride` 影响整个进程的 WebView，而不是某个实例：忘记 clear、或 clear 与异步 apply 的先后顺序错了，会让之后所有 WebView 静默走代理（页面能打开但行为与用户预期不符，且没有日志）。检查：任何安装进程级设置的代码必须有唯一还原路径 + 「异步生效晚于释放」的竞态守卫；验证按「开 → 关 → 再开别的 WebView 页面」的顺序走，不能只看一次成功加载
+
+- **系统全局代理掩盖应用代理缺失** —— 设备上只要有 `global_http_proxy_host/port`（真机实测原本配置了指向局域网内的 HTTP 代理），WebView 即使没装应用代理也能经系统代理加载授权页，「应用代理关闭」的对照组因此被误判成「直连可用 / 功能没坏」；更坑的是删掉 settings 后**已启动的应用进程可能仍沿用旧代理**，必须重启设备才拿到干净基线。检查：真机 A/B 前先 `settings get global global_http_proxy_host` / `global_http_proxy_port` 确认为 `null`（非空则 `settings delete global` 后重启），并在「系统代理为空 + 应用代理关」下同时确认对照组失败现象（如 `net::ERR_CONNECTION_CLOSED`）**与代理侧零流量**，基线才算成立
 
 ### RSS 扫描卡死修复：离线 archive 按查询全量解析 + URL 噪音系列名（patch）
 

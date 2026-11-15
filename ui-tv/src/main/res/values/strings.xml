@@ -650,6 +650,8 @@
     <string name="settings_metadata_bangumi_oauth_cancel">取消</string>
     <string name="settings_metadata_bangumi_oauth_logout">退出登录</string>
     <string name="settings_metadata_bangumi_oauth_valid_until">有效期至 %1$s</string>
+    <string name="settings_metadata_bangumi_oauth_proxy_active">授权页通过代理 %1$s 加载。</string>
+    <string name="settings_metadata_bangumi_oauth_proxy_unsupported">当前系统 WebView 不支持应用内代理，授权页将直连加载；如打不开请改用外部浏览器或升级 Android System WebView。</string>
     <string name="settings_metadata_candidate_detail">批量匹配会跳过已有冲突元数据。</string>
     <string name="settings_metadata_match_detail">支持单条应用、批量预览、应用和撤销。</string>
     <string name="settings_metadata_status">Bangumi 搜索、批量预览、应用和撤销保留在详情页。</string>
@@ -672,7 +674,7 @@
     <string name="settings_proxy_current_off">当前未启用代理。</string>
     <string name="settings_proxy_current_unset">代理已启用，请填写代理地址。</string>
     <string name="settings_proxy_host_field">代理地址</string>
-    <string name="settings_proxy_panel_desc">Bangumi API、Bangumi Archive 下载和 RSS 请求会共用这个 HTTP 代理。</string>
+    <string name="settings_proxy_panel_desc">Bangumi API、Bangumi Archive 下载、RSS 请求和 Bangumi 登录页会共用这个 HTTP 代理。</string>
     <string name="settings_proxy_panel_title">出站代理</string>
     <string name="settings_proxy_port_field">代理端口</string>
     <string name="settings_proxy_save">保存代理</string>

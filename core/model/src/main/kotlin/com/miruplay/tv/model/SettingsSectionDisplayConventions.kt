@@ -280,7 +280,7 @@ fun settingsProxyPanelTitleLabel(): UiText =
 fun settingsProxyPanelDescription(): UiText =
     uiText(
         "settings_proxy_panel_desc",
-        "Bangumi API、Bangumi Archive 下载和 RSS 请求会共用这个 HTTP 代理。",
+        "Bangumi API、Bangumi Archive 下载、RSS 请求和 Bangumi 登录页会共用这个 HTTP 代理。",
     )
 
 fun settingsProxyToggleLabel(enabled: Boolean): UiText =
