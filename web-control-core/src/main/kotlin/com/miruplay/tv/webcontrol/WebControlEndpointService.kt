@@ -68,6 +68,14 @@ interface WebControlEndpointService {
         getBangumiArchive()
     suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto
     suspend fun clearBangumiToken(): MetadataSettingsDto
+    suspend fun startBangumiWebLogin(): BangumiWebLoginDto =
+        throw UnsupportedOperationException("Bangumi 网页登录不可用")
+    suspend fun refreshBangumiWebLoginCaptcha(): BangumiWebLoginDto =
+        throw UnsupportedOperationException("Bangumi 网页登录不可用")
+    suspend fun submitBangumiWebLogin(request: BangumiWebLoginRequest): BangumiWebLoginDto =
+        throw UnsupportedOperationException("Bangumi 网页登录不可用")
+    suspend fun cancelBangumiWebLogin(): BangumiWebLoginDto =
+        throw UnsupportedOperationException("Bangumi 网页登录不可用")
     suspend fun syncAllBangumi(): BangumiSyncAllResultDto =
         throw UnsupportedOperationException("Bangumi sync not supported")
     suspend fun saveTmdbToken(request: TmdbTokenRequest): MetadataSettingsDto =

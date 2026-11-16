@@ -11,6 +11,7 @@ import java.io.Closeable
 import java.io.InputStream
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -194,6 +195,35 @@ class WebControlSettingsRouteTest {
     }
 
     @Test
+    fun `bangumi web login routes accept credentials and do not echo the password`() {
+        val service = SettingsStubService()
+        val server = NanoHttpWebControlServer(
+            webControlService = service,
+            webControlAccess = EnabledAccess,
+            staticAssets = WebControlStaticAssets { null },
+        )
+        val password = "s3cret-token-value"
+
+        val start = server.serve(session(method = NanoHTTPD.Method.POST, uri = "/api/metadata/bangumi-login/start", body = ""))
+        assertEquals(NanoHTTPD.Response.Status.OK, start.status)
+        assertTrue(start.bodyText().contains("\"status\":\"challenge\""))
+
+        val submit = server.serve(
+            session(
+                method = NanoHTTPD.Method.POST,
+                uri = "/api/metadata/bangumi-login",
+                body = """{"email":"user@example.com","password":"$password","captcha":"abcd"}""",
+            ),
+        )
+        assertEquals(NanoHTTPD.Response.Status.OK, submit.status)
+        val body = submit.bodyText()
+        assertTrue(body.contains("\"status\":\"success\""))
+        assertFalse(body.contains(password))
+        assertEquals("user@example.com", service.capturedBangumiLogin?.email)
+        assertEquals(password, service.capturedBangumiLogin?.password)
+    }
+
+    @Test
     fun `tmdb token routes save and clear`() {
         val service = SettingsStubService()
         val server = NanoHttpWebControlServer(
@@ -297,6 +327,7 @@ class WebControlSettingsRouteTest {
         var capturedScan: ScanSettingsRequest? = null
         var capturedPlayback: PlaybackSettingsRequest? = null
         var capturedTmdbToken: String? = null
+        var capturedBangumiLogin: BangumiWebLoginRequest? = null
         var capturedAppControlAction: String? = null
         var capturedLocale: String? = null
         var tmdbCleared = false
@@ -360,6 +391,14 @@ class WebControlSettingsRouteTest {
         override suspend fun saveTmdbToken(request: TmdbTokenRequest): MetadataSettingsDto {
             capturedTmdbToken = request.token
             return getMetadataSettings()
+        }
+
+        override suspend fun startBangumiWebLogin(): BangumiWebLoginDto =
+            BangumiWebLoginDto(status = "challenge", captchaImage = "data:image/gif;base64,QQ==")
+
+        override suspend fun submitBangumiWebLogin(request: BangumiWebLoginRequest): BangumiWebLoginDto {
+            capturedBangumiLogin = request
+            return BangumiWebLoginDto(status = "success", message = "Bangumi 登录成功。", tokenConfigured = true)
         }
 
         override suspend fun clearTmdbToken(): MetadataSettingsDto {

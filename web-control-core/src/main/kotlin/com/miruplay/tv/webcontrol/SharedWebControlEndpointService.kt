@@ -288,6 +288,7 @@ abstract class SharedWebControlEndpointService(
         MetadataSettingsDto(
             bangumiTokenConfigured = !securePreferences.bangumiAccessToken.isNullOrBlank(),
             tmdbTokenConfigured = !securePreferences.tmdbAccessToken.isNullOrBlank(),
+            bangumiTokenExpiresAtMillis = securePreferences.bangumiTokenExpiresAtMillis,
         )
 
     override suspend fun saveBangumiToken(request: BangumiTokenRequest): MetadataSettingsDto {

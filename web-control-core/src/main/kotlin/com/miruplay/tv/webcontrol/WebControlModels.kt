@@ -307,6 +307,7 @@ data class LocalLogDownload(
 data class MetadataSettingsDto(
     val bangumiTokenConfigured: Boolean,
     val tmdbTokenConfigured: Boolean = false,
+    val bangumiTokenExpiresAtMillis: Long = 0L,
 )
 
 @Serializable
@@ -663,6 +664,22 @@ data class BangumiArchiveDto(
 @Serializable
 data class BangumiTokenRequest(
     val token: String,
+)
+
+@Serializable
+data class BangumiWebLoginDto(
+    val status: String,
+    val message: String? = null,
+    val captchaImage: String? = null,
+    val tokenConfigured: Boolean = false,
+    val expiresAtMillis: Long = 0L,
+)
+
+@Serializable
+data class BangumiWebLoginRequest(
+    val email: String = "",
+    val password: String = "",
+    val captcha: String = "",
 )
 
 @Serializable

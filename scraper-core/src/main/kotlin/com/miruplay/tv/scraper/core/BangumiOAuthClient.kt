@@ -10,16 +10,30 @@ import kotlinx.serialization.json.Json
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 
 object BangumiOAuthConstants {
     const val AUTHORIZE_URL = "https://bgm.tv/oauth/authorize"
     const val TOKEN_URL = "https://bgm.tv/oauth/access_token"
+    const val USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (Android TV) (https://github.com/ModerRAS/MiruPlay)"
 
     const val CALLBACK_PORT = 13712
     const val CALLBACK_PATH = "/callback"
     const val CALLBACK_URL = "http://127.0.0.1:$CALLBACK_PORT$CALLBACK_PATH"
+
+    fun queryParameter(url: String, name: String): String? {
+        val query = url.substringAfter('?', "").substringBefore('#')
+        if (query.isBlank()) return null
+        for (part in query.split('&')) {
+            val key = URLDecoder.decode(part.substringBefore('='), Charsets.UTF_8.name())
+            if (key == name) {
+                return URLDecoder.decode(part.substringAfter('=', ""), Charsets.UTF_8.name())
+            }
+        }
+        return null
+    }
 
     fun authorizeUrl(
         clientId: String,
@@ -135,7 +149,7 @@ class BangumiOAuthClient(
             val request = Request.Builder()
                 .url(tokenUrl)
                 .post(body)
-                .addHeader("User-Agent", DEFAULT_USER_AGENT)
+                .addHeader("User-Agent", BangumiOAuthConstants.USER_AGENT)
                 .addHeader("Accept", "application/json")
                 .build()
             proxyClient.newCall(request).execute().use { response ->
@@ -167,7 +181,6 @@ class BangumiOAuthClient(
 
     companion object {
         const val SOURCE_NAME = "Bangumi"
-        private const val DEFAULT_USER_AGENT = "ModerRAS/MiruPlay/0.1.0 (Android TV) (https://github.com/ModerRAS/MiruPlay)"
 
         private fun defaultClient(): OkHttpClient =
             OkHttpClient.Builder()
