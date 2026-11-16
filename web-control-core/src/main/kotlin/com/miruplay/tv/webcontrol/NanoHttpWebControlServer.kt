@@ -228,6 +228,19 @@ open class NanoHttpWebControlServer(
             session.method == Method.DELETE && route == "/api/metadata/bangumi-token" -> {
                 jsonResponse(MetadataSettingsDto.serializer(), webControlService.clearBangumiToken())
             }
+            session.method == Method.POST && route == "/api/metadata/bangumi-login/start" -> {
+                jsonResponse(BangumiWebLoginDto.serializer(), webControlService.startBangumiWebLogin())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-login/captcha" -> {
+                jsonResponse(BangumiWebLoginDto.serializer(), webControlService.refreshBangumiWebLoginCaptcha())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-login/cancel" -> {
+                jsonResponse(BangumiWebLoginDto.serializer(), webControlService.cancelBangumiWebLogin())
+            }
+            session.method == Method.POST && route == "/api/metadata/bangumi-login" -> {
+                val request = parseBody(session, BangumiWebLoginRequest.serializer())
+                jsonResponse(BangumiWebLoginDto.serializer(), webControlService.submitBangumiWebLogin(request))
+            }
             session.method == Method.POST && route == "/api/metadata/bangumi-sync" -> {
                 jsonResponse(BangumiSyncAllResultDto.serializer(), webControlService.syncAllBangumi())
             }

@@ -353,3 +353,24 @@ Not device-verified：
 
 - 长片（>10 分钟）连续播放下的响度曲线主观听感 —— 手头 fixture 最长 2 分钟；算法分支由单测覆盖，真机只验证链路不断、无崩溃、无可闻爆音
 - WebUI 浏览器端点选（无浏览器环境；TV/WebAPI 双向 parity 已覆盖同一 DTO）
+
+### Bangumi 网页控制台账号登录
+
+网页控制台「元数据」可以直接填 Bangumi 邮箱、密码和验证码。电视端 WebView 登录仍保留。密码只出现在发往 Bangumi 的那一次表单里，不写入凭据、不放进接口响应。
+
+Own checks：
+
+- 单测 `BangumiPasswordLoginClientTest`：登录页 formhash、验证码图、验证码错误重试、锁号文案、已授权应用直接 302 回环、连不上 Bangumi 的固定文案。失败文案不包含密码
+- 单测 `BangumiWebConsoleLoginTest`：验证码 challenge、提交后走现有 coordinator 换 token、验证码错误可重试、空字段在出网前拒绝、未配置 client、取消/超过 10 分钟要重新取验证码、退出清 token
+- 路由单测：`POST /api/metadata/bangumi-login` 响应体不包含密码
+- 浏览器：元数据页能打开账号表单、验证码图可点刷新、错误验证码留在表单里、成功后收起表单并显示有效期；手动粘贴 token 仍在同一张卡片
+
+Cross-checks：
+
+- 手动粘贴 / 清除 Bangumi token、TMDB token、同步全部进度的接口不变
+- TV 设置里的 WebView 登录仍调用同一个 `BangumiOAuthCoordinator`；网页 `start` 会替换尚未完成的那一次授权
+- 出站代理仍是 `rssProxy*`，网页登录的 OkHttp 在取验证码和提交前套用同一份配置
+
+Not device-verified：
+
+- HK1 上用真实 Bangumi 账号走完验证码并看到收藏同步。本环境没有盒子，也没有发版用的 client id/secret。单测用 MockWebServer 固定了 Bangumi 登录页和授权页的 HTML 结构；线上页面改版后要再对一次真实验证码

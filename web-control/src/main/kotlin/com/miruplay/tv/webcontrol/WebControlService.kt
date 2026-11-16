@@ -66,7 +66,11 @@ import com.miruplay.tv.scanner.LibraryScanStatus
 import com.miruplay.tv.scanner.ScanCoordinator
 import com.miruplay.tv.scraper.core.BangumiArchiveSnapshot
 import com.miruplay.tv.scraper.core.BangumiArchiveStore
+import com.miruplay.tv.scraper.core.BangumiHttpProxyConfig
+import com.miruplay.tv.scraper.core.BangumiPasswordLoginClient
+import com.miruplay.tv.scraper.core.BangumiPasswordLoginClientFactory
 import com.miruplay.tv.scraper.core.toBangumiHttpProxyConfig
+import com.miruplay.tv.sync.BangumiOAuthCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssActionCoordinator
 import com.miruplay.tv.sync.rss.CloudDriveRssAutomationEngine
 import com.miruplay.tv.sync.rss.CloudDriveRssScheduler
@@ -107,7 +111,7 @@ class WebControlService @Inject constructor(
     appModePreferences: AppModePreferencesRepository,
     private val cloudDriveRepository: CloudDriveAutomationRepository,
     logUploadRepository: LogUploadRepository,
-    securePreferences: AppCredentialStore,
+    private val securePreferences: AppCredentialStore,
     cloudDriveClient: CloudDriveClient,
     cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
@@ -128,6 +132,7 @@ class WebControlService @Inject constructor(
     private val appLocaleStore: AppLocaleStore,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val translationPreferencesRepository: TranslationPreferencesRepository,
+    private val bangumiOAuth: BangumiOAuthCoordinator,
 ) : SharedWebControlEndpointService(
     mediaSourceRepository = mediaRepository,
     metadataRepository = metadataRepository,
@@ -150,6 +155,30 @@ class WebControlService @Inject constructor(
 ) {
     private val bangumiArchiveDownloadLock = Any()
     private val bangumiArchiveDownloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val bangumiWebLogin = BangumiWebConsoleLogin(
+        oauth = bangumiOAuth,
+        newClient = BangumiPasswordLoginClientFactory { BangumiPasswordLoginClient() },
+        proxyConfig = {
+            cloudDriveRepository.getConfig().getOrNull()?.toBangumiHttpProxyConfig()
+                ?: BangumiHttpProxyConfig.Disabled
+        },
+        tokenConfigured = { !securePreferences.bangumiAccessToken.isNullOrBlank() },
+        expiresAtMillis = { securePreferences.bangumiTokenExpiresAtMillis },
+    )
+
+    override suspend fun startBangumiWebLogin(): BangumiWebLoginDto = bangumiWebLogin.start()
+
+    override suspend fun refreshBangumiWebLoginCaptcha(): BangumiWebLoginDto = bangumiWebLogin.refreshCaptcha()
+
+    override suspend fun submitBangumiWebLogin(request: BangumiWebLoginRequest): BangumiWebLoginDto =
+        bangumiWebLogin.submit(request.email, request.password, request.captcha)
+
+    override suspend fun cancelBangumiWebLogin(): BangumiWebLoginDto = bangumiWebLogin.cancel()
+
+    override suspend fun clearBangumiToken(): MetadataSettingsDto {
+        bangumiWebLogin.logout()
+        return getMetadataSettings()
+    }
 
     @Volatile
     private var bangumiArchiveDownload: BangumiArchiveDownloadState = BangumiArchiveDownloadState()

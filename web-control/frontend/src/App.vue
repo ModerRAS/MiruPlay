@@ -572,6 +572,68 @@
 
               <el-skeleton v-if="loading.metadata" animated :rows="4" />
               <el-form v-else label-position="top" class="metadata-form" @submit.prevent>
+                <p class="bangumi-login-note">
+                  在这台电脑或手机上填写 Bangumi 邮箱、密码和验证码。电视遥控器不用再对焦这些输入框。密码只发给 Bangumi 换授权，不会保存在电视上。
+                </p>
+                <p v-if="bangumiExpiryText" class="bangumi-login-note">授权有效期至 {{ bangumiExpiryText }}</p>
+                <div class="form-actions">
+                  <el-button type="primary" :icon="Key" :loading="loading.bangumiLogin" @click="startBangumiWebLogin">
+                    {{ metadataSettings.bangumiTokenConfigured ? '重新登录 Bangumi' : '使用账号登录' }}
+                  </el-button>
+                </div>
+                <div v-if="bangumiLogin.open" class="bangumi-login-panel">
+                  <el-alert
+                    v-if="bangumiLogin.message"
+                    type="warning"
+                    :closable="false"
+                    show-icon
+                    :title="bangumiLogin.message"
+                  />
+                  <el-form-item label="邮箱">
+                    <el-input
+                      v-model="bangumiLogin.email"
+                      autocomplete="username"
+                      placeholder="Bangumi 邮箱"
+                    />
+                  </el-form-item>
+                  <el-form-item label="密码">
+                    <el-input
+                      v-model="bangumiLogin.password"
+                      type="password"
+                      show-password
+                      autocomplete="current-password"
+                      placeholder="Bangumi 密码"
+                    />
+                  </el-form-item>
+                  <el-form-item label="验证码">
+                    <div class="bangumi-captcha-row">
+                      <el-input
+                        v-model="bangumiLogin.captcha"
+                        autocomplete="off"
+                        placeholder="图中的字符"
+                        @keyup.enter="submitBangumiWebLogin"
+                      />
+                      <button
+                        type="button"
+                        class="bangumi-captcha"
+                        :disabled="loading.bangumiLogin"
+                        @click="refreshBangumiCaptcha"
+                      >
+                        <img v-if="bangumiLogin.captchaImage" :src="bangumiLogin.captchaImage" alt="Bangumi 验证码，点击换一张" />
+                        <span v-else>换一张</span>
+                      </button>
+                    </div>
+                  </el-form-item>
+                  <div class="form-actions">
+                    <el-button type="primary" :loading="loading.bangumiLogin" @click="submitBangumiWebLogin">
+                      登录并授权
+                    </el-button>
+                    <el-button :disabled="loading.bangumiLogin" @click="cancelBangumiWebLogin">取消</el-button>
+                  </div>
+                </div>
+
+                <el-divider>或手动粘贴 Access Token</el-divider>
+
                 <el-form-item label="Bangumi Access Token">
                   <el-input
                     v-model="metadataForm.bangumiToken"
@@ -1952,7 +2014,17 @@ const localLogs = reactive({
 })
 const metadataSettings = reactive({
   bangumiTokenConfigured: false,
-  tmdbTokenConfigured: false
+  tmdbTokenConfigured: false,
+  bangumiTokenExpiresAtMillis: 0
+})
+const bangumiLogin = reactive({
+  open: false,
+  status: '',
+  message: '',
+  captchaImage: '',
+  email: '',
+  password: '',
+  captcha: ''
 })
 const bangumiArchive = reactive({
   available: false,
@@ -2004,6 +2076,7 @@ const loading = reactive({
   logDownload: false,
   metadata: false,
   bangumiToken: false,
+  bangumiLogin: false,
   bangumiArchive: false,
   bangumiArchiveUpload: false,
   proxy: false,
@@ -2331,7 +2404,7 @@ const viewMeta = computed(() => ({
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   proxy: ['代理配置', '设置 Bangumi、Archive 下载、RSS 请求和 Bangumi 登录页共用的出站 HTTP 代理。'],
-  metadata: ['元数据', '配置 Bangumi/TMDB Token，让收藏和观看进度同步不必在电视上输入。'],
+  metadata: ['元数据', '在网页填写 Bangumi 邮箱、密码和验证码完成登录，收藏和观看进度同步不必在电视上输入。'],
   scan: ['扫描设置', '自动扫描、入库归并、海报墙排列与应用内容模式。'],
   playback: ['播放设置', '默认播放结束动作与色调映射后端。'],
   'audio-dsp': ['音频 DSP', 'PEQ、扫频测量与麦克风校准。'],
@@ -2744,6 +2817,109 @@ function applyLocalLogs(data) {
 function applyMetadataSettings(data) {
   metadataSettings.bangumiTokenConfigured = Boolean(data.bangumiTokenConfigured)
   metadataSettings.tmdbTokenConfigured = Boolean(data.tmdbTokenConfigured)
+  metadataSettings.bangumiTokenExpiresAtMillis = Number(data.bangumiTokenExpiresAtMillis || 0)
+}
+
+const bangumiExpiryText = computed(() => formatBangumiExpiry(metadataSettings.bangumiTokenExpiresAtMillis))
+
+function formatBangumiExpiry(ms) {
+  const value = Number(ms || 0)
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (part) => String(part).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function applyBangumiLogin(data) {
+  bangumiLogin.status = data?.status || ''
+  bangumiLogin.message = data?.message || ''
+  if (data?.captchaImage) bangumiLogin.captchaImage = data.captchaImage
+  if (data?.status === 'challenge' && data?.message) bangumiLogin.captcha = ''
+  if (data?.status === 'success') {
+    metadataSettings.bangumiTokenConfigured = Boolean(data.tokenConfigured)
+    metadataSettings.bangumiTokenExpiresAtMillis = Number(data.expiresAtMillis || 0)
+    bangumiLogin.open = false
+    bangumiLogin.email = ''
+    bangumiLogin.password = ''
+    bangumiLogin.captcha = ''
+    bangumiLogin.captchaImage = ''
+    bangumiLogin.message = ''
+  }
+}
+
+async function startBangumiWebLogin() {
+  loading.bangumiLogin = true
+  try {
+    const data = await api('/api/metadata/bangumi-login/start', { method: 'POST' })
+    bangumiLogin.open = data?.status === 'challenge'
+    applyBangumiLogin(data)
+    if (data?.status === 'not_configured' || data?.status === 'failed') {
+      ElMessage.error(data.message || '无法开始 Bangumi 登录')
+    }
+  } catch (error) {
+    ElMessage.error(error?.message || '无法开始 Bangumi 登录')
+  } finally {
+    loading.bangumiLogin = false
+  }
+}
+
+async function refreshBangumiCaptcha() {
+  loading.bangumiLogin = true
+  try {
+    const data = await api('/api/metadata/bangumi-login/captcha', { method: 'POST' })
+    if (data?.captchaImage) bangumiLogin.captchaImage = data.captchaImage
+    if (data?.status === 'failed') ElMessage.error(data.message || '无法刷新验证码')
+  } catch (error) {
+    ElMessage.error(error?.message || '无法刷新验证码')
+  } finally {
+    loading.bangumiLogin = false
+  }
+}
+
+async function submitBangumiWebLogin() {
+  if (!bangumiLogin.email.trim() || !bangumiLogin.password || !bangumiLogin.captcha.trim()) {
+    ElMessage.warning('请填写邮箱、密码和验证码')
+    return
+  }
+  loading.bangumiLogin = true
+  try {
+    const data = await api('/api/metadata/bangumi-login', {
+      method: 'POST',
+      body: JSON.stringify({
+        email: bangumiLogin.email.trim(),
+        password: bangumiLogin.password,
+        captcha: bangumiLogin.captcha.trim()
+      })
+    })
+    applyBangumiLogin(data)
+    if (data?.status === 'success') {
+      ElMessage.success(data.message || 'Bangumi 登录成功')
+      await loadMetadataSettings()
+    } else if (data?.status === 'failed') {
+      bangumiLogin.open = false
+      bangumiLogin.password = ''
+      bangumiLogin.captcha = ''
+      ElMessage.error(data.message || 'Bangumi 登录失败')
+    }
+  } catch (error) {
+    ElMessage.error(error?.message || 'Bangumi 登录失败')
+  } finally {
+    loading.bangumiLogin = false
+  }
+}
+
+async function cancelBangumiWebLogin() {
+  bangumiLogin.open = false
+  bangumiLogin.password = ''
+  bangumiLogin.captcha = ''
+  bangumiLogin.captchaImage = ''
+  bangumiLogin.message = ''
+  try {
+    await api('/api/metadata/bangumi-login/cancel', { method: 'POST' })
+  } catch {
+    // 表单已经收起，取消失败不影响本地输入。
+  }
 }
 
 function applyBangumiArchive(data) {
@@ -3474,6 +3650,10 @@ async function clearBangumiToken() {
   try {
     applyMetadataSettings(await api('/api/metadata/bangumi-token', { method: 'DELETE' }))
     metadataForm.bangumiToken = ''
+    bangumiLogin.open = false
+    bangumiLogin.password = ''
+    bangumiLogin.captcha = ''
+    bangumiLogin.captchaImage = ''
     ElMessage.success('Bangumi Token 已清除')
   } finally {
     loading.bangumiToken = false
