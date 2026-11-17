@@ -144,9 +144,13 @@ class BangumiPasswordLoginClient private constructor(
             ?: return@guarded BangumiPasswordLoginStep.Failed(
                 parseBangumiNotice(authorizeLanded.body) ?: "Bangumi 授权页没有返回可提交的表单。",
             )
+        // Bangumi 的授权表单没有 action 属性：真实浏览器会把表单提交回"当前页面 URL"，
+        // 而 client_id / response_type / redirect_uri / state 全在那条 URL 的查询串里。
+        // 提交到裸的 /oauth/authorize 会丢掉这些参数，Bangumi 直接回 app_nonexistence。
+        val actionUrl = if (form.action.isBlank()) authorizeUrl else resolveAgainst(authorizeUrl, form.action)
         val submitted = execute(
             Request.Builder()
-                .url(resolveUrl(form.action))
+                .url(actionUrl)
                 .header("Referer", authorizeUrl)
                 .header("Origin", origin())
                 .post(
@@ -256,6 +260,10 @@ class BangumiPasswordLoginClient private constructor(
             ?: throw IllegalStateException("无法解析 Bangumi 地址")
     }
 
+    /** Resolves a form action the way a browser does: relative to the page that rendered it. */
+    private fun resolveAgainst(pageUrl: String, reference: String): String =
+        pageUrl.toHttpUrlOrNull()?.resolve(reference)?.toString() ?: resolveUrl(reference)
+
     private fun origin(): String = baseUrl.trimEnd('/')
 
     private fun sameSite(url: String): Boolean {
@@ -350,7 +358,8 @@ internal fun parseAuthorizeForm(html: String): BangumiAuthorizeForm? {
     val submitValue = submit?.attr("value")?.ifBlank { null } ?: submit?.text()?.ifBlank { null } ?: "授权"
     if (fields.none { it.first == submitName }) fields += submitName to submitValue
     if (fields.none { it.first == "formhash" && it.second.isNotBlank() }) return null
-    return BangumiAuthorizeForm(form.attr("action").ifBlank { "/oauth/authorize" }, fields)
+    // Keep a blank action blank: the caller must post back to the page URL (query string included).
+    return BangumiAuthorizeForm(form.attr("action"), fields)
 }
 
 internal fun parseBangumiNotice(html: String): String? {
