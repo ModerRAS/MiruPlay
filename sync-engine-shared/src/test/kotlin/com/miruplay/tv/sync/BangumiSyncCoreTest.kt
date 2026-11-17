@@ -38,6 +38,9 @@ class BangumiSyncCoreTest {
     @Test
     fun `syncAnime pulls remote watched episodes into local progress`() = runBlocking {
         val service = FakeBangumiCollectionService(
+            subjectCollections = mutableMapOf(
+                1001 to BangumiSubjectCollection(subjectId = 1001, type = BangumiSubjectCollectionType.DOING.value, rate = 0, epStatus = 1),
+            ),
             episodeCollections = mutableMapOf(
                 1001 to listOf(BangumiEpisodeCollection(episodeId = 5001, episodeNumber = 1, type = BangumiEpisodeCollectionType.DONE.value)),
             ),
@@ -64,10 +67,11 @@ class BangumiSyncCoreTest {
         assertEquals(BangumiEpisodeCollectionType.DONE.value, metadata.episodes.getValue("frieren")[0].bangumiCollectionType)
         assertEquals(BangumiSubjectCollectionType.DOING.value, metadata.anime?.bangumiCollectionType)
         assertEquals(1, metadata.anime?.bangumiEpStatus)
+        assertEquals(emptyList<Pair<Int, BangumiSubjectCollectionType>>(), service.subjectUpdates)
     }
 
     @Test
-    fun `syncAnime pushes locally completed episodes and marks subject done when all remote ids are watched`() = runBlocking {
+    fun `syncAnime pushes locally completed episodes without marking the subject done`() = runBlocking {
         val service = FakeBangumiCollectionService()
         val metadata = FakeMetadataRepository(
             anime = Anime(id = "frieren", title = "Frieren", bangumiId = 1001),
@@ -93,9 +97,103 @@ class BangumiSyncCoreTest {
         assertEquals(2, summary.remoteWatchedEpisodes)
         assertEquals(listOf(5001, 5002), service.updatedEpisodeBatches.single().episodeIds)
         assertEquals(BangumiEpisodeCollectionType.DONE, service.updatedEpisodeBatches.single().type)
-        assertEquals(1001 to BangumiSubjectCollectionType.DONE, service.subjectUpdates.last())
-        assertEquals(BangumiSubjectCollectionType.DONE.value, metadata.anime?.bangumiCollectionType)
+        assertEquals(listOf(1001 to BangumiSubjectCollectionType.DOING), service.subjectUpdates)
+        assertEquals(BangumiSubjectCollectionType.DOING.value, summary.subjectCollectionType)
+        assertEquals(BangumiSubjectCollectionType.DOING.value, metadata.anime?.bangumiCollectionType)
         assertEquals(2, metadata.anime?.bangumiEpStatus)
+    }
+
+    @Test
+    fun `syncAnime restores a done subject to doing when pushing an episode the remote has not watched`() = runBlocking {
+        val service = FakeBangumiCollectionService(
+            subjectCollections = mutableMapOf(
+                1001 to BangumiSubjectCollection(subjectId = 1001, type = BangumiSubjectCollectionType.DONE.value, rate = 0, epStatus = 0),
+            ),
+        )
+        val metadata = FakeMetadataRepository(
+            anime = Anime(id = "frieren", title = "Frieren", bangumiId = 1001),
+            episodes = listOf(episode(id = "ep1", remoteId = 5001, duration = 10_000L)),
+        )
+        val progress = FakeProgressRepository(
+            records = mutableMapOf("ep1" to ProgressRecord("ep1", positionMs = 10_000L, lastWatched = 1L)),
+        )
+        val core = BangumiSyncCore(service, metadata, progress)
+
+        val result = core.syncAnime("frieren")
+
+        assertTrue(result is Result.Success)
+        val summary = (result as Result.Success).data
+        assertEquals(1, summary.pushedEpisodes)
+        assertEquals(listOf(1001 to BangumiSubjectCollectionType.DOING), service.subjectUpdates)
+        assertEquals(BangumiSubjectCollectionType.DOING.value, summary.subjectCollectionType)
+        assertEquals(BangumiSubjectCollectionType.DOING.value, metadata.anime?.bangumiCollectionType)
+    }
+
+    @Test
+    fun `syncAnime leaves a done subject alone when there is nothing to push`() = runBlocking {
+        val service = FakeBangumiCollectionService(
+            subjectCollections = mutableMapOf(
+                1001 to BangumiSubjectCollection(subjectId = 1001, type = BangumiSubjectCollectionType.DONE.value, rate = 0, epStatus = 1),
+            ),
+            episodeCollections = mutableMapOf(
+                1001 to listOf(BangumiEpisodeCollection(episodeId = 5001, episodeNumber = 1, type = BangumiEpisodeCollectionType.DONE.value)),
+            ),
+        )
+        val metadata = FakeMetadataRepository(
+            anime = Anime(id = "frieren", title = "Frieren", bangumiId = 1001),
+            episodes = listOf(episode(id = "ep1", remoteId = 5001, duration = 10_000L)),
+        )
+        val progress = FakeProgressRepository(
+            records = mutableMapOf("ep1" to ProgressRecord("ep1", positionMs = 10_000L, lastWatched = 1L)),
+        )
+        val core = BangumiSyncCore(service, metadata, progress)
+
+        val result = core.syncAnime("frieren")
+
+        assertTrue(result is Result.Success)
+        val summary = (result as Result.Success).data
+        assertEquals(0, summary.pushedEpisodes)
+        assertEquals(emptyList<Pair<Int, BangumiSubjectCollectionType>>(), service.subjectUpdates)
+        assertEquals(BangumiSubjectCollectionType.DONE.value, summary.subjectCollectionType)
+        assertEquals(BangumiSubjectCollectionType.DONE.value, metadata.anime?.bangumiCollectionType)
+    }
+
+    @Test
+    fun `markEpisodeWatched restores a done subject to doing for an unwatched episode`() = runBlocking {
+        val service = FakeBangumiCollectionService(
+            subjectCollections = mutableMapOf(
+                1001 to BangumiSubjectCollection(subjectId = 1001, type = BangumiSubjectCollectionType.DONE.value, rate = 0, epStatus = 0),
+            ),
+        )
+        val metadata = FakeMetadataRepository(
+            anime = Anime(id = "frieren", title = "Frieren", bangumiId = 1001),
+            episodes = listOf(episode(id = "ep1", remoteId = 5001, duration = 10_000L)),
+        )
+        val core = BangumiSyncCore(service, metadata, FakeProgressRepository())
+
+        val result = core.markEpisodeWatched("ep1")
+
+        assertTrue(result is Result.Success)
+        assertEquals(listOf(1001 to BangumiSubjectCollectionType.DOING), service.subjectUpdates)
+    }
+
+    @Test
+    fun `markEpisodeWatched keeps a done subject when the episode was already watched`() = runBlocking {
+        val service = FakeBangumiCollectionService(
+            subjectCollections = mutableMapOf(
+                1001 to BangumiSubjectCollection(subjectId = 1001, type = BangumiSubjectCollectionType.DONE.value, rate = 0, epStatus = 1),
+            ),
+        )
+        val metadata = FakeMetadataRepository(
+            anime = Anime(id = "frieren", title = "Frieren", bangumiId = 1001),
+            episodes = listOf(episode(id = "ep1", remoteId = 5001, duration = 10_000L, collectionType = 2)),
+        )
+        val core = BangumiSyncCore(service, metadata, FakeProgressRepository())
+
+        val result = core.markEpisodeWatched("ep1")
+
+        assertTrue(result is Result.Success)
+        assertEquals(emptyList<Pair<Int, BangumiSubjectCollectionType>>(), service.subjectUpdates)
     }
 
     @Test
@@ -150,7 +248,7 @@ class BangumiSyncCoreTest {
 
         assertEquals(Result.failure(failure), result)
         assertEquals(emptyList<UpdatedEpisodeBatch>(), service.updatedEpisodeBatches)
-        assertEquals(listOf(1001 to BangumiSubjectCollectionType.DOING), service.subjectUpdates)
+        assertEquals(emptyList<Pair<Int, BangumiSubjectCollectionType>>(), service.subjectUpdates)
     }
 
     @Test
@@ -173,6 +271,7 @@ class BangumiSyncCoreTest {
         id: String,
         remoteId: Int?,
         duration: Long,
+        collectionType: Int? = null,
     ): Episode =
         Episode(
             id = id,
@@ -182,6 +281,7 @@ class BangumiSyncCoreTest {
             fileName = "$id.mkv",
             duration = duration,
             bangumiEpisodeId = remoteId,
+            bangumiCollectionType = collectionType,
         )
 
     private class FakeBangumiCollectionService(

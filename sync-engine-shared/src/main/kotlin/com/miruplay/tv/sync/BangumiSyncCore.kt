@@ -70,9 +70,9 @@ class BangumiSyncCore(
                 return@withContext Result.failure(AppError.ScrapingError.ApiError("Bangumi", bangumiSyncNoEpisodesMessage()))
             }
 
-            when (val collection = ensureSubjectCollection(subjectId)) {
-                is Result.Success -> Unit
-                is Result.Error -> return@withContext collection
+            val subjectCollection = when (val current = bangumiService.getSubjectCollection(subjectId)) {
+                is Result.Success -> current.data
+                is Result.Error -> return@withContext current
             }
 
             val remoteCollections = when (val result = bangumiService.getEpisodeCollections(subjectId)) {
@@ -118,7 +118,26 @@ class BangumiSyncCore(
                 .map { it.episodeId }
                 .toSet()
             val toPush = localWatchedRemoteIds.distinct().filterNot { it in remoteDoneIds }
+            var subjectCollectionType = subjectCollection?.type
             if (toPush.isNotEmpty()) {
+                // 只有真的推送单集时才动整部状态：未收藏 / 想看 提成「在看」；
+                // 线上整部是「看过」但这集线上没标过（还在看）也恢复成「在看」。绝不写「看过」
+                val remoteType = subjectCollection?.type
+                if (
+                    remoteType == null ||
+                    remoteType == BangumiSubjectCollectionType.WISH.value ||
+                    remoteType == BangumiSubjectCollectionType.DONE.value
+                ) {
+                    when (
+                        val ensured = bangumiService.upsertSubjectCollection(
+                            subjectId,
+                            BangumiSubjectCollectionType.DOING
+                        )
+                    ) {
+                        is Result.Success -> subjectCollectionType = BangumiSubjectCollectionType.DOING.value
+                        is Result.Error -> return@withContext ensured
+                    }
+                }
                 when (
                     val updated = bangumiService.updateEpisodeCollections(
                         subjectId = subjectId,
@@ -132,15 +151,6 @@ class BangumiSyncCore(
             }
 
             val watchedCount = (remoteDoneIds + localWatchedRemoteIds).size
-            val targetSubjectType = if (watchedCount >= episodes.count { it.bangumiEpisodeId != null }.coerceAtLeast(1)) {
-                BangumiSubjectCollectionType.DONE
-            } else {
-                BangumiSubjectCollectionType.DOING
-            }
-            when (val subject = bangumiService.upsertSubjectCollection(subjectId, targetSubjectType)) {
-                is Result.Success -> Unit
-                is Result.Error -> return@withContext subject
-            }
 
             when (
                 val cachedEpisodes = metadataRepository.cacheEpisodes(
@@ -160,7 +170,7 @@ class BangumiSyncCore(
             when (
                 val cachedAnime = metadataRepository.cacheMetadata(
                     anime.copy(
-                        bangumiCollectionType = targetSubjectType.value,
+                        bangumiCollectionType = subjectCollectionType,
                         bangumiEpStatus = watchedCount
                     )
                 )
@@ -176,7 +186,7 @@ class BangumiSyncCore(
                     pushedEpisodes = toPush.size,
                     pulledEpisodes = pulled,
                     remoteWatchedEpisodes = watchedCount,
-                    subjectCollectionType = targetSubjectType.value
+                    subjectCollectionType = subjectCollectionType
                 )
             )
         } catch (e: Exception) {
@@ -199,7 +209,8 @@ class BangumiSyncCore(
             }
             val subjectId = anime.bangumiId
             if (subjectId != null) {
-                when (val collection = ensureSubjectCollection(subjectId)) {
+                val restoreFromDone = episode.bangumiCollectionType != BangumiEpisodeCollectionType.DONE.value
+                when (val collection = ensureSubjectCollection(subjectId, restoreFromDone)) {
                     is Result.Success -> Unit
                     is Result.Error -> return@withContext collection
                 }
@@ -235,15 +246,20 @@ class BangumiSyncCore(
         }
     }
 
-    private suspend fun ensureSubjectCollection(subjectId: Int): Result<Unit> {
+    private suspend fun ensureSubjectCollection(
+        subjectId: Int,
+        restoreFromDone: Boolean = false,
+    ): Result<Unit> {
         val current = when (val result = bangumiService.getSubjectCollection(subjectId)) {
             is Result.Success -> result.data
             is Result.Error -> return result
         }
-        if (current == null || current.type == BangumiSubjectCollectionType.WISH.value) {
-            return bangumiService.upsertSubjectCollection(subjectId, BangumiSubjectCollectionType.DOING)
-        }
-        return Result.success(Unit)
+        val type = current?.type
+        val needsDoing = current == null ||
+            type == BangumiSubjectCollectionType.WISH.value ||
+            (restoreFromDone && type == BangumiSubjectCollectionType.DONE.value)
+        if (!needsDoing) return Result.success(Unit)
+        return bangumiService.upsertSubjectCollection(subjectId, BangumiSubjectCollectionType.DOING)
     }
 
     private fun isLocallyWatched(episode: Episode, positionMs: Long?, playCount: Int): Boolean {
