@@ -89,6 +89,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -385,6 +386,7 @@ import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -1092,6 +1094,28 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
     }
 }
 
+internal enum class SettingsMenuFocusAction {
+    NONE,
+    SWITCH_SECTION,
+    RESTORE_SELECTION,
+}
+
+/**
+ * 菜单项拿到焦点时该做什么：
+ * - 焦点本来就在菜单里（用户按上下浏览）才切分类；
+ * - 焦点从右侧内容区误入到别的分类项时不切页，把焦点拉回当前选中项。
+ */
+internal fun settingsMenuFocusAction(
+    isFocused: Boolean,
+    switchOnFocus: Boolean,
+    selected: Boolean,
+): SettingsMenuFocusAction = when {
+    !isFocused -> SettingsMenuFocusAction.NONE
+    switchOnFocus -> SettingsMenuFocusAction.SWITCH_SECTION
+    !selected -> SettingsMenuFocusAction.RESTORE_SELECTION
+    else -> SettingsMenuFocusAction.NONE
+}
+
 @Composable
 private fun SettingsMenuPanel(
     selectedSection: MiruPlaySettingsSection,
@@ -1162,7 +1186,14 @@ private fun SettingsMenuPanel(
         },
     )
 
-    SettingsPanel(modifier = modifier) {
+    // 焦点从右侧内容区误入菜单时不应顺手切页：只有焦点本来就在菜单里（用户按上下浏览）才切换分类，
+    // 误入到别的分类项时把焦点拉回当前选中项，免得光标停在与页面不一致的地方
+    var menuHasFocus by remember { mutableStateOf(false) }
+    val restoreScope = rememberCoroutineScope()
+
+    SettingsPanel(
+        modifier = modifier.onFocusChanged { menuHasFocus = it.hasFocus }
+    ) {
         Text(
             text = settingsMenuPanelTitle().resolve(),
             style = TvTypography.subtitle,
@@ -1188,7 +1219,13 @@ private fun SettingsMenuPanel(
                     section = section,
                     summary = section.settingsMenuSummary(menuSummaryInput),
                     selected = section == selectedSection,
+                    switchOnFocus = menuHasFocus,
                     onClick = { onSectionSelected(section) },
+                    onRestoreSelection = {
+                        restoreScope.launch {
+                            menuFocusRequesters.getValue(selectedSection).requestFocus()
+                        }
+                    },
                     modifier = Modifier.focusRequester(menuFocusRequesters.getValue(section))
                 )
             }
@@ -1201,7 +1238,9 @@ private fun SettingsMenuItem(
     section: MiruPlaySettingsSection,
     summary: UiText,
     selected: Boolean,
+    switchOnFocus: Boolean,
     onClick: () -> Unit,
+    onRestoreSelection: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -1225,7 +1264,11 @@ private fun SettingsMenuItem(
             .background(background)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
             .onFocusChanged { state ->
-                if (state.isFocused) onClick()
+                when (settingsMenuFocusAction(state.isFocused, switchOnFocus, selected)) {
+                    SettingsMenuFocusAction.NONE -> Unit
+                    SettingsMenuFocusAction.SWITCH_SECTION -> onClick()
+                    SettingsMenuFocusAction.RESTORE_SELECTION -> onRestoreSelection()
+                }
             }
             .tvFocusableClickable(
                 interactionSource = interactionSource,

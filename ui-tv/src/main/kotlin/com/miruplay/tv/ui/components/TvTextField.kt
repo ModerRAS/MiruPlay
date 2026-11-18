@@ -19,6 +19,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
@@ -37,6 +38,7 @@ fun TvTextField(
     requestInitialFocus: Boolean = false,
 ) {
     val focusManager = LocalFocusManager.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     LaunchedEffect(requestInitialFocus) {
@@ -81,6 +83,12 @@ fun TvTextField(
                         android.view.KeyEvent.KEYCODE_DPAD_UP -> {
                             focusManager.moveFocus(FocusDirection.Up); true
                         }
+                        android.view.KeyEvent.KEYCODE_DPAD_CENTER,
+                        android.view.KeyEvent.KEYCODE_ENTER -> {
+                            // 焦点移过来时不弹键盘，按 OK 才真正开始编辑
+                            if (isFocused) keyboardController?.show()
+                            false
+                        }
                         else -> false
                     }
                 },
@@ -92,7 +100,12 @@ fun TvTextField(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(focusRequester)
-                    .onFocusChanged { isFocused = it.isFocused },
+                    .onFocusChanged { state ->
+                        isFocused = state.isFocused
+                        // 遥控器只是把焦点移过来（比如从左侧菜单按右键进来）时不要弹输入法，
+                        // 否则整屏被键盘盖住；真正要编辑由 OK 键触发。
+                        if (state.isFocused) keyboardController?.hide()
+                    },
                 textStyle = TextStyle(
                     color = TextPrimary,
                     fontSize = 16.sp
