@@ -5,19 +5,19 @@ import org.junit.Test
 
 class SettingsMenuFocusActionTest {
     @Test
-    fun `focus moving inside the menu switches the section`() {
+    fun `focus moving inside the menu only highlights and never switches the section`() {
         assertEquals(
-            SettingsMenuFocusAction.SWITCH_SECTION,
-            settingsMenuFocusAction(isFocused = true, switchOnFocus = true, selected = false),
+            SettingsMenuFocusAction.NONE,
+            settingsMenuFocusAction(isFocused = true, enteredFromContent = false, selected = false),
         )
     }
 
     @Test
-    fun `focus entering the menu from the content pane never switches the section`() {
-        // 从右侧内容区按左/返回误入菜单：焦点落在别的分类项上，只能把焦点拉回当前选中项
+    fun `focus entering the menu from the content pane restores the selected item`() {
+        // 从右侧内容区误入菜单（例如点完按钮后焦点掉进菜单）：不切页，把焦点拉回当前选中项
         assertEquals(
             SettingsMenuFocusAction.RESTORE_SELECTION,
-            settingsMenuFocusAction(isFocused = true, switchOnFocus = false, selected = false),
+            settingsMenuFocusAction(isFocused = true, enteredFromContent = true, selected = false),
         )
     }
 
@@ -25,15 +25,15 @@ class SettingsMenuFocusActionTest {
     fun `focus entering the menu on the selected item does nothing`() {
         assertEquals(
             SettingsMenuFocusAction.NONE,
-            settingsMenuFocusAction(isFocused = true, switchOnFocus = false, selected = true),
+            settingsMenuFocusAction(isFocused = true, enteredFromContent = true, selected = true),
         )
     }
 
     @Test
-    fun `losing focus never switches the section`() {
+    fun `losing focus never does anything`() {
         assertEquals(
             SettingsMenuFocusAction.NONE,
-            settingsMenuFocusAction(isFocused = false, switchOnFocus = true, selected = false),
+            settingsMenuFocusAction(isFocused = false, enteredFromContent = true, selected = false),
         )
     }
 }

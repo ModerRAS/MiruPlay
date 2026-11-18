@@ -664,7 +664,7 @@
     <string name="settings_menu_metadata_tokens_none">未設定</string>
     <string name="settings_menu_metadata_tokens_one">已設定 1 項</string>
     <string name="settings_menu_metadata_tokens_two">已設定 2 項</string>
-    <string name="settings_menu_panel_desc_tv">按上下切換分類，向右進入目前設定。</string>
+    <string name="settings_menu_panel_desc_tv">按上下選擇分類，按確定開啟，向右進入設定。</string>
     <string name="settings_menu_panel_title">設定選單</string>
     <string name="settings_menu_playback_summary">%1$s · %2$s%3$s · %4$s</string>
     <string name="settings_menu_proxy_address">%1$s</string>

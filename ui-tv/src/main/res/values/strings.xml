@@ -614,7 +614,7 @@
     <string name="settings_menu_metadata_tokens_none">未设置</string>
     <string name="settings_menu_metadata_tokens_one">已设置 1 项</string>
     <string name="settings_menu_metadata_tokens_two">已设置 2 项</string>
-    <string name="settings_menu_panel_desc_tv">按上下切换分类，向右进入当前设置。</string>
+    <string name="settings_menu_panel_desc_tv">按上下选择分类，按确定打开，向右进入设置。</string>
     <string name="settings_menu_panel_title">设置菜单</string>
     <string name="settings_menu_proxy_address">%1$s</string>
     <string name="settings_menu_proxy_off">未启用</string>

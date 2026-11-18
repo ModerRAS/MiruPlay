@@ -1096,23 +1096,21 @@ private fun SettingsHeader(onNavigateBack: () -> Unit) {
 
 internal enum class SettingsMenuFocusAction {
     NONE,
-    SWITCH_SECTION,
     RESTORE_SELECTION,
 }
 
 /**
  * 菜单项拿到焦点时该做什么：
- * - 焦点本来就在菜单里（用户按上下浏览）才切分类；
- * - 焦点从右侧内容区误入到别的分类项时不切页，把焦点拉回当前选中项。
+ * - 焦点进来只负责高亮，**绝不**因为焦点变化就切分类（页面切换只认 OK 键）；
+ * - 焦点从右侧内容区误入到别的分类项时，把焦点拉回当前选中项，避免光标与页面不一致。
  */
 internal fun settingsMenuFocusAction(
     isFocused: Boolean,
-    switchOnFocus: Boolean,
+    enteredFromContent: Boolean,
     selected: Boolean,
 ): SettingsMenuFocusAction = when {
     !isFocused -> SettingsMenuFocusAction.NONE
-    switchOnFocus -> SettingsMenuFocusAction.SWITCH_SECTION
-    !selected -> SettingsMenuFocusAction.RESTORE_SELECTION
+    enteredFromContent && !selected -> SettingsMenuFocusAction.RESTORE_SELECTION
     else -> SettingsMenuFocusAction.NONE
 }
 
@@ -1264,9 +1262,8 @@ private fun SettingsMenuItem(
             .background(background)
             .border(if (selected || isFocused) 2.dp else 1.dp, borderColor, RoundedCornerShape(8.dp))
             .onFocusChanged { state ->
-                when (settingsMenuFocusAction(state.isFocused, switchOnFocus, selected)) {
+                when (settingsMenuFocusAction(state.isFocused, enteredFromContent = !switchOnFocus, selected = selected)) {
                     SettingsMenuFocusAction.NONE -> Unit
-                    SettingsMenuFocusAction.SWITCH_SECTION -> onClick()
                     SettingsMenuFocusAction.RESTORE_SELECTION -> onRestoreSelection()
                 }
             }
@@ -4473,10 +4470,16 @@ private fun AppUpdatePanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvButton(
-                text = settingsAppUpdateCheckActionLabel().resolve(),
+                // 检查期间保持可聚焦：按钮一旦 enabled=false 就会丢掉焦点，
+                // 焦点会掉到左侧菜单里，下一个方向键就变成"翻页"
+                text = if (state.isBusy) {
+                    settingsAppUpdateBusyStatus().resolve()
+                } else {
+                    settingsAppUpdateCheckActionLabel().resolve()
+                },
                 icon = Icons.Filled.Refresh,
-                enabled = !state.isBusy,
-                onClick = onCheck,
+                enabled = true,
+                onClick = { if (!state.isBusy) onCheck() },
                 modifier = Modifier.fillMaxWidth()
             )
             TvButton(

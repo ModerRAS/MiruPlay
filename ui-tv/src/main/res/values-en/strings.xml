@@ -138,7 +138,7 @@
     <string name="settings_menu_audio_dsp_on">Enabled · sweep calibrated</string>
     <string name="settings_menu_audio_dsp_off">Disabled</string>
     <string name="settings_menu_panel_title">Settings menu</string>
-    <string name="settings_menu_panel_desc_tv">Move up/down to switch sections, right to enter.</string>
+    <string name="settings_menu_panel_desc_tv">Move up/down to choose a section, press OK to open it, right to enter.</string>
     <string name="settings_screen_title">Settings</string>
     <string name="settings_screen_subtitle">Manage media sources, WebUI and metadata services</string>
     <string name="settings_open_library">Open poster wall</string>

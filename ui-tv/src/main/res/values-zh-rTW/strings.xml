@@ -138,7 +138,7 @@
     <string name="settings_menu_audio_dsp_on">已啟用 · 掃頻校準</string>
     <string name="settings_menu_audio_dsp_off">未啟用</string>
     <string name="settings_menu_panel_title">設定選單</string>
-    <string name="settings_menu_panel_desc_tv">按上下切換分類，向右進入目前設定。</string>
+    <string name="settings_menu_panel_desc_tv">按上下選擇分類，按確定開啟，向右進入設定。</string>
     <string name="settings_screen_title">設定</string>
     <string name="settings_screen_subtitle">管理媒體源、WebUI 和後設資料服務</string>
     <string name="settings_open_library">開啟海報牆</string>
