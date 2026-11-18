@@ -45,6 +45,9 @@ fun TvButton(
 
     val contentColor = if (enabled) Color.White else TextSecondary
     val borderColor = when {
+        // 不可用的按钮也保留焦点框：TV 上按钮一旦变成不可聚焦，
+        // 焦点就会被甩到别处（最常见是左侧菜单），下一个方向键就变成"翻页"
+        !enabled && isFocused -> Color.White.copy(alpha = 0.8f)
         !enabled -> Color.White.copy(alpha = 0.08f)
         isFocused -> Color.White
         secondary -> Color.White.copy(alpha = 0.18f)
@@ -52,8 +55,9 @@ fun TvButton(
     }
 
     Button(
-        onClick = onClick,
-        enabled = enabled,
+        // 始终 enabled，用 guard 拦点击：disabled 时仍可聚焦，焦点不会离开当前按钮
+        onClick = { if (enabled) onClick() },
+        enabled = true,
         interactionSource = interactionSource,
         modifier = modifier
             .defaultMinSize(minWidth = 240.dp)

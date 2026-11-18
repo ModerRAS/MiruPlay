@@ -4470,16 +4470,10 @@ private fun AppUpdatePanel(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             TvButton(
-                // 检查期间保持可聚焦：按钮一旦 enabled=false 就会丢掉焦点，
-                // 焦点会掉到左侧菜单里，下一个方向键就变成"翻页"
-                text = if (state.isBusy) {
-                    settingsAppUpdateBusyStatus().resolve()
-                } else {
-                    settingsAppUpdateCheckActionLabel().resolve()
-                },
+                text = settingsAppUpdateCheckActionLabel().resolve(),
                 icon = Icons.Filled.Refresh,
-                enabled = true,
-                onClick = { if (!state.isBusy) onCheck() },
+                enabled = !state.isBusy,
+                onClick = onCheck,
                 modifier = Modifier.fillMaxWidth()
             )
             TvButton(
