@@ -86,6 +86,8 @@ interface WebControlEndpointService {
         throw UnsupportedOperationException("扫描设置 not supported")
     suspend fun saveScanSettings(request: ScanSettingsRequest): ScanSettingsDto =
         throw UnsupportedOperationException("扫描设置 not supported")
+    suspend fun getScheduleSettings(): ScheduleSettingsDto = ScheduleSettingsDto()
+    suspend fun saveScheduleSettings(request: ScheduleSettingsRequest): ScheduleSettingsDto = ScheduleSettingsDto()
     suspend fun getPlaybackSettings(): PlaybackSettingsDto =
         throw UnsupportedOperationException("播放设置 not supported")
     suspend fun savePlaybackSettings(request: PlaybackSettingsRequest): PlaybackSettingsDto =

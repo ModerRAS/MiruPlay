@@ -258,6 +258,13 @@ open class NanoHttpWebControlServer(
                 val request = parseBody(session, ScanSettingsRequest.serializer())
                 jsonResponse(ScanSettingsDto.serializer(), webControlService.saveScanSettings(request))
             }
+            session.method == Method.GET && route == "/api/settings/schedule" -> {
+                jsonResponse(ScheduleSettingsDto.serializer(), webControlService.getScheduleSettings())
+            }
+            session.method == Method.PUT && route == "/api/settings/schedule" -> {
+                val request = parseBody(session, ScheduleSettingsRequest.serializer())
+                jsonResponse(ScheduleSettingsDto.serializer(), webControlService.saveScheduleSettings(request))
+            }
             session.method == Method.GET && route == "/api/settings/playback" -> {
                 jsonResponse(PlaybackSettingsDto.serializer(), webControlService.getPlaybackSettings())
             }

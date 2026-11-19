@@ -11,6 +11,7 @@ defineEmits(['select'])
     <el-menu-item index="sources"><el-icon><FolderOpened /></el-icon><span>媒体源</span></el-menu-item>
     <el-menu-item index="automation"><el-icon><Cloudy /></el-icon><span>自动化</span></el-menu-item>
     <el-menu-item index="proxy"><el-icon><Setting /></el-icon><span>代理配置</span></el-menu-item>
+    <el-menu-item index="schedule"><el-icon><Calendar /></el-icon><span>新番时间表</span></el-menu-item>
     <el-menu-item index="metadata"><el-icon><Key /></el-icon><span>元数据</span></el-menu-item>
     <el-menu-item index="scan"><el-icon><Refresh /></el-icon><span>扫描设置</span></el-menu-item>
     <el-menu-item index="playback"><el-icon><VideoPlay /></el-icon><span>播放设置</span></el-menu-item>

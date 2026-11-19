@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.lifecycle.Lifecycle
@@ -52,6 +53,7 @@ import com.miruplay.tv.model.libraryManualScanActionLabel
 import com.miruplay.tv.model.libraryNoSourcesMessage
 import com.miruplay.tv.model.libraryPosterWallSectionTitle
 import com.miruplay.tv.model.libraryRecentlyAddedSectionTitle
+import com.miruplay.tv.model.libraryScheduleActionLabel
 import com.miruplay.tv.model.libraryScanActionLabel
 import com.miruplay.tv.model.libraryScanNowActionLabel
 import com.miruplay.tv.model.libraryScanningTitle
@@ -69,6 +71,7 @@ import kotlinx.coroutines.delay
 @Composable
 fun LibraryScreen(
     onNavigateToSettings: () -> Unit,
+    onNavigateToSchedule: () -> Unit,
     onNavigateToDetail: (String) -> Unit,
     viewModel: LibraryViewModel = hiltViewModel()
 ) {
@@ -138,7 +141,8 @@ fun LibraryScreen(
                 },
                 onScan = { viewModel.scanNow() },
                 onCancelScan = { viewModel.cancelScan() },
-                onNavigateToSettings = onNavigateToSettings
+                onNavigateToSettings = onNavigateToSettings,
+                onNavigateToSchedule = onNavigateToSchedule,
             )
             
             when (val state = uiState) {
@@ -198,7 +202,8 @@ private fun LibraryHeader(
     onSearchActiveChange: (Boolean) -> Unit,
     onScan: () -> Unit,
     onCancelScan: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToSchedule: () -> Unit,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
@@ -269,6 +274,13 @@ private fun LibraryHeader(
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = libraryScheduleActionLabel().resolve(),
+                icon = Icons.Filled.DateRange,
+                onClick = onNavigateToSchedule,
+                modifier = Modifier.width(132.dp),
+                secondary = true,
+            )
             if (activeScan == null) {
                 TvButton(
                     text = libraryScanActionLabel().resolve(),

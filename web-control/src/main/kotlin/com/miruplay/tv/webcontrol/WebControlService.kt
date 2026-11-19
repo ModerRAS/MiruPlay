@@ -12,6 +12,7 @@ import com.miruplay.tv.core.common.Result
 import com.miruplay.tv.core.common.buildWebControlAccessUrls
 import com.miruplay.tv.clouddrive.CloudDriveClient
 import com.miruplay.tv.core.common.logging.MiruLog
+import com.miruplay.tv.data.schedule.ScheduleRepository
 import com.miruplay.tv.mediasource.MediaSourceFactory
 import com.miruplay.tv.model.Episode
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
@@ -130,6 +131,7 @@ class WebControlService @Inject constructor(
     private val appUpdateRepository: AppUpdateRepository,
     private val appUpdateChannelStore: AppUpdateChannelStore,
     private val appLocaleStore: AppLocaleStore,
+    private val scheduleRepository: ScheduleRepository,
     private val bangumiSyncEngine: BangumiSyncEngine,
     private val translationPreferencesRepository: TranslationPreferencesRepository,
     private val bangumiOAuth: BangumiOAuthCoordinator,
@@ -892,6 +894,28 @@ class WebControlService @Inject constructor(
             playbackPreferencesRepository.setFormatAwareToneMappingPreferences(prefs.normalized())
         }
         getPlaybackSettings()
+    }
+
+    override suspend fun getScheduleSettings(): ScheduleSettingsDto = runOnIo {
+        ScheduleSettingsDto(
+            dataSourceUrl = scheduleRepository.rawConfiguredUrl(),
+            configured = scheduleRepository.configuredUrlOrNull() != null,
+        )
+    }
+
+    override suspend fun saveScheduleSettings(request: ScheduleSettingsRequest): ScheduleSettingsDto = runOnIo {
+        val rawUrl = request.dataSourceUrl.trim()
+        if (rawUrl.isEmpty()) {
+            scheduleRepository.clearDataSourceUrl()
+            return@runOnIo ScheduleSettingsDto()
+        }
+        if (!scheduleRepository.saveDataSourceUrl(rawUrl)) {
+            throw IllegalArgumentException("时间表数据源地址无效，请填写 http:// 或 https:// 开头的完整地址")
+        }
+        ScheduleSettingsDto(
+            dataSourceUrl = scheduleRepository.rawConfiguredUrl(),
+            configured = true,
+        )
     }
 
     override suspend fun getAudioDsp(): AudioDspDto = runOnIo {

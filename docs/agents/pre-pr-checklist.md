@@ -374,3 +374,33 @@ Cross-checks：
 Not device-verified：
 
 - HK1 上用真实 Bangumi 账号走完验证码并看到收藏同步。本环境没有盒子，也没有发版用的 client id/secret。单测用 MockWebServer 固定了 Bangumi 登录页和授权页的 HTML 结构；线上页面改版后要再对一次真实验证码
+
+### 新番时间表（时间表服务接入 + 设置数据源）(2026-11-20)
+
+Own checks（HK1 真机，debug APK，2026-11-20）：
+
+- [真机] 媒体库顶栏「时间表」→ 新番时间表页：loading → 内容（2026-fall · 2026-10-01 至 2026-12-31；更新于 11-20 01:23；设备时区 Asia/Shanghai；媒体库匹配 0/10）
+- [真机] 周一 … 周日分组、组内按本地时间升序；JST→本地换算正确（日本时间 周一 19:00 → 周一 18:00；日本时间 周六 00:30 → 周五 23:30 且带「前日」标记）；周五分组显示「今天」chip，空分组显示「本日无新番」
+- [真机] 刷新重拉网络（清缓存后首次进入无「缓存」角标；再次进入显示「缓存」角标，证明磁盘缓存 TTL 内直接复用）
+- [真机] 设置 →「新番时间表」：菜单摘要「已配置」；面板显示服务地址、保存地址/打开时间表/清除地址；按保存显示「时间表地址已保存。」
+- [真机] 未配置态清空设置后显示「尚未配置时间表服务 / 去设置」；配置不可达地址且无缓存时显示「时间表获取失败 / 网络不可用，请检查网络后重试。/ 重试」
+- [真机] 设置页打开无崩溃（曾因 VerifyError 崩溃，修复后复测）；全流程 logcat 无 AndroidRuntime:E / FATAL
+- 单测：JSON fixture 解析 + 未知字段兼容、JST→本地（跨日前后、DST、weekday+time 优先于不可信 airDate）、7 天分组与本地时间排序、URL 校验/归一化/非法 scheme、内存+磁盘缓存 TTL/强制刷新/失败回退 stale/404 清缓存、设置保存校验、Bangumi subject id 匹配、Settings section 文案、WebAPI 路由 GET/PUT 正常/非法/清除
+
+Cross-checks：
+
+- 设置三端一致：TV 设置「新番时间表」、WebAPI `GET/PUT /api/settings/schedule`、WebUI「新番时间表」视图读写同一个 SharedPreferences 键；API/WebUI 单测只使用 `https://example.com`，真实服务地址不入库
+- 既有设置面板（媒体源/播放/元数据/代理等）与设置页返回/焦点导航不受新增 section 影响
+- 媒体库顶栏既有搜索/扫描/设置按钮焦点顺序保持（时间表按钮在扫描左侧，UP→搜索→RIGHT 逐项可达）
+- `./gradlew assembleDebug`、相关模块单测、`./gradlew lint` 全绿
+
+Not device-verified：
+
+- 匹配本地媒体库 → 进详情：HK1 现有媒体库只有 AudioTest（无 Bangumi ID），时间表 10 条全部「未在媒体库」；匹配逻辑与 fixture 由单测覆盖，详情路由复用既有 ANIME_DETAIL 路径
+- 404「暂无播出数据」空态：线上服务当前有数据，真机无法复现；由 `ScheduleRepositoryTest` 的 404 用例覆盖
+- 跨日「次日」标记：设备时区 Asia/Shanghai 只会出现「前日」；「次日」由 UTC+12 单测覆盖
+
+New findings（section 1 候选 failure class）：
+
+- **超大 Composable 追加捕获值 → D8 VerifyError（构建/单测全绿，真机进页面即崩）**：往 5.6k 行的 `AddSourceScreen` 主组合 lambda 里再加几个 `collectAsStateWithLifecycle` State/草稿后，debug（debuggable + R8 不优化）DEX 校验在进入设置页时报 `java.lang.VerifyError: Verifier rejected class ...AddSourceScreenKt$AddSourceScreen$12$1`；把新状态收进独立子组合（`ScheduleSourcePanel` 自行 collect/持有草稿）后恢复。检查：改超大型 Compose 函数时数一下主 lambda 新增捕获值，状态与 UI 尽量下沉到子 composable，并真机实际打开该页面。
+- **上游 airDate 与 weekday 自相矛盾**：时间表服务实测返回的 `airDate` 与 `weekday` 不一致（如 airDate 是周一而 weekday=周五），按 airDate 做时区锚定会把周五的番显示成周一；契约以 weekday+time 为权威，客户端换算只信这两个字段，单测 `inconsistent airDate does not override the weekday` 固化。

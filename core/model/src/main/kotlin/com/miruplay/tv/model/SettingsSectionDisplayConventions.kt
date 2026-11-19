@@ -17,6 +17,10 @@ enum class MiruPlaySettingsSection(
         androidTvTitle = uiText("settings_section_sources_title", "媒体源"),
         androidTvDescription = uiText("settings_section_sources_desc", "本地、WebDAV、SMB"),
     ),
+    SCHEDULE(
+        androidTvTitle = uiText("settings_section_schedule_title", "新番时间表"),
+        androidTvDescription = uiText("settings_section_schedule_desc", "数据源与每周播出时间"),
+    ),
     PLAYBACK(
         androidTvTitle = uiText("settings_section_playback_title", "播放"),
         androidTvDescription = uiText("settings_section_playback_desc", "播完动作"),
@@ -59,6 +63,7 @@ val androidTvSettingsSectionOrder: List<MiruPlaySettingsSection> =
     listOf(
         MiruPlaySettingsSection.WEB_UI,
         MiruPlaySettingsSection.SOURCES,
+        MiruPlaySettingsSection.SCHEDULE,
         MiruPlaySettingsSection.PLAYBACK,
         MiruPlaySettingsSection.AUDIO_DSP,
         MiruPlaySettingsSection.CLOUD_DRIVE,
@@ -169,6 +174,7 @@ data class SettingsSectionMenuSummaryInput(
     val sourceCount: Int = 0,
     val playbackSummary: UiText = rawUiText(""),
     val audioDspEnabled: Boolean = false,
+    val scheduleConfigured: Boolean = false,
     val cloudDriveEnabled: Boolean = false,
     val rssCount: Int = 0,
     val proxyEnabled: Boolean = false,
@@ -190,6 +196,7 @@ fun MiruPlaySettingsSection.settingsMenuSummary(
     when (this) {
         MiruPlaySettingsSection.WEB_UI -> settingsWebUiMenuSummary(input.webUiAddressCount)
         MiruPlaySettingsSection.SOURCES -> settingsSourcesMenuSummary(input.sourceCount)
+        MiruPlaySettingsSection.SCHEDULE -> settingsScheduleMenuSummary(input.scheduleConfigured)
         MiruPlaySettingsSection.PLAYBACK -> input.playbackSummary
         MiruPlaySettingsSection.AUDIO_DSP ->
             if (input.audioDspEnabled) {

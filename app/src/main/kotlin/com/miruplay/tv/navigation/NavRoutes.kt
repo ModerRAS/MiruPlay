@@ -17,6 +17,7 @@ object NavRoutes {
     const val MUSIC_DETAIL = "music/{albumId}"
     const val MUSIC_PLAYER = "music-player/{trackId}"
     const val SETTINGS = MiruPlayRouteSurface.SETTINGS_ROUTE
+    const val SCHEDULE = "schedule"
     const val ANIME_DETAIL = "${MiruPlayRouteSurface.ANIME_ROUTE_PREFIX}/{animeId}"
     const val PLAYER = "${MiruPlayRouteSurface.PLAYER_ROUTE_PREFIX}/{uri}"
     const val PLAYER_WITH_OPTIONS = "$PLAYER?mediaSourceId={mediaSourceId}&startPosition={startPosition}&episodeId={episodeId}&progressId={progressId}"

@@ -81,6 +81,7 @@ Suggested scope for the subagent:
 | Feature | TV settings | WebAPI | WebUI | Notes |
 |---|---|---|---|---|
 | Topping DAC 控制（toppingctl 协议） | ✅ AUDIO_DSP 区内 `ToppingDacControls` | ✅ `/api/topping/{status,volume,preset,flat,gain,power,preamp,usb-permission}` | ✅ 音频 DSP 视图 Topping DAC 卡片 | 音量仅 DX5 II（音量不在 HID 上的型号禁用输入）；> −10 dB 需确认；未 confirmed 型号拒写 |
+| 新番时间表数据源（AirRadar 兼容） | ✅ 设置 →「新番时间表」（服务地址输入、保存/清除、已配置/未配置状态） | ✅ `GET/PUT /api/settings/schedule`（`ScheduleSettingsDto` ↔ `ScheduleRepository`）；空字符串=清除，非法地址返回 400 | ✅「新番时间表」视图（地址输入、保存/清除、已配置/未配置状态） | 服务地址由用户在运行时填写，只保存在设备本机 SharedPreferences；仓库、文档、日志都不写入真实域名（示例仅用 `https://example.com`） |
 | 出站代理（Bangumi API / Archive / RSS / OAuth 登录页） | ✅ 设置 →「出站代理」面板（`settings_proxy_panel_desc` 已含「Bangumi 登录页」，字段 `rssProxy*`）；OAuth 对话框运行时把同一配置装到内置 WebView（`BangumiOAuthWebViewProxy`，进程级 override） | ✅ `GET/PUT /api/proxy`（`NetworkProxyDto` ↔ `CloudDriveAutomationConfig.rssProxy*`） | ✅「代理配置」视图的出站代理卡片（说明文案已含「Bangumi 登录页」） | 配置面三端同源；WebView 代理是设备进程级能力，Web 端只读写配置、不参与 apply |
 | Bangumi 登录 | ✅ 元数据区 WebView / 外部浏览器，回环 `127.0.0.1:13712/callback` | ✅ `POST /api/metadata/bangumi-login/start|captcha|cancel` 与 `POST /api/metadata/bangumi-login`（邮箱、密码、验证码）。手动 token 仍走 `bangumi-token`。密码不入库、不回显 | ✅ 元数据页账号登录：验证码由电视代拉（走出站代理），通过后设备换 token | 网页不把浏览器重定向到 `127.0.0.1`。TV WebView 与网页登录共用 `BangumiOAuthCoordinator`。未配 client id/secret 时网页返回 `not_configured` |
 

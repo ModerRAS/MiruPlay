@@ -74,6 +74,7 @@ class SettingsViewModelTokenTest {
     @MockK lateinit var bangumiSyncEngine: BangumiSyncEngine
     @MockK lateinit var bangumiOAuth: com.miruplay.tv.sync.BangumiOAuthCoordinator
     @MockK lateinit var backgroundTasks: BackgroundTaskForegroundController
+    @MockK lateinit var scheduleRepository: com.miruplay.tv.data.schedule.ScheduleRepository
 
     private val logStatus = MutableStateFlow(LogUploadStatus())
 
@@ -115,6 +116,9 @@ class SettingsViewModelTokenTest {
 
         every { webControlPreferences.webControlEnabled } returns false
         every { webControlPreferences.accessToken } returns "test-token"
+
+        every { scheduleRepository.rawConfiguredUrl() } returns ""
+        every { scheduleRepository.configuredUrlOrNull() } returns null
 
         every { cloudDriveRepository.observeConfig() } returns emptyFlow()
         every { cloudDriveRepository.observeSubscriptions() } returns emptyFlow()
@@ -260,6 +264,7 @@ class SettingsViewModelTokenTest {
             cloudDriveClient = cloudDriveClient,
             cloudDriveEngine = cloudDriveEngine,
             cloudDriveScheduler = cloudDriveScheduler,
+            scheduleRepository = scheduleRepository,
             bangumiArchiveStore = bangumiArchiveStore,
             bangumiSyncEngine = bangumiSyncEngine,
             bangumiOAuth = bangumiOAuth,

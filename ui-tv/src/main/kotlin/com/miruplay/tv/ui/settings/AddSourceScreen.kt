@@ -79,6 +79,7 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Subtitles
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Tv
 import androidx.compose.material.icons.filled.Upload
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.WifiTethering
@@ -325,6 +326,14 @@ import com.miruplay.tv.model.settingsProxyToggleLabel
 import com.miruplay.tv.model.settingsSaveTokenActionLabel
 import com.miruplay.tv.model.settingsScreenSubtitleLabel
 import com.miruplay.tv.model.settingsScreenTitleLabel
+import com.miruplay.tv.model.settingsScheduleClearActionLabel
+import com.miruplay.tv.model.settingsScheduleCurrentStatus
+import com.miruplay.tv.model.settingsScheduleCurrentUnsetStatus
+import com.miruplay.tv.model.settingsScheduleOpenScheduleActionLabel
+import com.miruplay.tv.model.settingsSchedulePanelDescription
+import com.miruplay.tv.model.settingsSchedulePanelTitleLabel
+import com.miruplay.tv.model.settingsScheduleSaveActionLabel
+import com.miruplay.tv.model.settingsScheduleUrlFieldLabel
 import com.miruplay.tv.model.settingsWebUiAccessTokenLabel
 import com.miruplay.tv.model.settingsWebUiAddressLabel
 import com.miruplay.tv.model.settingsWebUiAvailableAddressesLabel
@@ -427,6 +436,7 @@ private fun MiruPlaySettingsSection.androidTvIcon(): ImageVector =
     when (this) {
         MiruPlaySettingsSection.WEB_UI -> Icons.Filled.WifiTethering
         MiruPlaySettingsSection.SOURCES -> Icons.Filled.Storage
+        MiruPlaySettingsSection.SCHEDULE -> Icons.Filled.Tv
         MiruPlaySettingsSection.PLAYBACK -> Icons.Filled.PlayArrow
         MiruPlaySettingsSection.AUDIO_DSP -> Icons.Filled.GraphicEq
         MiruPlaySettingsSection.CLOUD_DRIVE -> Icons.Filled.Cloud
@@ -444,6 +454,7 @@ fun AddSourceScreen(
     onNavigateBack: () -> Unit,
     onRestartApp: () -> Unit = {},
     onExitApp: () -> Unit = {},
+    onNavigateToSchedule: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -698,6 +709,7 @@ fun AddSourceScreen(
                     hasTmdbToken = savedTmdbToken.isNotBlank() || tmdbTokenSaved,
                     appVersionName = appAboutInfo.versionName,
                     appMode = currentAppMode.storageValue,
+                    viewModel = viewModel,
                     menuFocusRequesters = menuFocusRequesters,
                     onSectionSelected = { selectedSection = it },
                     modifier = Modifier
@@ -920,6 +932,8 @@ fun AddSourceScreen(
                     rssProxyPort = rssProxyPort,
                     onRssProxyPortChange = { rssProxyPort = it.filter(Char::isDigit).take(5) },
                     proxyStatusMessage = proxyStatusMessage,
+                    scheduleViewModel = viewModel,
+                    onOpenSchedule = onNavigateToSchedule,
                     rssSubscriptions = rssSubscriptions,
                     rssName = rssName,
                     onRssNameChange = { rssName = it },
@@ -1140,10 +1154,12 @@ private fun SettingsMenuPanel(
     hasTmdbToken: Boolean,
     appVersionName: String,
     appMode: String,
+    viewModel: SettingsViewModel,
     menuFocusRequesters: Map<MiruPlaySettingsSection, FocusRequester>,
     onSectionSelected: (MiruPlaySettingsSection) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scheduleConfigured by viewModel.scheduleConfigured.collectAsStateWithLifecycle()
     val menuSummaryInput = SettingsSectionMenuSummaryInput(
         webUiAddressCount = webUiAddressCount,
         sourceCount = sourcesCount,
@@ -1163,6 +1179,7 @@ private fun SettingsMenuPanel(
         proxyEnabled = proxyEnabled,
         proxyHost = proxyHost,
         proxyPort = proxyPort,
+        scheduleConfigured = scheduleConfigured,
         autoScanEnabled = autoScanEnabled,
         mergeSameAnimeEnabled = mergeSameAnimeEnabled,
         posterWallArrangement = posterWallArrangement,
@@ -1430,6 +1447,8 @@ private fun SettingsContent(
     rssProxyPort: String,
     onRssProxyPortChange: (String) -> Unit,
     proxyStatusMessage: UiMessage,
+    scheduleViewModel: SettingsViewModel,
+    onOpenSchedule: () -> Unit,
     rssSubscriptions: List<RssSubscriptionInfo>,
     rssName: String,
     onRssNameChange: (String) -> Unit,
@@ -1602,6 +1621,16 @@ private fun SettingsContent(
                 onPortChange = onRssProxyPortChange,
                 statusMessage = proxyStatusMessage,
                 onSave = onSaveProxyConfig,
+            )
+        }
+
+        MiruPlaySettingsSection.SCHEDULE -> SettingsSingleSectionPage(
+            section = selectedSection,
+            modifier = modifier
+        ) {
+            ScheduleSourcePanel(
+                viewModel = scheduleViewModel,
+                onOpenSchedule = onOpenSchedule,
             )
         }
 
@@ -4684,6 +4713,91 @@ private fun ProxySettingsPanel(
             icon = if (enabled) Icons.Filled.CheckCircle else Icons.Filled.Dns,
             text = settingsProxyCurrentStatus(enabled, host, parseRssProxyPort(port)).resolve(),
             color = if (enabled && host.isBlank()) WarningYellow else TextSecondary
+        )
+        StatusMessage(
+            icon = Icons.Filled.Refresh,
+            text = statusMessage.text.resolve(),
+            color = if (statusMessage is UiMessage.Error) WarningYellow else ProgressGreen
+        )
+    }
+}
+
+@Composable
+private fun ScheduleSourcePanel(
+    viewModel: SettingsViewModel,
+    onOpenSchedule: () -> Unit,
+) {
+    // 状态收集/草稿都留在子组合里：AddSourceScreen 本体已经太大，继续往它的
+    // 主组合 lambda 里加捕获的 State 会触发 D8 校验失败（settings 页 VerifyError）。
+    val storedDataSourceUrl by viewModel.scheduleDataSourceUrl.collectAsStateWithLifecycle()
+    val statusMessage by viewModel.scheduleStatusMessage.collectAsStateWithLifecycle()
+    var dataSourceUrl by remember { mutableStateOf("") }
+    LaunchedEffect(storedDataSourceUrl) {
+        dataSourceUrl = storedDataSourceUrl
+    }
+    SettingsPanel {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Filled.Tv,
+                contentDescription = null,
+                tint = TextPrimary,
+                modifier = Modifier.size(26.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Text(
+                text = settingsSchedulePanelTitleLabel().resolve(),
+                style = TvTypography.subtitle,
+                color = TextPrimary
+            )
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = settingsSchedulePanelDescription().resolve(),
+            style = TvTypography.body,
+            color = TextSecondary
+        )
+
+        Spacer(Modifier.height(16.dp))
+        TvTextField(
+            value = dataSourceUrl,
+            onValueChange = { dataSourceUrl = it },
+            label = settingsScheduleUrlFieldLabel().resolve(),
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(Modifier.height(14.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            TvButton(
+                text = settingsScheduleSaveActionLabel().resolve(),
+                icon = Icons.Filled.Save,
+                enabled = dataSourceUrl.isNotBlank(),
+                onClick = { viewModel.saveScheduleDataSourceUrl(dataSourceUrl) }
+            )
+            TvButton(
+                text = settingsScheduleOpenScheduleActionLabel().resolve(),
+                icon = Icons.Filled.Tv,
+                onClick = onOpenSchedule,
+                secondary = true
+            )
+            TvButton(
+                text = settingsScheduleClearActionLabel().resolve(),
+                icon = Icons.Filled.Delete,
+                enabled = dataSourceUrl.isNotBlank(),
+                onClick = viewModel::clearScheduleDataSourceUrl,
+                secondary = true
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+        StatusMessage(
+            icon = Icons.Filled.Tv,
+            text = if (dataSourceUrl.isBlank()) {
+                settingsScheduleCurrentUnsetStatus().resolve()
+            } else {
+                settingsScheduleCurrentStatus(dataSourceUrl.trim()).resolve()
+            },
+            color = TextSecondary
         )
         StatusMessage(
             icon = Icons.Filled.Refresh,

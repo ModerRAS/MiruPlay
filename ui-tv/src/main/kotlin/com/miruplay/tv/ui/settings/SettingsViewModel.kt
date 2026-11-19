@@ -16,6 +16,7 @@ import com.miruplay.tv.core.common.WebControlConfig
 import com.miruplay.tv.core.common.logging.MiruLog
 import com.miruplay.tv.data.preferences.ScanPreferencesManager
 import com.miruplay.tv.data.preferences.PlaybackPreferencesManager
+import com.miruplay.tv.data.schedule.ScheduleRepository
 import com.miruplay.tv.model.EpisodeVersionSelectionPolicy
 import com.miruplay.tv.model.FormatAwareToneMappingPreferences
 import com.miruplay.tv.model.AudioDspBand
@@ -122,6 +123,9 @@ import com.miruplay.tv.model.settingsAppUpdateReadyStatus
 import com.miruplay.tv.model.settingsAndroidTvLogUploadStatusMessage
 import com.miruplay.tv.model.settingsLogUploadStatusMessage
 import com.miruplay.tv.model.settingsProxySavedStatus
+import com.miruplay.tv.model.settingsScheduleClearedStatus
+import com.miruplay.tv.model.settingsScheduleInvalidUrlStatus
+import com.miruplay.tv.model.settingsScheduleSavedStatus
 import com.miruplay.tv.model.validateCloudDriveApiTokenForm
 import com.miruplay.tv.model.validateCloudDriveLoginForm
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -163,6 +167,7 @@ class SettingsViewModel @Inject constructor(
     private val cloudDriveClient: CloudDriveClient,
     private val cloudDriveEngine: CloudDriveRssAutomationEngine,
     private val cloudDriveScheduler: CloudDriveRssScheduler,
+    private val scheduleRepository: ScheduleRepository,
     private val bangumiArchiveStore: BangumiArchiveStore,
     private val backgroundTasks: BackgroundTaskForegroundController,
     private val audioDspRuntimeConfig: AudioDspRuntimeConfig,
@@ -606,6 +611,18 @@ class SettingsViewModel @Inject constructor(
         MutableStateFlow<UiMessage>(settingsProxySavedStatus().asInfo())
     val proxyStatusMessage: StateFlow<UiMessage> = _proxyStatusMessage.asStateFlow()
 
+    private val _scheduleDataSourceUrl =
+        MutableStateFlow(scheduleRepository.rawConfiguredUrl())
+    val scheduleDataSourceUrl: StateFlow<String> = _scheduleDataSourceUrl.asStateFlow()
+
+    private val _scheduleConfigured =
+        MutableStateFlow(scheduleRepository.configuredUrlOrNull() != null)
+    val scheduleConfigured: StateFlow<Boolean> = _scheduleConfigured.asStateFlow()
+
+    private val _scheduleStatusMessage =
+        MutableStateFlow<UiMessage>(settingsScheduleSavedStatus().asInfo())
+    val scheduleStatusMessage: StateFlow<UiMessage> = _scheduleStatusMessage.asStateFlow()
+
     init {
         loadSources()
         loadAppMode()
@@ -859,6 +876,23 @@ class SettingsViewModel @Inject constructor(
                 }
                 .onError { error -> _proxyStatusMessage.value = error.toUiText().asError() }
         }
+    }
+
+    fun saveScheduleDataSourceUrl(rawUrl: String) {
+        if (scheduleRepository.saveDataSourceUrl(rawUrl)) {
+            _scheduleDataSourceUrl.value = scheduleRepository.rawConfiguredUrl()
+            _scheduleConfigured.value = true
+            _scheduleStatusMessage.value = settingsScheduleSavedStatus().asInfo()
+        } else {
+            _scheduleStatusMessage.value = settingsScheduleInvalidUrlStatus().asError()
+        }
+    }
+
+    fun clearScheduleDataSourceUrl() {
+        scheduleRepository.clearDataSourceUrl()
+        _scheduleDataSourceUrl.value = ""
+        _scheduleConfigured.value = false
+        _scheduleStatusMessage.value = settingsScheduleClearedStatus().asInfo()
     }
 
     fun refreshBangumiArchive() {
