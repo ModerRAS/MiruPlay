@@ -221,7 +221,7 @@ fun settingsScreenSubtitleLabel(): UiText =
     uiText("settings_screen_subtitle", "管理媒体源、WebUI 和元数据服务")
 
 fun settingsMenuPanelDescriptionAndroidTv(): UiText =
-    uiText("settings_menu_panel_desc_tv", "按上下切换分类，向右进入当前设置。")
+    uiText("settings_menu_panel_desc_tv", "按上下选择分类，按确定打开，向右进入设置。")
 
 fun settingsOpenLibraryActionLabel(): UiText =
     uiText("settings_open_library", "打开海报墙")

@@ -123,7 +123,7 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("设置", settingsScreenTitleLabel().fallback)
         assertEquals("管理媒体源、WebUI 和元数据服务", settingsScreenSubtitleLabel().fallback)
         assertEquals("设置菜单", settingsMenuPanelTitle().fallback)
-        assertEquals("按上下切换分类，向右进入当前设置。", settingsMenuPanelDescriptionAndroidTv().fallback)
+        assertEquals("按上下选择分类，按确定打开，向右进入设置。", settingsMenuPanelDescriptionAndroidTv().fallback)
         assertEquals("打开海报墙", settingsOpenLibraryActionLabel().fallback)
         assertEquals("扫描当前源", settingsScanActiveSourceActionLabel().fallback)
         assertEquals("打开播放器", settingsOpenPlayerActionLabel().fallback)
