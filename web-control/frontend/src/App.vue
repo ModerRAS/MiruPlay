@@ -559,6 +559,77 @@
             </el-card>
           </section>
 
+          <section v-show="activeView === 'schedule'" class="proxy-layout">
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>新番时间表</strong>
+                  <el-tag :type="scheduleForm.configured ? 'success' : 'info'">
+                    {{ scheduleForm.configured ? '已配置' : '未配置' }}
+                  </el-tag>
+                </div>
+              </template>
+
+              <el-skeleton v-if="loading.schedule" animated :rows="4" />
+              <el-form v-else label-position="top" class="proxy-form" @submit.prevent>
+                <el-form-item label="时间表服务地址">
+                  <el-input
+                    v-model="scheduleForm.dataSourceUrl"
+                    placeholder="https://example.com"
+                    clearable
+                  />
+                </el-form-item>
+                <p class="muted">
+                  填写 AirRadar 兼容的时间表服务地址（http/https）。地址只保存在电视本机，不会上传。
+                </p>
+
+                <div class="form-actions">
+                  <el-button
+                    type="primary"
+                    :icon="Setting"
+                    :loading="loading.scheduleSave"
+                    @click="saveScheduleSettings"
+                  >
+                    保存地址
+                  </el-button>
+                  <el-button
+                    :icon="CircleClose"
+                    :loading="loading.scheduleSave"
+                    @click="clearScheduleSettings"
+                  >
+                    清除地址
+                  </el-button>
+                  <el-button :icon="Refresh" :loading="loading.schedule" @click="loadScheduleSettings">
+                    刷新
+                  </el-button>
+                </div>
+              </el-form>
+            </el-card>
+
+            <el-card shadow="never" class="panel-card">
+              <template #header>
+                <div class="card-header">
+                  <strong>当前状态</strong>
+                  <el-tag>{{ scheduleForm.configured ? '已配置' : '未配置' }}</el-tag>
+                </div>
+              </template>
+              <div class="log-status-grid">
+                <div class="status-tile">
+                  <span>数据源</span>
+                  <strong>{{ scheduleForm.configured ? '已配置' : '未配置' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>地址</span>
+                  <strong class="break-text">{{ scheduleForm.dataSourceUrl || '未填写' }}</strong>
+                </div>
+                <div class="status-tile">
+                  <span>保存位置</span>
+                  <strong>仅本机</strong>
+                </div>
+              </div>
+            </el-card>
+          </section>
+
           <section v-show="activeView === 'metadata'" class="metadata-layout">
             <el-card shadow="never" class="panel-card">
               <template #header>
@@ -2081,6 +2152,8 @@ const loading = reactive({
   bangumiArchiveUpload: false,
   proxy: false,
   proxySave: false,
+  schedule: false,
+  scheduleSave: false,
   scanSettings: false,
   scanSave: false,
   playbackSettings: false,
@@ -2145,6 +2218,10 @@ const proxyForm = reactive({
   enabled: false,
   host: '',
   port: 1080
+})
+const scheduleForm = reactive({
+  dataSourceUrl: '',
+  configured: false
 })
 const rssForm = reactive({
   name: '',
@@ -2404,6 +2481,7 @@ const viewMeta = computed(() => ({
   sources: ['媒体源', '用电脑或手机键盘添加、编辑和扫描媒体源。'],
   automation: ['自动化', '管理 RSS 订阅、CloudDrive2 离线下载和整理入库。'],
   proxy: ['代理配置', '设置 Bangumi、Archive 下载、RSS 请求和 Bangumi 登录页共用的出站 HTTP 代理。'],
+  schedule: ['新番时间表', '配置新番播出时间表服务地址。地址只保存在设备本机。'],
   metadata: ['元数据', '在网页填写 Bangumi 邮箱、密码和验证码完成登录，收藏和观看进度同步不必在电视上输入。'],
   scan: ['扫描设置', '自动扫描、入库归并、海报墙排列与应用内容模式。'],
   playback: ['播放设置', '默认播放结束动作与色调映射后端。'],
@@ -2528,6 +2606,7 @@ watch(activeView, (view) => {
     loadCloudDriveRunStatus()
   }
   if (view === 'proxy') loadProxyConfig()
+  if (view === 'schedule') loadScheduleSettings()
   if (view === 'metadata') loadMetadataSettings()
   if (view === 'scan') loadScanSettings()
   if (view === 'playback') loadPlaybackSettings()
@@ -2570,7 +2649,7 @@ async function initializeAccess() {
   }
 
   accessReady.value = true
-  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadAudioDsp(), loadWebControlAccess(), loadAppUpdate(), loadTranslationSettings()])
+  await Promise.allSettled([loadLibrary(), loadSources(), loadCloudDriveAutomation(), loadCloudDriveRunStatus(), loadProxyConfig(), loadScheduleSettings(), loadMetadataSettings(), loadLogUpload(), loadLocalLogs(), loadPlaybackStatus(), loadScanSettings(), loadPlaybackSettings(), loadAudioDsp(), loadWebControlAccess(), loadAppUpdate(), loadTranslationSettings()])
   if (!accessReady.value) return
   window.clearInterval(statusTimer)
   window.clearInterval(archiveTimer)
@@ -2664,6 +2743,15 @@ async function loadProxyConfig() {
     applyProxyConfig(await api('/api/proxy'))
   } finally {
     loading.proxy = false
+  }
+}
+
+async function loadScheduleSettings() {
+  loading.schedule = true
+  try {
+    applyScheduleSettings(await api('/api/settings/schedule'))
+  } finally {
+    loading.schedule = false
   }
 }
 
@@ -2790,6 +2878,14 @@ function applyProxyConfig(data) {
     rssProxyEnabled: Boolean(next.enabled),
     rssProxyHost: next.host || '',
     rssProxyPort: next.port || 1080
+  })
+}
+
+function applyScheduleSettings(data) {
+  const next = data || {}
+  Object.assign(scheduleForm, {
+    dataSourceUrl: next.dataSourceUrl || '',
+    configured: Boolean(next.configured)
   })
 }
 
@@ -2949,6 +3045,7 @@ async function refreshCurrent() {
   if (activeView.value === 'sources') await loadSources()
   if (activeView.value === 'automation') await Promise.all([loadSources(), loadCloudDriveAutomation()])
   if (activeView.value === 'proxy') await loadProxyConfig()
+  if (activeView.value === 'schedule') await loadScheduleSettings()
   if (activeView.value === 'metadata') await loadMetadataSettings()
   if (activeView.value === 'scan') await loadScanSettings()
   if (activeView.value === 'playback') await loadPlaybackSettings()
@@ -4566,6 +4663,37 @@ async function saveProxyConfig() {
     ElMessage.success('代理配置已保存')
   } finally {
     loading.proxySave = false
+  }
+}
+
+async function saveScheduleSettings() {
+  loading.scheduleSave = true
+  try {
+    applyScheduleSettings(await api('/api/settings/schedule', {
+      method: 'PUT',
+      body: JSON.stringify({ dataSourceUrl: scheduleForm.dataSourceUrl.trim() })
+    }))
+    ElMessage.success('时间表地址已保存。')
+  } catch (e) {
+    ElMessage.error(e.message || '保存时间表地址失败')
+  } finally {
+    loading.scheduleSave = false
+  }
+}
+
+async function clearScheduleSettings() {
+  loading.scheduleSave = true
+  try {
+    scheduleForm.dataSourceUrl = ''
+    applyScheduleSettings(await api('/api/settings/schedule', {
+      method: 'PUT',
+      body: JSON.stringify({ dataSourceUrl: '' })
+    }))
+    ElMessage.success('时间表地址已清除。')
+  } catch (e) {
+    ElMessage.error(e.message || '清除时间表地址失败')
+  } finally {
+    loading.scheduleSave = false
   }
 }
 

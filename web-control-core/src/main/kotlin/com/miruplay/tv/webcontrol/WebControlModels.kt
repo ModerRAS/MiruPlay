@@ -338,6 +338,17 @@ data class ScanSettingsRequest(
 )
 
 @Serializable
+data class ScheduleSettingsDto(
+    val dataSourceUrl: String = "",
+    val configured: Boolean = false,
+)
+
+@Serializable
+data class ScheduleSettingsRequest(
+    val dataSourceUrl: String = "",
+)
+
+@Serializable
 data class PlaybackBackendOptionDto(
     val value: String,
     val label: String,

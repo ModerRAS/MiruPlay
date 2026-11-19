@@ -64,6 +64,7 @@ import com.miruplay.tv.ui.music.MusicPlayerPlaceholder
 import com.miruplay.tv.ui.music.MusicPlayerScreen
 import com.miruplay.tv.ui.mode.DramaLibraryScreen
 import com.miruplay.tv.ui.player.PlayerScreen
+import com.miruplay.tv.ui.schedule.ScheduleScreen
 import com.miruplay.tv.ui.settings.AddSourceScreen
 import com.miruplay.tv.ui.theme.MiruPlayTheme
 import com.miruplay.tv.webcontrol.WebControlNavigator
@@ -1187,6 +1188,7 @@ private fun MiruPlayNavigation(
         composable(NavRoutes.LIBRARY) {
             LibraryScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
+                onNavigateToSchedule = { navController.navigate(NavRoutes.SCHEDULE) },
                 onNavigateToDetail = { animeId ->
                     runCatching {
                         navController.navigate(NavRoutes.animeDetail(animeId))
@@ -1292,6 +1294,26 @@ private fun MiruPlayNavigation(
                 onNavigateBack = { navController.popBackStack() },
                 onRestartApp = { (navController.context as? MainActivity)?.requestAppShutdown(restart = true) },
                 onExitApp = { (navController.context as? MainActivity)?.requestAppShutdown(restart = false) },
+                onNavigateToSchedule = { navController.navigate(NavRoutes.SCHEDULE) },
+            )
+        }
+
+        composable(NavRoutes.SCHEDULE) {
+            ScheduleScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToDetail = { animeId ->
+                    runCatching {
+                        navController.navigate(NavRoutes.animeDetail(animeId))
+                    }.onFailure { error ->
+                        MiruLog.e(
+                            "MiruPlayNavigation",
+                            "Failed to open anime detail from schedule",
+                            error,
+                            mapOf("anime_id" to animeId)
+                        )
+                    }
+                },
+                onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
             )
         }
 

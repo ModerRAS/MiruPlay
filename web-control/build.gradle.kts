@@ -82,6 +82,7 @@ dependencies {
     api(project(":core:model"))
     implementation(project(":core:common"))
     implementation(project(":repository-api"))
+    implementation(project(":data"))
     implementation(project(":cloud-drive"))
     implementation(project(":player-core"))
     implementation(project(":scanner"))

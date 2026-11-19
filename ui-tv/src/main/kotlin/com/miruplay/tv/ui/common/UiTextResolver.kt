@@ -1185,5 +1185,66 @@ internal fun uiTextResId(key: String): Int =
         "translate_lang_ru" -> R.string.translate_lang_ru
         "translate_lang_pt" -> R.string.translate_lang_pt
         "settings_app_mode_music" -> R.string.settings_app_mode_music
+        "settings_section_schedule_title" -> R.string.settings_section_schedule_title
+        "settings_section_schedule_desc" -> R.string.settings_section_schedule_desc
+        "settings_menu_schedule_configured" -> R.string.settings_menu_schedule_configured
+        "settings_menu_schedule_unconfigured" -> R.string.settings_menu_schedule_unconfigured
+        "settings_schedule_panel_title" -> R.string.settings_schedule_panel_title
+        "settings_schedule_panel_desc" -> R.string.settings_schedule_panel_desc
+        "settings_schedule_url_field" -> R.string.settings_schedule_url_field
+        "settings_schedule_save" -> R.string.settings_schedule_save
+        "settings_schedule_clear" -> R.string.settings_schedule_clear
+        "settings_schedule_saved" -> R.string.settings_schedule_saved
+        "settings_schedule_cleared" -> R.string.settings_schedule_cleared
+        "settings_schedule_invalid" -> R.string.settings_schedule_invalid
+        "settings_schedule_current_unset" -> R.string.settings_schedule_current_unset
+        "settings_schedule_current" -> R.string.settings_schedule_current
+        "settings_schedule_open" -> R.string.settings_schedule_open
+        "library_schedule_action" -> R.string.library_schedule_action
+        "schedule_title" -> R.string.schedule_title
+        "schedule_subtitle" -> R.string.schedule_subtitle
+        "schedule_loading" -> R.string.schedule_loading
+        "schedule_unconfigured_title" -> R.string.schedule_unconfigured_title
+        "schedule_unconfigured_desc" -> R.string.schedule_unconfigured_desc
+        "schedule_go_settings" -> R.string.schedule_go_settings
+        "schedule_empty_title" -> R.string.schedule_empty_title
+        "schedule_empty_desc" -> R.string.schedule_empty_desc
+        "schedule_error_title" -> R.string.schedule_error_title
+        "schedule_error_invalid_url" -> R.string.schedule_error_invalid_url
+        "schedule_error_network" -> R.string.schedule_error_network
+        "schedule_error_timeout" -> R.string.schedule_error_timeout
+        "schedule_error_http" -> R.string.schedule_error_http
+        "schedule_error_invalid_data" -> R.string.schedule_error_invalid_data
+        "schedule_retry" -> R.string.schedule_retry
+        "schedule_refresh" -> R.string.schedule_refresh
+        "schedule_back" -> R.string.schedule_back
+        "schedule_season_range" -> R.string.schedule_season_range
+        "schedule_updated_at" -> R.string.schedule_updated_at
+        "schedule_local_zone" -> R.string.schedule_local_zone
+        "schedule_today" -> R.string.schedule_today
+        "schedule_weekday_mon" -> R.string.schedule_weekday_mon
+        "schedule_weekday_tue" -> R.string.schedule_weekday_tue
+        "schedule_weekday_wed" -> R.string.schedule_weekday_wed
+        "schedule_weekday_thu" -> R.string.schedule_weekday_thu
+        "schedule_weekday_fri" -> R.string.schedule_weekday_fri
+        "schedule_weekday_sat" -> R.string.schedule_weekday_sat
+        "schedule_weekday_sun" -> R.string.schedule_weekday_sun
+        "schedule_local_time" -> R.string.schedule_local_time
+        "schedule_jst_time" -> R.string.schedule_jst_time
+        "schedule_cross_day_next" -> R.string.schedule_cross_day_next
+        "schedule_cross_day_previous" -> R.string.schedule_cross_day_previous
+        "schedule_confidence_high" -> R.string.schedule_confidence_high
+        "schedule_confidence_medium" -> R.string.schedule_confidence_medium
+        "schedule_confidence_low" -> R.string.schedule_confidence_low
+        "schedule_confidence_unknown" -> R.string.schedule_confidence_unknown
+        "schedule_source_count" -> R.string.schedule_source_count
+        "schedule_matched" -> R.string.schedule_matched
+        "schedule_unmatched" -> R.string.schedule_unmatched
+        "schedule_open_detail_hint" -> R.string.schedule_open_detail_hint
+        "schedule_matched_summary" -> R.string.schedule_matched_summary
+        "schedule_cached_badge" -> R.string.schedule_cached_badge
+        "schedule_stale_banner" -> R.string.schedule_stale_banner
+        "schedule_skipped_items" -> R.string.schedule_skipped_items
+        "schedule_empty_day" -> R.string.schedule_empty_day
         else -> 0
     }

@@ -10,13 +10,14 @@ class SettingsSectionDisplayConventionsTest {
     @Test
     fun `settings section copy is shared`() {
         assertEquals(
-            listOf("WebUI", "媒体源", "播放", "音频 DSP", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据", "关于"),
+            listOf("WebUI", "媒体源", "新番时间表", "播放", "音频 DSP", "CloudDrive", "代理配置", "扫描", "日志上报", "更新", "元数据", "关于"),
             androidTvSettingsSectionOrder.map { it.androidTvTitle.fallback },
         )
         assertEquals(
             listOf(
                 "访问地址与二维码",
                 "本地、WebDAV、SMB",
+                "数据源与每周播出时间",
                 "播完动作",
                 "PEQ、扫频测量与校准",
                 "RSS 离线下载与入库",
@@ -42,6 +43,8 @@ class SettingsSectionDisplayConventionsTest {
         assertEquals("等待网络", settingsWebUiMenuSummary(addressCount = 0).fallback)
         assertEquals("2 个地址", settingsWebUiMenuSummary(addressCount = 2).fallback)
         assertEquals("3 个源", settingsSourcesMenuSummary(sourceCount = 3).fallback)
+        assertEquals("未配置", settingsScheduleMenuSummary(configured = false).fallback)
+        assertEquals("已配置", settingsScheduleMenuSummary(configured = true).fallback)
         assertEquals("未启用", settingsCloudDriveMenuSummary(enabled = false, rssCount = 4).fallback)
         assertEquals("4 个订阅", settingsCloudDriveMenuSummary(enabled = true, rssCount = 4).fallback)
         assertEquals("未启用", settingsProxyMenuSummary(enabled = false).fallback)
@@ -102,6 +105,7 @@ class SettingsSectionDisplayConventionsTest {
         )
         assertEquals("2 个地址", MiruPlaySettingsSection.WEB_UI.settingsMenuSummary(androidInput).fallback)
         assertEquals("3 个源", MiruPlaySettingsSection.SOURCES.settingsMenuSummary(androidInput).fallback)
+        assertEquals("未配置", MiruPlaySettingsSection.SCHEDULE.settingsMenuSummary(androidInput).fallback)
         assertEquals("播完动作", MiruPlaySettingsSection.PLAYBACK.settingsMenuSummary(androidInput).fallback)
         assertEquals("4 个订阅", MiruPlaySettingsSection.CLOUD_DRIVE.settingsMenuSummary(androidInput).fallback)
         assertEquals("203.0.113.20:7890", MiruPlaySettingsSection.PROXY.settingsMenuSummary(androidInput).fallback)
