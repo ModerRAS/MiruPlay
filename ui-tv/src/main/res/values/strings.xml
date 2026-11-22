@@ -1224,4 +1224,10 @@
     <string name="schedule_stale_banner">网络不可用，正在显示上次缓存的数据。</string>
     <string name="schedule_skipped_items">%1$d 条数据时间无法解析，已跳过。</string>
     <string name="schedule_empty_day">本日无新番</string>
+    <string name="schedule_time_unknown">时间未知</string>
+    <string name="schedule_time_disputed">时间有争议</string>
+    <string name="schedule_stale_banner_timeout">请求超时，正在显示上次缓存的数据。</string>
+    <string name="schedule_stale_banner_invalid_data">时间表数据格式无法识别，正在显示上次缓存的数据。</string>
+    <string name="schedule_stale_banner_http">时间表服务返回错误（HTTP %1$d），正在显示上次缓存的数据。</string>
+    <string name="schedule_stale_banner_other">暂时无法获取时间表，正在显示上次缓存的数据。</string>
 </resources>

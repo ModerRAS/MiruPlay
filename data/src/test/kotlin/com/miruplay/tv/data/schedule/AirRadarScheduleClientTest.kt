@@ -54,6 +54,31 @@ class AirRadarScheduleClientTest {
     }
 
     @Test
+    fun `nullable time and time flags parse successfully`() = runBlocking {
+        // 线上新 API：无具体时间的行返回 time:null + timeKnown:false + disputed 字段。
+        // 2.19.0 的旧模型是非空 String，整包解析失败后 UI 误报「网络不可用」。
+        server.enqueue(
+            MockResponse().setResponseCode(200).setBody(
+                """{"schemaVersion":1,"season":"2026-fall","seasonStart":"2026-09-21","timezone":"Asia/Tokyo","items":[
+                   {"subjectId":101,"name":"Known","weekday":1,"time":"23:00","timeKnown":true,"disputed":false},
+                   {"subjectId":102,"name":"Unknown","weekday":1,"time":null,"timeKnown":false,"disputed":false},
+                   {"subjectId":103,"name":"Disputed","weekday":3,"time":"19:00","timeKnown":true,"disputed":true}
+                ]}""",
+            ),
+        )
+
+        val result = client.fetchLatest(baseUrl())
+
+        assertTrue(result is ScheduleFetchResult.Success)
+        val snapshot = (result as ScheduleFetchResult.Success).snapshot
+        assertEquals("2026-09-21", snapshot.seasonStart)
+        assertEquals(3, snapshot.items.size)
+        assertEquals(null, snapshot.items[1].time)
+        assertEquals(false, snapshot.items[1].timeKnown)
+        assertEquals(true, snapshot.items[2].disputed)
+    }
+
+    @Test
     fun `404 maps to no data`() = runBlocking {
         server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"no_schedule_data"}"""))
 

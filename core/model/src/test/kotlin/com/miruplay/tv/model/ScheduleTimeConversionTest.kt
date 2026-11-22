@@ -1,6 +1,7 @@
 package com.miruplay.tv.model
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -123,17 +124,54 @@ class ScheduleTimeConversionTest {
             now = Instant.parse("2026-10-01T00:00:00Z"), // JST 周四 09:00
         )
         assertEquals(7, weekly.days.size)
-        assertEquals(2, weekly.skippedItemCount) // 两条非法（4 的时钟、5 的周几）
-        assertEquals(3, weekly.totalCount)
+        assertEquals(1, weekly.skippedItemCount) // 只有 5 的周几非法被跳过
+        assertEquals(4, weekly.totalCount) // 4 的时钟非法降级为「时间未知」而不是丢弃
         val wednesday = weekly.day(3)!!
-        assertEquals(listOf(3, 1), wednesday.airings.map { it.subjectId }) // 18:00 早于 22:00
-        assertEquals(listOf("18:00", "22:00"), wednesday.airings.map { it.localTimeLabel })
+        assertEquals(listOf(3, 1, 4), wednesday.airings.map { it.subjectId }) // 18:00 → 22:00 → 时间未知（排最后）
+        assertEquals(listOf("18:00", "22:00", null), wednesday.airings.map { it.localTimeLabel })
+        assertFalse(wednesday.airings.last().timeKnown)
         // JST 周四 01:28 → 上海周四 00:28，仍在周四（当天 01:28 已过，锚到下周四语义相同）。
         assertEquals(4, weekly.day(4)!!.airings.single().localWeekday)
         assertEquals("00:28", weekly.day(4)!!.airings.single().localTimeLabel)
         assertEquals("2026-fall", weekly.season)
         assertEquals("Asia/Shanghai", weekly.localTimezone)
         assertEquals("Asia/Tokyo", weekly.sourceTimezone)
+    }
+
+    @Test
+    fun `null time and timeKnown false become time-unknown rows grouped by weekday`() {
+        val snapshot = ScheduleSnapshot(
+            timezone = "Asia/Tokyo",
+            items = listOf(
+                ScheduleItem(subjectId = 11, name = "Known", weekday = 2, time = "18:00"),
+                ScheduleItem(
+                    subjectId = 12,
+                    name = "UnknownNull",
+                    weekday = 2,
+                    time = null,
+                    timeKnown = false,
+                    disputed = true,
+                ),
+                ScheduleItem(subjectId = 13, name = "UnknownFlag", weekday = 2, time = "19:00", timeKnown = false),
+            ),
+        )
+        val weekly = ScheduleTimeConversion.buildWeeklySchedule(
+            snapshot = snapshot,
+            localZone = shanghai,
+            now = Instant.parse("2026-10-01T00:00:00Z"),
+        )
+        assertEquals(0, weekly.skippedItemCount)
+        assertEquals(3, weekly.totalCount)
+        val tuesday = weekly.day(2)!!
+        assertEquals(listOf(11, 13, 12), tuesday.airings.map { it.subjectId }) // 时间未知的排在已知时间之后
+        val known = tuesday.airings[0]
+        assertTrue(known.timeKnown)
+        assertEquals("17:00", known.localTimeLabel)
+        val unknown = tuesday.airings.drop(1)
+        assertTrue(unknown.all { !it.timeKnown })
+        assertTrue(unknown.all { it.localTimeLabel == null && it.jstTimeLabel == null })
+        assertEquals(2, unknown.map { it.localWeekday }.distinct().single())
+        assertTrue(tuesday.airings.first { it.subjectId == 12 }.disputed)
     }
 
     @Test

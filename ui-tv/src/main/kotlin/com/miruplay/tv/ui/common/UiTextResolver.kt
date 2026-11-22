@@ -1246,5 +1246,11 @@ internal fun uiTextResId(key: String): Int =
         "schedule_stale_banner" -> R.string.schedule_stale_banner
         "schedule_skipped_items" -> R.string.schedule_skipped_items
         "schedule_empty_day" -> R.string.schedule_empty_day
+        "schedule_time_unknown" -> R.string.schedule_time_unknown
+        "schedule_time_disputed" -> R.string.schedule_time_disputed
+        "schedule_stale_banner_timeout" -> R.string.schedule_stale_banner_timeout
+        "schedule_stale_banner_invalid_data" -> R.string.schedule_stale_banner_invalid_data
+        "schedule_stale_banner_http" -> R.string.schedule_stale_banner_http
+        "schedule_stale_banner_other" -> R.string.schedule_stale_banner_other
         else -> 0
     }

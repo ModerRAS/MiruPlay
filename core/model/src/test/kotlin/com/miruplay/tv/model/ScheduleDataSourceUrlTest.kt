@@ -44,6 +44,41 @@ class ScheduleDataSourceUrlTest {
     }
 
     @Test
+    fun `full latest endpoint is stripped to base url`() {
+        assertEquals(
+            "https://example.com",
+            ScheduleDataSourceUrl.normalize("https://example.com/api/schedule/latest"),
+        )
+        assertEquals(
+            "https://example.com",
+            ScheduleDataSourceUrl.normalize("  https://example.com/api/schedule/latest/  "),
+        )
+        assertEquals(
+            "https://example.com/base",
+            ScheduleDataSourceUrl.normalize("https://example.com/base/api/schedule/latest"),
+        )
+        assertEquals(
+            "https://example.com",
+            ScheduleDataSourceUrl.normalize("https://example.com/API/Schedule/Latest"),
+        )
+        // 不是完整接口地址的路径不能被误删
+        assertEquals(
+            "https://example.com/api/schedule",
+            ScheduleDataSourceUrl.normalize("https://example.com/api/schedule"),
+        )
+        assertEquals(
+            "https://example.com/api/schedule/latest-2",
+            ScheduleDataSourceUrl.normalize("https://example.com/api/schedule/latest-2"),
+        )
+        // 归一化后再拼接口不会出现重复路径
+        val normalized = ScheduleDataSourceUrl.normalize("https://example.com/api/schedule/latest")!!
+        assertEquals(
+            "https://example.com/api/schedule/latest",
+            ScheduleDataSourceUrl.latestScheduleEndpoint(normalized),
+        )
+    }
+
+    @Test
     fun `latest endpoint joins without double slash`() {
         assertEquals(
             "https://example.com/api/schedule/latest",

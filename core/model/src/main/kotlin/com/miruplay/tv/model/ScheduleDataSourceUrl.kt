@@ -9,9 +9,13 @@ import java.net.URI
  * - 只接受 http / https；
  * - 必须有 host，不能带空白字符；
  * - 不接受 query / fragment（它是 base URL，客户端再拼 `/api/schedule/latest`）；
- * - 去掉末尾的 `/`，避免拼出双斜杠。
+ * - 去掉末尾的 `/`，避免拼出双斜杠；
+ * - 用户直接粘贴完整接口地址（`.../api/schedule/latest[/]`）时自动去掉接口后缀，
+ *   避免客户端再拼一次变成 `.../latest/api/schedule/latest` → 404。
  */
 object ScheduleDataSourceUrl {
+
+    private val LATEST_ENDPOINT_SUFFIX = Regex("(?i)/api/schedule/latest/?$")
 
     fun normalize(raw: String?): String? {
         val trimmed = raw?.trim().orEmpty()
@@ -27,6 +31,8 @@ object ScheduleDataSourceUrl {
         if (uri.rawQuery != null || uri.rawFragment != null) return null
 
         val normalized = trimmed.trimEnd('/')
+            .replace(LATEST_ENDPOINT_SUFFIX, "")
+            .trimEnd('/')
         return normalized.takeIf { it.isNotEmpty() }
     }
 

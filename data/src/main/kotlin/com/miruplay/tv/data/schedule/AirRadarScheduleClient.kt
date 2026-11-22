@@ -9,7 +9,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.IOException
-import java.net.SocketTimeoutException
+import java.io.InterruptedIOException
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
@@ -40,6 +40,8 @@ class AirRadarScheduleClient @Inject constructor(
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        // 未来服务端再给带默认值的字段返回 null 时降级为默认值，而不是整包解析失败。
+        coerceInputValues = true
     }
 
     suspend fun fetchLatest(baseUrl: String): ScheduleFetchResult = withContext(Dispatchers.IO) {
@@ -71,7 +73,9 @@ class AirRadarScheduleClient @Inject constructor(
                     }
                 }
             }
-        } catch (_: SocketTimeoutException) {
+        } catch (_: InterruptedIOException) {
+            // SocketTimeoutException 与 OkHttp callTimeout 抛出的 InterruptedIOException
+            // 都归为超时；ConnectException 等其它 IOException 才是网络故障。
             ScheduleFetchResult.Failure(ScheduleFetchError.Timeout)
         } catch (_: IOException) {
             ScheduleFetchResult.Failure(ScheduleFetchError.Network)

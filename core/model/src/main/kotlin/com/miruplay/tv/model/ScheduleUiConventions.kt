@@ -167,6 +167,14 @@ fun scheduleLocalTimeLabel(weekday: Int, localTime: String): UiText {
     )
 }
 
+/** 服务端明确标记或缺失播出时刻时展示（此时不显示具体时间）。 */
+fun scheduleTimeUnknownLabel(): UiText =
+    uiText("schedule_time_unknown", "时间未知")
+
+/** 来源之间存在时间冲突时的标记（服务端 disputed=true）。 */
+fun scheduleTimeDisputedLabel(): UiText =
+    uiText("schedule_time_disputed", "时间有争议")
+
 /** 原始 JST 时刻，作为次要信息展示。 */
 fun scheduleJstTimeLabel(jstWeekday: Int, jstTime: String): UiText {
     val dayLabel = scheduleWeekdayLabel(jstWeekday)
@@ -218,8 +226,35 @@ fun scheduleMatchedSummary(matchedCount: Int, totalCount: Int): UiText {
 fun scheduleCachedBadgeLabel(): UiText =
     uiText("schedule_cached_badge", "缓存")
 
-fun scheduleStaleBannerLabel(): UiText =
-    uiText("schedule_stale_banner", "网络不可用，正在显示上次缓存的数据。")
+/**
+ * 回退到旧缓存时的提示条。文案必须与真实失败原因一致：
+ * 只有真正的网络/超时失败才能说「网络不可用」，解析失败要说「数据格式无法识别」，
+ * 否则会把 API 兼容性问题误导成网络问题（2026-11-22 线上 2.19.0 实测踩坑）。
+ */
+fun scheduleStaleBannerLabel(error: ScheduleFetchError?): UiText =
+    when (error) {
+        ScheduleFetchError.Timeout -> uiText(
+            "schedule_stale_banner_timeout",
+            "请求超时，正在显示上次缓存的数据。",
+        )
+        ScheduleFetchError.InvalidData -> uiText(
+            "schedule_stale_banner_invalid_data",
+            "时间表数据格式无法识别，正在显示上次缓存的数据。",
+        )
+        is ScheduleFetchError.Http -> UiText(
+            "schedule_stale_banner_http",
+            listOf(error.code),
+            "时间表服务返回错误（HTTP ${error.code}），正在显示上次缓存的数据。",
+        )
+        ScheduleFetchError.InvalidUrl -> uiText(
+            "schedule_stale_banner_other",
+            "暂时无法获取时间表，正在显示上次缓存的数据。",
+        )
+        ScheduleFetchError.Network, null -> uiText(
+            "schedule_stale_banner",
+            "网络不可用，正在显示上次缓存的数据。",
+        )
+    }
 
 fun scheduleSkippedItemsLabel(count: Int): UiText {
     val safe = count.coerceAtLeast(0)
