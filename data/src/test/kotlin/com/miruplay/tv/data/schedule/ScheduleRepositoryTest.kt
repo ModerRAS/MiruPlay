@@ -1,6 +1,7 @@
 package com.miruplay.tv.data.schedule
 
 import android.content.Context
+import com.miruplay.tv.model.ScheduleFetchError
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
@@ -142,7 +143,22 @@ class ScheduleRepositoryTest {
 
         assertTrue(result.fromCache)
         assertTrue(result.stale)
-        assertNotNull(result.error)
+        assertEquals(ScheduleFetchError.Network, result.error)
+    }
+
+    @Test
+    fun `invalid data falls back to stale cache with parse error reason`() = runBlocking {
+        assertTrue(configureUrl())
+        server.enqueue(MockResponse().setResponseCode(200).setBody(FIXTURE))
+        repository.load(nowMillis = 1_000L)
+
+        // 200 但响应体不是合法 JSON：必须回退缓存，且错误原因是「数据格式」而不是网络。
+        server.enqueue(MockResponse().setResponseCode(200).setBody("not-json"))
+        val result = repository.load(forceRefresh = true, nowMillis = 2_000L) as ScheduleLoadResult.Success
+
+        assertTrue(result.fromCache)
+        assertTrue(result.stale)
+        assertEquals(ScheduleFetchError.InvalidData, result.error)
     }
 
     @Test

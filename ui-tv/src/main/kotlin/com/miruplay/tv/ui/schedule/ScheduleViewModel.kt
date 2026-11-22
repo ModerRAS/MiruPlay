@@ -56,6 +56,8 @@ sealed interface ScheduleUiState {
         val days: List<ScheduleDayUi>,
         val fromCache: Boolean,
         val stale: Boolean,
+        /** stale=true 时的真实失败原因，用于选择提示文案（网络/超时/数据格式…）。 */
+        val staleError: ScheduleFetchError? = null,
         val matchedCount: Int,
         val totalCount: Int,
         val skippedItemCount: Int,
@@ -132,6 +134,7 @@ class ScheduleViewModel @Inject constructor(
             days = days,
             fromCache = result.fromCache,
             stale = result.stale,
+            staleError = result.error,
             matchedCount = matchedCount,
             totalCount = weekly.totalCount,
             skippedItemCount = weekly.skippedItemCount,

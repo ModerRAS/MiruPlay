@@ -1222,4 +1222,10 @@
     <string name="schedule_stale_banner">網絡不可用，正在顯示上次快取的資料。</string>
     <string name="schedule_skipped_items">%1$d 筆資料時間無法解析，已略過。</string>
     <string name="schedule_empty_day">本日無新番</string>
+    <string name="schedule_time_unknown">時間未知</string>
+    <string name="schedule_time_disputed">時間有爭議</string>
+    <string name="schedule_stale_banner_timeout">請求逾時，正在顯示上次快取的資料。</string>
+    <string name="schedule_stale_banner_invalid_data">無法辨識時間表資料格式，正在顯示上次快取的資料。</string>
+    <string name="schedule_stale_banner_http">時間表服務回傳錯誤（HTTP %1$d），正在顯示上次快取的資料。</string>
+    <string name="schedule_stale_banner_other">暫時無法取得時間表，正在顯示上次快取的資料。</string>
 </resources>

@@ -2,6 +2,7 @@ package com.miruplay.tv.model
 
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -63,7 +64,10 @@ class ScheduleSnapshotParsingTest {
         }
     """.trimIndent()
 
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+    }
 
     @Test
     fun `fixture decodes per api contract`() {
@@ -86,6 +90,55 @@ class ScheduleSnapshotParsingTest {
         assertEquals("夜中アニメ", snapshot.items[1].displayName)
         // 未知 confidence 值降级为 UNKNOWN 而不是解析失败
         assertEquals(ScheduleConfidence.UNKNOWN, ScheduleConfidence.fromWire(snapshot.items[2].confidence))
+    }
+
+    @Test
+    fun `new api nullable time and time flags parse and keep rows`() {
+        // 2026-11 新 API：无具体时间的行返回 time:null + timeKnown:false，并新增 disputed。
+        val payload = """
+            {
+              "schemaVersion": 1,
+              "season": "2026-fall",
+              "seasonStart": "2026-09-21",
+              "seasonEnd": "2026-12-31",
+              "timezone": "Asia/Tokyo",
+              "itemCount": 3,
+              "items": [
+                {"subjectId": 101, "name": "Known", "weekday": 1, "time": "23:00", "timeKnown": true, "disputed": false},
+                {"subjectId": 102, "name": "UnknownNull", "weekday": 1, "time": null, "timeKnown": false, "disputed": false},
+                {"subjectId": 103, "name": "Disputed", "weekday": 3, "time": "19:00", "timeKnown": true, "disputed": true}
+              ]
+            }
+        """.trimIndent()
+        val snapshot = json.decodeFromString<ScheduleSnapshot>(payload)
+        assertEquals("2026-09-21", snapshot.seasonStart)
+        assertEquals(3, snapshot.items.size)
+        assertNull(snapshot.items[1].time)
+        assertFalse(snapshot.items[1].timeKnown)
+        assertTrue(snapshot.items[2].disputed)
+
+        val weekly = ScheduleTimeConversion.buildWeeklySchedule(
+            snapshot = snapshot,
+            localZone = ZoneId.of("Asia/Shanghai"),
+            now = Instant.parse("2026-10-01T00:00:00Z"),
+        )
+        assertEquals(0, weekly.skippedItemCount)
+        assertEquals(3, weekly.totalCount) // 解析失败会被误报网络不可用；这里必须全部保留
+        val monday = weekly.day(1)!!.airings
+        assertEquals(2, monday.size)
+        assertTrue(monday.first().timeKnown)
+        assertFalse(monday.last().timeKnown)
+        assertNull(monday.last().localTimeLabel)
+        assertTrue(weekly.day(3)!!.airings.single().disputed)
+    }
+
+    @Test
+    fun `explicit null for defaulted fields is coerced instead of failing`() {
+        val tolerated = json.decodeFromString<ScheduleSnapshot>(
+            """{"schemaVersion":1,"timezone":null,"items":[{"subjectId":7,"name":null,"weekday":1,"time":"20:00"}]}""",
+        )
+        assertEquals("", tolerated.items.single().name)
+        assertEquals("20:00", tolerated.items.single().time)
     }
 
     @Test

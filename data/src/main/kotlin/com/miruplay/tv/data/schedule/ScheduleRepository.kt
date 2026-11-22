@@ -53,6 +53,7 @@ class ScheduleRepository @Inject constructor(
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        coerceInputValues = true
     }
     private val loadMutex = Mutex()
 

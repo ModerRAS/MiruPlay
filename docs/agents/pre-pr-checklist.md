@@ -404,3 +404,12 @@ New findings（section 1 候选 failure class）：
 
 - **超大 Composable 追加捕获值 → D8 VerifyError（构建/单测全绿，真机进页面即崩）**：往 5.6k 行的 `AddSourceScreen` 主组合 lambda 里再加几个 `collectAsStateWithLifecycle` State/草稿后，debug（debuggable + R8 不优化）DEX 校验在进入设置页时报 `java.lang.VerifyError: Verifier rejected class ...AddSourceScreenKt$AddSourceScreen$12$1`；把新状态收进独立子组合（`ScheduleSourcePanel` 自行 collect/持有草稿）后恢复。检查：改超大型 Compose 函数时数一下主 lambda 新增捕获值，状态与 UI 尽量下沉到子 composable，并真机实际打开该页面。
 - **上游 airDate 与 weekday 自相矛盾**：时间表服务实测返回的 `airDate` 与 `weekday` 不一致（如 airDate 是周一而 weekday=周五），按 airDate 做时区锚定会把周五的番显示成周一；契约以 weekday+time 为权威，客户端换算只信这两个字段，单测 `inconsistent airDate does not override the weekday` 固化。
+
+#### 2026-11-22 补丁：时间表新 API 的 nullable time / timeKnown / disputed（修复误报「网络不可用」）
+
+- 现象：线上 2.19.0 打开时间表，OkHttp 实际收到 HTTP 200（69645-byte body），UI 却显示「网络不可用，正在显示上次缓存的数据」，数据停留在上次缓存。
+- 根因：新 API 对「无具体时间」的行返回 `time: null` + `timeKnown: false`（并新增 `disputed`）；旧模型 `time: String` 非空 → kotlinx.serialization 整包解析失败 → 归类 `InvalidData`；repository 回退 stale 缓存时文案固定写「网络不可用」，把 API 兼容性问题误导成网络问题。
+- 修复：`time: String?` / `timeKnown: Boolean = true` / `disputed: Boolean = false`，Json 加 `coerceInputValues=true`；time 为空或 timeKnown=false 的行按周几分组并显示「时间未知」（已知时间在前、未知在后），disputed 显示「时间有争议」；stale banner 按真实失败原因出文案（网络/超时/数据格式/HTTP），解析失败不再声称网络不可用；粘贴完整 `/api/schedule/latest` 自动去后缀（与 Windows 对齐）。
+- [真机] HK1 2.19.0：清缓存后打开时间表，logcat `GET .../api/schedule/latest` → `200 (1293ms, 69645-byte body)`；UI 显示 `2026-fall · 2026-09-21 至 2026-12-31`、周一 11 条、`媒体库匹配 0/83`、「时间未知」行与「时间有争议」标记均可见；无「网络不可用」/「数据格式无法识别」文案，无 AndroidRuntime:E。证据：`artifacts/miruplay-airradar/androidtv-08-time-unknown-fix.png`、`androidtv-09-time-unknown-row.png`、`androidtv-08-logcat-redacted.txt`。
+- [真机] 设置地址改写为完整 `.../api/schedule/latest` 后仍只请求一次正确路径并 200（自动去后缀）；恢复 base 地址后再次 200，两次均正常解析。
+- 单测：null time/timeKnown/disputed 解析、默认值字段显式 null 的 coerce、时间未知分组与排序、stale banner 文案区分（解析失败不得含「网络」）、完整接口地址去后缀、client nullable payload 解析、repository 解析失败回退 stale 且 `error=InvalidData`。

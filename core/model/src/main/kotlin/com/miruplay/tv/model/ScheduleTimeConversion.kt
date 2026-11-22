@@ -128,7 +128,7 @@ object ScheduleTimeConversion {
 
     /**
      * 把一季的原始快照整理成「周一 … 周日」的分组周表：
-     * 条目按本地时间升序，7 天分组始终存在（没有条目的天是空分组）。
+     * 条目按本地时间升序（「时间未知」的排在当天最后），7 天分组始终存在。
      */
     fun buildWeeklySchedule(
         snapshot: ScheduleSnapshot,
@@ -140,42 +140,77 @@ object ScheduleTimeConversion {
         val groups = (1..7).associateWith { mutableListOf<ScheduleAiring>() }
 
         for (item in snapshot.items) {
-            val itemZone = parseZoneOrNull(item.timezone) ?: snapshotZone
-            val slot = toLocalSlot(
-                weekday = item.weekday,
-                time = item.time,
-                sourceZone = itemZone,
-                localZone = localZone,
-                now = now,
-            )
-            if (slot == null) {
+            val weekday = normalizeWeekday(item.weekday)
+            if (weekday == null) {
                 skipped++
                 continue
             }
-            val jstTime = parseTimeOfDay(item.time) ?: continue
-            val airing = ScheduleAiring(
-                subjectId = item.subjectId,
-                displayName = item.displayName,
-                originalName = item.name.trim(),
-                imageUrl = item.image?.trim()?.takeIf { it.isNotEmpty() },
-                confidence = ScheduleConfidence.fromWire(item.confidence),
-                sourceCount = item.sources.size,
-                airDate = item.airDate?.trim()?.takeIf { it.isNotEmpty() },
-                jstWeekday = item.weekday,
-                jstTimeLabel = formatClock(jstTime.hour, jstTime.minute),
-                localWeekday = slot.weekday,
-                localMinutes = slot.minutes,
-                localTimeLabel = slot.timeLabel,
-                crossDayOffset = slot.crossDayOffset,
-            )
-            groups.getValue(slot.weekday).add(airing)
+            val itemZone = parseZoneOrNull(item.timezone) ?: snapshotZone
+            val parsedTime = item.time?.let(::parseTimeOfDay)
+            // 新 API：time=null + timeKnown=false 表示「播出时刻未知」。这类行要正常展示
+            // （按周几分组 + 时间未知文案），绝不能当成解析失败进而误报网络错误。
+            // timeKnown=true 但 time 非法/缺失时同样降级为时间未知，而不是丢弃。
+            val slot = if (item.timeKnown && parsedTime != null) {
+                toLocalSlot(
+                    weekday = weekday,
+                    time = item.time.orEmpty(),
+                    sourceZone = itemZone,
+                    localZone = localZone,
+                    now = now,
+                )
+            } else {
+                null
+            }
+            val airing = if (slot != null && parsedTime != null) {
+                ScheduleAiring(
+                    subjectId = item.subjectId,
+                    displayName = item.displayName,
+                    originalName = item.name.trim(),
+                    imageUrl = item.image?.trim()?.takeIf { it.isNotEmpty() },
+                    confidence = ScheduleConfidence.fromWire(item.confidence),
+                    sourceCount = item.sources.size,
+                    airDate = item.airDate?.trim()?.takeIf { it.isNotEmpty() },
+                    jstWeekday = weekday,
+                    jstTimeLabel = formatClock(parsedTime.hour, parsedTime.minute),
+                    localWeekday = slot.weekday,
+                    localMinutes = slot.minutes,
+                    localTimeLabel = slot.timeLabel,
+                    crossDayOffset = slot.crossDayOffset,
+                    timeKnown = true,
+                    disputed = item.disputed,
+                )
+            } else {
+                ScheduleAiring(
+                    subjectId = item.subjectId,
+                    displayName = item.displayName,
+                    originalName = item.name.trim(),
+                    imageUrl = item.image?.trim()?.takeIf { it.isNotEmpty() },
+                    confidence = ScheduleConfidence.fromWire(item.confidence),
+                    sourceCount = item.sources.size,
+                    airDate = item.airDate?.trim()?.takeIf { it.isNotEmpty() },
+                    jstWeekday = weekday,
+                    jstTimeLabel = null,
+                    localWeekday = weekday,
+                    localMinutes = null,
+                    localTimeLabel = null,
+                    crossDayOffset = 0,
+                    timeKnown = false,
+                    disputed = item.disputed,
+                )
+            }
+            groups.getValue(airing.localWeekday).add(airing)
         }
 
         val days = (1..7).map { weekday ->
             ScheduleDay(
                 weekday = weekday,
-                airings = groups.getValue(weekday)
-                    .sortedWith(compareBy({ it.localMinutes }, { it.displayName })),
+                airings = groups.getValue(weekday).sortedWith(
+                    compareBy<ScheduleAiring>(
+                        { !it.timeKnown },
+                        { it.localMinutes ?: Int.MAX_VALUE },
+                        { it.displayName },
+                    ),
+                ),
             )
         }
         return WeeklySchedule(

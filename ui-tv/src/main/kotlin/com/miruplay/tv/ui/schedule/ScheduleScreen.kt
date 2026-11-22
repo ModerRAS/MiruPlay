@@ -64,6 +64,8 @@ import com.miruplay.tv.model.scheduleSourceCountLabel
 import com.miruplay.tv.model.scheduleScreenSubtitleLabel
 import com.miruplay.tv.model.scheduleScreenTitleLabel
 import com.miruplay.tv.model.scheduleStaleBannerLabel
+import com.miruplay.tv.model.scheduleTimeDisputedLabel
+import com.miruplay.tv.model.scheduleTimeUnknownLabel
 import com.miruplay.tv.model.scheduleTodayLabel
 import com.miruplay.tv.model.scheduleUnconfiguredDescription
 import com.miruplay.tv.model.scheduleUnconfiguredTitle
@@ -395,7 +397,7 @@ private fun ContentMetaRow(content: ScheduleUiState.Content) {
     if (content.stale) {
         Spacer(Modifier.height(6.dp))
         Text(
-            text = scheduleStaleBannerLabel().resolve(),
+            text = scheduleStaleBannerLabel(content.staleError).resolve(),
             style = TvTypography.caption,
             color = WarningYellow,
         )
@@ -475,33 +477,54 @@ private fun ScheduleRow(
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Column(modifier = Modifier.width(186.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            if (airing.timeKnown) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = scheduleLocalTimeLabel(
+                            airing.localWeekday,
+                            airing.localTimeLabel.orEmpty(),
+                        ).resolve(),
+                        style = TvTypography.subtitle,
+                        color = if (focused) Color.White else AnimeRed,
+                        maxLines = 1,
+                    )
+                    val crossDayLabel = when {
+                        airing.crossDayOffset > 0 -> scheduleCrossDayNextDayLabel()
+                        airing.crossDayOffset < 0 -> scheduleCrossDayPreviousDayLabel()
+                        else -> null
+                    }
+                    if (crossDayLabel != null) {
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = crossDayLabel.resolve(),
+                            style = TvTypography.caption,
+                            color = WarningYellow,
+                        )
+                    }
+                }
                 Text(
-                    text = scheduleLocalTimeLabel(airing.localWeekday, airing.localTimeLabel).resolve(),
+                    text = scheduleJstTimeLabel(
+                        airing.jstWeekday,
+                        airing.jstTimeLabel.orEmpty(),
+                    ).resolve(),
+                    style = TvTypography.caption,
+                    color = if (focused) Color.White.copy(alpha = 0.82f) else TextSecondary,
+                    maxLines = 1,
+                )
+            } else {
+                Text(
+                    text = scheduleWeekdayLabel(airing.localWeekday).resolve(),
                     style = TvTypography.subtitle,
                     color = if (focused) Color.White else AnimeRed,
                     maxLines = 1,
                 )
-                val crossDayLabel = when {
-                    airing.crossDayOffset > 0 -> scheduleCrossDayNextDayLabel()
-                    airing.crossDayOffset < 0 -> scheduleCrossDayPreviousDayLabel()
-                    else -> null
-                }
-                if (crossDayLabel != null) {
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        text = crossDayLabel.resolve(),
-                        style = TvTypography.caption,
-                        color = WarningYellow,
-                    )
-                }
+                Text(
+                    text = scheduleTimeUnknownLabel().resolve(),
+                    style = TvTypography.caption,
+                    color = if (focused) Color.White.copy(alpha = 0.82f) else TextSecondary,
+                    maxLines = 1,
+                )
             }
-            Text(
-                text = scheduleJstTimeLabel(airing.jstWeekday, airing.jstTimeLabel).resolve(),
-                style = TvTypography.caption,
-                color = if (focused) Color.White.copy(alpha = 0.82f) else TextSecondary,
-                maxLines = 1,
-            )
         }
 
         RemoteImage(
@@ -542,6 +565,13 @@ private fun ScheduleRow(
                         text = scheduleSourceCountLabel(airing.sourceCount).resolve(),
                         style = TvTypography.caption,
                         color = if (focused) Color.White.copy(alpha = 0.82f) else TextSecondary,
+                    )
+                }
+                if (airing.disputed) {
+                    Text(
+                        text = scheduleTimeDisputedLabel().resolve(),
+                        style = TvTypography.caption,
+                        color = if (focused) Color.White.copy(alpha = 0.82f) else WarningYellow,
                     )
                 }
             }

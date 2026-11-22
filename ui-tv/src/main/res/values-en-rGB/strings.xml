@@ -67,4 +67,10 @@
     <string name="schedule_stale_banner">Network unavailable, showing cached data.</string>
     <string name="schedule_skipped_items">%1$d items skipped (unparseable time).</string>
     <string name="schedule_empty_day">No anime today</string>
+    <string name="schedule_time_unknown">Time unknown</string>
+    <string name="schedule_time_disputed">Time disputed</string>
+    <string name="schedule_stale_banner_timeout">Request timed out, showing cached data.</string>
+    <string name="schedule_stale_banner_invalid_data">Unrecognized schedule data format, showing cached data.</string>
+    <string name="schedule_stale_banner_http">Schedule service returned an error (HTTP %1$d), showing cached data.</string>
+    <string name="schedule_stale_banner_other">Unable to load the schedule right now, showing cached data.</string>
 </resources>

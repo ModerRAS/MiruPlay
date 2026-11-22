@@ -30,10 +30,14 @@ data class ScheduleItem(
     val image: String? = null,
     /** JST 周几：1=周一 … 7=周日。 */
     val weekday: Int = 0,
-    /** JST 时刻，HH:mm。 */
-    val time: String = "",
+    /** JST 时刻，HH:mm。服务端对「时间未知」的行返回 null（并置 timeKnown=false）。 */
+    val time: String? = null,
+    /** false 表示服务端明确标记该行播出时刻未知（此时 time 通常为 null）。 */
+    val timeKnown: Boolean = true,
     val timezone: String? = null,
     val confidence: String? = null,
+    /** true 表示来源之间存在时间冲突（服务端 review 场景），客户端只做展示标记。 */
+    val disputed: Boolean = false,
     val sources: List<ScheduleSource> = emptyList(),
     val updatedAt: String? = null,
 ) {
@@ -90,15 +94,23 @@ data class ScheduleAiring(
     val sourceCount: Int,
     val airDate: String?,
     val jstWeekday: Int,
-    val jstTimeLabel: String,
+    /** JST 时刻；时间未知时为 null。 */
+    val jstTimeLabel: String?,
     val localWeekday: Int,
-    val localMinutes: Int,
-    val localTimeLabel: String,
+    /** 本地分钟数；时间未知时为 null。 */
+    val localMinutes: Int?,
+    /** "HH:mm"；时间未知时为 null。 */
+    val localTimeLabel: String?,
     val crossDayOffset: Int,
+    /** false 表示「时间未知」：仍按周几分组，只是不显示具体时刻。 */
+    val timeKnown: Boolean = true,
+    /** true 表示来源时间有争议。 */
+    val disputed: Boolean = false,
 ) {
-    /** 本地时间升序排序键：周几 * 1440 + 分钟。 */
+    /** 本地时间升序排序键：周几 * 1440 + 分钟；时间未知的行排在当天最后。 */
     val localSortKey: Int
-        get() = localWeekday.coerceIn(1, 7) * MINUTES_PER_DAY + localMinutes.coerceIn(0, MINUTES_PER_DAY - 1)
+        get() = localWeekday.coerceIn(1, 7) * MINUTES_PER_DAY +
+            (localMinutes ?: (MINUTES_PER_DAY - 1)).coerceIn(0, MINUTES_PER_DAY - 1)
 
     companion object {
         const val MINUTES_PER_DAY = 24 * 60
@@ -130,7 +142,7 @@ data class WeeklySchedule(
     val localTimezone: String,
     /** 固定 7 项，按周一 … 周日排列。 */
     val days: List<ScheduleDay>,
-    /** 时间/周几不合法而被跳过的条目数。 */
+    /** 周几不合法而被跳过的条目数（时间未知的条目不会跳过）。 */
     val skippedItemCount: Int = 0,
 ) {
     val totalCount: Int
